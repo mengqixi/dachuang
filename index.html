@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>密码攻击检测与加密算法自适应优化系统</title>
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@6.4.0/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #8b5cf6;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+        }
+        
+        body {
+            background-color: #f8fafc;
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+        }
+        
+        .navbar-brand {
+            font-weight: 700;
+            color: var(--primary-color) !important;
+        }
+        
+        .section-card {
+            background: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            border: 1px solid #e2e8f0;
+            margin-bottom: 24px;
+        }
+        
+        .section-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .section-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1e293b;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .section-title i {
+            color: var(--primary-color);
+        }
+        
+        .section-content {
+            padding: 24px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 24px;
+            text-align: center;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+        }
+        
+        .stat-value {
+            font-size: 32px;
+            font-weight: 800;
+            margin-bottom: 8px;
+        }
+        
+        .stat-label {
+            color: #64748b;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        .stat-trend {
+            margin-top: 8px;
+            font-size: 13px;
+        }
+        
+        .stat-trend.up { color: var(--success-color); }
+        .stat-trend.down { color: var(--danger-color); }
+        
+        .stat-card.primary .stat-value { color: var(--primary-color); }
+        .stat-card.success .stat-value { color: var(--success-color); }
+        .stat-card.warning .stat-value { color: var(--warning-color); }
+        .stat-card.danger .stat-value { color: var(--danger-color); }
+        
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+        
+        .upload-zone {
+            border: 2px dashed #cbd5e1;
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .upload-zone:hover {
+            border-color: var(--primary-color);
+            background: rgba(37, 99, 235, 0.05);
+        }
+        
+        .upload-zone.drag-over {
+            border-color: var(--primary-color);
+            background: rgba(37, 99, 235, 0.1);
+        }
+        
+        .upload-icon {
+            font-size: 48px;
+            color: var(--primary-color);
+            margin-bottom: 16px;
+        }
+        
+        .btn-primary-custom {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            padding: 10px 24px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary-custom:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(37, 99, 235, 0.4);
+        }
+        
+        .log-box {
+            background: #0f172a;
+            color: #94a3b8;
+            padding: 16px;
+            border-radius: 8px;
+            max-height: 250px;
+            overflow-y: auto;
+            font-family: 'Consolas', monospace;
+            font-size: 13px;
+        }
+        
+        .log-box .success { color: var(--success-color); }
+        .log-box .info { color: #3b82f6; }
+        .log-box .warning { color: var(--warning-color); }
+        
+        .data-table {
+            font-size: 13px;
+        }
+        
+        .comparison-card {
+            background: #ffffff;
+            border-radius: 12px;
+            padding: 24px;
+            border-top: 4px solid;
+        }
+        
+        .comparison-card.traditional { border-top-color: var(--danger-color); }
+        .comparison-card.homomorphic { border-top-color: var(--primary-color); }
+        
+        .comparison-badge {
+            font-size: 12px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+        }
+        
+        .comparison-badge.traditional { background: rgba(239, 68, 68, 0.1); color: var(--danger-color); }
+        .comparison-badge.homomorphic { background: rgba(37, 99, 235, 0.1); color: var(--primary-color); }
+        
+        .progress-bar-custom {
+            height: 6px;
+            border-radius: 3px;
+            background: #e2e8f0;
+            overflow: hidden;
+        }
+        
+        .progress-fill-custom {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.5s ease;
+        }
+        
+        .tag {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .tag-danger { background: rgba(239, 68, 68, 0.1); color: var(--danger-color); }
+        .tag-success { background: rgba(16, 185, 129, 0.1); color: var(--success-color); }
+        .tag-warning { background: rgba(245, 158, 11, 0.1); color: var(--warning-color); }
+        .tag-info { background: rgba(37, 99, 235, 0.1); color: var(--primary-color); }
+        
+        .metric-item {
+            background: #f8fafc;
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .metric-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1e293b;
+        }
+        
+        .metric-label {
+            font-size: 13px;
+            color: #64748b;
+        }
+        
+        .nav-pills .nav-link {
+            color: #64748b;
+            font-weight: 600;
+            margin-right: 4px;
+        }
+        
+        .nav-pills .nav-link.active {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+        }
+        
+        .loading-spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid var(--primary-color);
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg bg-white sticky-top shadow-sm mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-shield-halved"></i>
+                密码攻击检测与加密算法自适应优化系统
+            </a>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#" onclick="navTo('dashboard')">
+                            <i class="fas fa-chart-line"></i> 数据看板
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="navTo('data')">
+                            <i class="fas fa-database"></i> 数据准备
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="navTo('train')">
+                            <i class="fas fa-robot"></i> 模型训练
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="navTo('compare')">
+                            <i class="fas fa-balance-scale"></i> 加密对比
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="navTo('upload')">
+                            <i class="fas fa-upload"></i> 数据上传
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- 数据看板 -->
+        <section id="dashboard-section">
+            <div class="section-card">
+                <div class="section-header">
+                    <h2 class="section-title">
+                        <i class="fas fa-chart-pie"></i>
+                        实时数据看板
+                    </h2>
+                </div>
+                <div class="section-content">
+                    <div class="row mb-4">
+                        <div class="col-md-3 mb-3">
+                            <div class="stat-card primary">
+                                <div class="stat-icon"><i class="fas fa-shield-alt fa-2x"></i></div>
+                                <div class="stat-value" id="total-attacks">1,247</div>
+                                <div class="stat-label">检测到的攻击总数</div>
+                                <div class="stat-trend up"><i class="fas fa-arrow-up"></i> 12.5% 较上月</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="stat-card success">
+                                <div class="stat-icon"><i class="fas fa-bullseye fa-2x"></i></div>
+                                <div class="stat-value">94.5%</div>
+                                <div class="stat-label">检测准确率</div>
+                                <div class="stat-trend up"><i class="fas fa-arrow-up"></i> 2.3% 较上月</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="stat-card warning">
+                                <div class="stat-icon"><i class="fas fa-exclamation-triangle fa-2x"></i></div>
+                                <div class="stat-value">32</div>
+                                <div class="stat-label">误报数量</div>
+                                <div class="stat-trend down"><i class="fas fa-arrow-down"></i> 8.2% 较上月</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="stat-card danger">
+                                <div class="stat-icon"><i class="fas fa-bolt fa-2x"></i></div>
+                                <div class="stat-value">45.2ms</div>
+                                <div class="stat-label">平均响应时间</div>
+                                <div class="stat-trend up"><i class="fas fa-arrow-up"></i> 5ms 较上月</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-4">
+                        <div class="col-md-8 mb-3">
+                            <div class="card">
+                                <div class="card-header fw-bold bg-white">
+                                    <i class="fas fa-chart-line"></i> 攻击检测趋势（近6个月）
+                                </div>
+                                <div class="card-body">
+                                    <div class="chart-container">
+                                        <canvas id="trendChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="card">
+                                <div class="card-header fw-bold bg-white">
+                                    <i class="fas fa-chart-pie"></i> 攻击类型分布
+                                </div>
+                                <div class="card-body">
+                                    <div class="chart-container">
+                                        <canvas id="attackTypeChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 数据准备 -->
+        <section id="data-section" class="d-none">
+            <div class="section-card">
+                <div class="section-header">
+                    <h2 class="section-title">
+                        <i class="fas fa-database"></i>
+                        数据准备：敏感数据生成与加密
+                    </h2>
+                </div>
+                <div class="section-content">
+                    <div class="row mb-4">
+                        <div class="col-md-12">
+                            <div class="alert alert-info d-flex align-items-center gap-2">
+                                <i class="fas fa-info-circle"></i>
+                                <div>
+                                    <strong>说明：</strong>生成包含手机号、薪资、风控评分的敏感数据，并使用Paillier同态加密进行处理。
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">数据数量：</label>
+                            <select class="form-select" id="data-count">
+                                <option value="50">50 条</option>
+                                <option value="100" selected>100 条</option>
+                                <option value="500">500 条</option>
+                                <option value="1000">1000 条</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end">
+                            <button class="btn btn-primary-custom w-100" onclick="generateData()">
+                                <i class="fas fa-magic"></i> 生成并加密数据
+                            </button>
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end">
+                            <button class="btn btn-outline-success w-100" onclick="saveSampleData()">
+                                <i class="fas fa-save"></i> 保存样本数据
+                            </button>
+                        </div>
+                    </div>
+
+                    <ul class="nav nav-pills mb-4" id="dataTabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#plaintext-tab">
+                                <i class="fas fa-unlock"></i> 明文数据（前20条）
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#encrypted-tab">
+                                <i class="fas fa-lock"></i> 密态数据（前20条）
+                            </button>
+                        </li>
+                    </ul>
+
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="plaintext-tab">
+                            <div class="table-responsive">
+                                <table class="table table-striped table-hover data-table" id="plaintextTable">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>ID</th><th>手机号</th><th>薪资</th><th>信用分</th><th>年龄</th><th>是否欺诈</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="tab-pane fade" id="encrypted-tab">
+                            <div class="table-responsive">
+                                <table class="table table-striped table-hover data-table" id="encryptedTable">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>ID</th><th>手机号加密</th><th>薪资加密</th><th>信用分加密</th><th>标签</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 模型训练 -->
+        <section id="train-section" class="d-none">
+            <div class="section-card">
+                <div class="section-header">
+                    <h2 class="section-title">
+                        <i class="fas fa-robot"></i>
+                        模型训练：FATE联邦学习与对比
+                    </h2>
+                </div>
+                <div class="section-content">
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <button class="btn btn-primary-custom w-100" onclick="startFateTraining()">
+                                <i class="fas fa-play"></i> 开始 FATE 联邦学习训练
+                            </button>
+                        </div>
+                        <div class="col-md-6">
+                            <button class="btn btn-outline-danger w-100" onclick="startPlaintextTraining()">
+                                <i class="fas fa-play"></i> 开始 明文训练对比
+                            </button>
+                        </div>
+                    </div>
+
+                    <ul class="nav nav-pills mb-4" id="trainTabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#fate-tab">
+                                <i class="fas fa-shield-virus"></i> FATE 联邦学习
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#plaintext-train-tab">
+                                <i class="fas fa-exchange-alt"></i> 明文训练对比
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#compare-tab">
+                                <i class="fas fa-chart-bar"></i> 结果对比
+                            </button>
+                        </li>
+                    </ul>
+
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="fate-tab">
+                            <div class="row mb-4">
+                                <div class="col-md-6 mb-3">
+                                    <div class="card">
+                                        <div class="card-header bg-white fw-bold">
+                                            <i class="fas fa-terminal"></i> 训练日志
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="log-box" id="fateLogs">
+                                                <p class="text-muted">等待开始训练...</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <div class="card">
+                                        <div class="card-header bg-white fw-bold">
+                                            <i class="fas fa-chart-area"></i> 训练曲线
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="chart-container">
+                                                <canvas id="fateChart"></canvas>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="tab-pane fade" id="plaintext-train-tab">
+                            <div class="row mb-4">
+                                <div class="col-md-6 mb-3">
+                                    <div class="card">
+                                        <div class="card-header bg-white fw-bold">
+                                            <i class="fas fa-terminal"></i> 训练日志
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="log-box" id="plaintextLogs">
+                                                <p class="text-muted">等待开始训练...</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <div class="card">
+                                        <div class="card-header bg-white fw-bold">
+                                            <i class="fas fa-chart-area"></i> 训练曲线
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="chart-container">
+                                                <canvas id="plaintextChart"></canvas>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="tab-pane fade" id="compare-tab">
+                            <div class="card">
+                                <div class="card-header bg-white fw-bold">
+                                    <i class="fas fa-chart-bar"></i> 性能与精度对比
+                                </div>
+                                <div class="card-body">
+                                    <div class="chart-container">
+                                        <canvas id="compareChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 加密对比 -->
+        <section id="compare-section" class="d-none">
+            <div class="section-card">
+                <div class="section-header">
+                    <h2 class="section-title">
+                        <i class="fas fa-balance-scale"></i>
+                        加密算法对比分析
+                    </h2>
+                </div>
+                <div class="section-content">
+                    <div class="mb-4">
+                        <div class="row align-items-center">
+                            <div class="col-md-3">
+                                <label class="form-label fw-semibold">数据大小调节：</label>
+                            </div>
+                            <div class="col-md-7">
+                                <input type="range" class="form-range" id="dataSize" min="1" max="100" value="10">
+                            </div>
+                            <div class="col-md-2 text-end">
+                                <span class="badge bg-primary fs-5" id="dataSizeValue">10 MB</span>
+                            </div>
+                        </div>
+                        <div class="row mt-2">
+                            <div class="col-md-12">
+                                <div class="d-flex justify-content-between text-muted small">
+                                    <span>1 MB</span><span>25 MB</span><span>50 MB</span><span>75 MB</span><span>100 MB</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-4">
+                        <div class="col-md-6 mb-3">
+                            <div class="comparison-card traditional">
+                                <div class="d-flex justify-content-between align-items-center mb-4">
+                                    <h5 class="fw-bold"><i class="fas fa-key"></i> 传统加密 (AES-256)</h5>
+                                    <span class="comparison-badge traditional">传统方案</span>
+                                </div>
+                                <div class="row g-3">
+                                    <div class="col-md-6"><div class="metric-item">
+                                        <div class="metric-label">加密时间</div>
+                                        <div class="metric-value" id="tradEncTime">20.5 ms</div>
+                                    </div></div>
+                                    <div class="col-md-6"><div class="metric-item">
+                                        <div class="metric-label">解密时间</div>
+                                        <div class="metric-value" id="tradDecTime">16.2 ms</div>
+                                    </div></div>
+                                    <div class="col-md-6"><div class="metric-item">
+                                        <div class="metric-label">吞吐量</div>
+                                        <div class="metric-value" id="tradThroughput">55.0 Mbps</div>
+                                    </div></div>
+                                    <div class="col-md-6"><div class="metric-item">
+                                        <div class="metric-label">内存占用</div>
+                                        <div class="metric-value">128 MB</div>
+                                    </div></div>
+                                </div>
+                                <div class="mt-3">
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <span class="small text-muted">安全级别</span>
+                                        <span class="small fw-semibold" style="color: #f59e0b;">High</span>
+                                    </div>
+                                    <div class="progress-bar-custom">
+                                        <div class="progress-fill-custom" style="width: 75%; background: linear-gradient(90deg, #f59e0b, #ef4444);"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="comparison-card homomorphic">
+                                <div class="d-flex justify-content-between align-items-center mb-4">
+                                    <h5 class="fw-bold"><i class="fas fa-shield-alt"></i> 同态加密 (Paillier)</h5>
+                                    <span class="comparison-badge homomorphic">推荐方案</span>
+                                </div>
+                                <div class="row g-3">
+                                    <div class="col-md-6"><div class="metric-item">
+                                        <div class="metric-label">加密时间</div>
+                                        <div class="metric-value" id="homoEncTime">77.8 ms</div>
+                                    </div></div>
+                                    <div class="col-md-6"><div class="metric-item">
+                                        <div class="metric-label">解密时间</div>
+                                        <div class="metric-value" id="homoDecTime">66.5 ms</div>
+                                    </div></div>
+                                    <div class="col-md-6"><div class="metric-item">
+                                        <div class="metric-label">吞吐量</div>
+                                        <div class="metric-value" id="homoThroughput">17.0 Mbps</div>
+                                    </div></div>
+                                    <div class="col-md-6"><div class="metric-item">
+                                        <div class="metric-label">内存占用</div>
+                                        <div class="metric-value">256 MB</div>
+                                    </div></div>
+                                </div>
+                                <div class="mt-3">
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <span class="small text-muted">安全级别</span>
+                                        <span class="small fw-semibold" style="color: #10b981;">Very High</span>
+                                    </div>
+                                    <div class="progress-bar-custom">
+                                        <div class="progress-fill-custom" style="width: 98%; background: linear-gradient(90deg, #2563eb, #10b981);"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header bg-white fw-bold">
+                            <i class="fas fa-chart-line"></i> 性能对比曲线
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="encryptionCompareChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 数据上传 -->
+        <section id="upload-section" class="d-none">
+            <div class="section-card">
+                <div class="section-header">
+                    <h2 class="section-title">
+                        <i class="fas fa-upload"></i>
+                        数据上传与攻击检测
+                    </h2>
+                </div>
+                <div class="section-content">
+                    <div class="row mb-4">
+                        <div class="col-md-12">
+                            <div class="upload-zone" id="uploadZone">
+                                <input type="file" id="fileInput" accept=".csv,.json" class="d-none" onchange="handleFileSelect(event)">
+                                <div class="upload-icon"><i class="fas fa-cloud-upload-alt"></i></div>
+                                <h5>点击或拖拽文件到此处上传</h5>
+                                <p class="text-muted mb-0">支持 CSV, JSON 格式文件</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-4 d-none" id="uploadResultArea">
+                        <div class="col-md-4 mb-3">
+                            <div class="stat-card primary">
+                                <div class="stat-value" id="resultRecords">0</div>
+                                <div class="stat-label">记录数量</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="stat-card warning">
+                                <div class="stat-value" id="resultAnomalies">0</div>
+                                <div class="stat-label">检测到异常</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="stat-card success">
+                                <div class="stat-value" id="resultAccuracy">94.5%</div>
+                                <div class="stat-label">检测准确率</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card d-none" id="uploadDataCard">
+                        <div class="card-header bg-white fw-bold">
+                            <i class="fas fa-table"></i> 上传数据检测结果
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-striped data-table">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>ID</th><th>时间戳</th><th>密钥生成时间</th><th>请求频率</th><th>失败尝试</th><th>异常分数</th><th>检测结果</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="uploadTableBody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- 页脚 -->
+    <footer class="text-center text-muted py-4 mt-5">
+        <p class="mb-0">© 2024 密码攻击检测与加密算法自适应优化系统 - 基于FATE框架</p>
+    </footer>
+
+    <script>
+        // 全局变量
+        let trendChart, attackTypeChart, fateChart, plaintextChart, compareChart, encryptionCompareChart;
+        let fateHistory, plaintextHistory;
+
+        // 导航切换
+        function navTo(section) {
+            const sections = ['dashboard', 'data', 'train', 'compare', 'upload'];
+            sections.forEach(s => {
+                document.getElementById(s + '-section').classList.add('d-none');
+            });
+            document.getElementById(section + '-section').classList.remove('d-none');
+            
+            if (section === 'dashboard') loadStats();
+            if (section === 'compare') updateEncryptionComparison();
+        }
+
+        // 加载统计数据
+        async function loadStats() {
+            try {
+                const res = await fetch('/api/get_stats');
+                const data = await res.json();
+                renderStatsCharts(data);
+            } catch(e) {
+                console.error('Failed to load stats', e);
+                renderStatsCharts({
+                    total_attacks: 1247,
+                    detection_rate: 94.5,
+                    false_positives: 32,
+                    attack_types: [
+                        {name: 'Brute Force', count: 456, color: '#ef4444'},
+                        {name: 'Side Channel', count: 328, color: '#f59e0b'},
+                        {name: 'Ciphertext Analysis', count: 289, color: '#8b5cf6'},
+                        {name: 'Key Recovery', count: 174, color: '#2563eb'}
+                    ],
+                    monthly_trend: [
+                        {month: 'Jan', attacks: 89, detected: 85},
+                        {month: 'Feb', attacks: 112, detected: 106},
+                        {month: 'Mar', attacks: 98, detected: 93},
+                        {month: 'Apr', attacks: 134, detected: 127},
+                        {month: 'May', attacks: 156, detected: 147},
+                        {month: 'Jun', attacks: 178, detected: 168}
+                    ]
+                });
+            }
+        }
+
+        // 渲染统计图表
+        function renderStatsCharts(data) {
+            // 趋势图
+            const trendCtx = document.getElementById('trendChart').getContext('2d');
+            if (trendChart) trendChart.destroy();
+            trendChart = new Chart(trendCtx, {
+                type: 'line',
+                data: {
+                    labels: data.monthly_trend.map(m => m.month),
+                    datasets: [
+                        {label: '攻击数量', data: data.monthly_trend.map(m => m.attacks), borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', fill: true, tension: 0.4},
+                        {label: '检测数量', data: data.monthly_trend.map(m => m.detected), borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.4}
+                    ]
+                },
+                options: {responsive: true, maintainAspectRatio: false, plugins: {legend: {position: 'top'}}}
+            });
+            
+            // 攻击类型分布图
+            const typeCtx = document.getElementById('attackTypeChart').getContext('2d');
+            if (attackTypeChart) attackTypeChart.destroy();
+            attackTypeChart = new Chart(typeCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: data.attack_types.map(a => a.name),
+                    datasets: [{data: data.attack_types.map(a => a.count), backgroundColor: data.attack_types.map(a => a.color)}]
+                },
+                options: {responsive: true, maintainAspectRatio: false}
+            });
+        }
+
+        // 生成数据
+        async function generateData() {
+            const nRecords = parseInt(document.getElementById('data-count').value);
+            try {
+                const res = await fetch('/api/generate_dataset', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({n_records: nRecords})
+                });
+                const data = await res.json();
+                renderDataTables(data);
+            } catch(e) {
+                console.error('Failed to generate data', e);
+            }
+        }
+
+        // 渲染数据表
+        function renderDataTables(data) {
+            const plaintextBody = document.querySelector('#plaintextTable tbody');
+            const encryptedBody = document.querySelector('#encryptedTable tbody');
+            
+            plaintextBody.innerHTML = data.plaintext.map(row => `
+                <tr><td>${row.id}</td><td>${row.phone}</td><td>¥${row.salary}</td><td>${row.credit_score}</td><td>${row.age}</td><td><span class="tag ${row.is_fraud ? 'tag-danger' : 'tag-success'}">${row.is_fraud ? '是' : '否'}</span></td></tr>
+            `).join('');
+            
+            encryptedBody.innerHTML = data.encrypted.map(row => `
+                <tr><td>${row.id}</td><td><code>${row.phone_encrypted.toString().slice(0,12)}...</code></td><td><code>${row.salary_encrypted.toString().slice(0,10)}...</code></td><td><code>${row.credit_score_encrypted.toString().slice(0,10)}...</code></td><td>${row.label}</td></tr>
+            `).join('');
+        }
+
+        // 保存样本数据
+        async function saveSampleData() {
+            try {
+                await fetch('/api/save_sample', {method: 'POST'});
+                alert('样本数据已保存！');
+            } catch(e) {
+                console.error('Failed to save sample', e);
+            }
+        }
+
+        // FATE训练
+        async function startFateTraining() {
+            const logsEl = document.getElementById('fateLogs');
+            logsEl.innerHTML = '<p class="info"><i class="fas fa-spinner fa-spin"></i> 正在启动训练...</p>';
+            
+            try {
+                const res = await fetch('/api/train_fate', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'}
+                });
+                const data = await res.json();
+                fateHistory = data.history;
+                
+                logsEl.innerHTML = data.logs.map(l => `<p class="${l.includes('completed') ? 'success' : 'info'}">${l}</p>`).join('');
+                logsEl.scrollTop = logsEl.scrollHeight;
+                
+                const ctx = document.getElementById('fateChart').getContext('2d');
+                if (fateChart) fateChart.destroy();
+                fateChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: data.history.map(h => `Epoch ${h.epoch}`),
+                        datasets: [
+                            {label: 'Accuracy', data: data.history.map(h => h.accuracy), borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.1)', yAxisID: 'y'},
+                            {label: 'Loss', data: data.history.map(h => h.loss), borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', yAxisID: 'y1'}
+                        ]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        scales: {y: {position: 'left'}, y1: {position: 'right', grid: {display: false}}}
+                    }
+                });
+                
+                updateCompareChart();
+            } catch(e) {
+                logsEl.innerHTML = `<p class="text-danger">训练失败: ${e}</p>`;
+            }
+        }
+
+        // 明文训练
+        async function startPlaintextTraining() {
+            const logsEl = document.getElementById('plaintextLogs');
+            logsEl.innerHTML = '<p class="info"><i class="fas fa-spinner fa-spin"></i> 正在启动训练...</p>';
+            
+            try {
+                const res = await fetch('/api/train_plaintext', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'}
+                });
+                const data = await res.json();
+                plaintextHistory = data.history;
+                
+                logsEl.innerHTML = data.logs.map(l => `<p class="${l.includes('completed') ? 'success' : 'info'}">${l}</p>`).join('');
+                logsEl.scrollTop = logsEl.scrollHeight;
+                
+                const ctx = document.getElementById('plaintextChart').getContext('2d');
+                if (plaintextChart) plaintextChart.destroy();
+                plaintextChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: data.history.map(h => `Epoch ${h.epoch}`),
+                        datasets: [
+                            {label: 'Accuracy', data: data.history.map(h => h.accuracy), borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', yAxisID: 'y'},
+                            {label: 'Loss', data: data.history.map(h => h.loss), borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', yAxisID: 'y1'}
+                        ]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        scales: {y: {position: 'left'}, y1: {position: 'right', grid: {display: false}}}
+                    }
+                });
+                
+                updateCompareChart();
+            } catch(e) {
+                logsEl.innerHTML = `<p class="text-danger">训练失败: ${e}</p>`;
+            }
+        }
+
+        // 更新对比图表
+        function updateCompareChart() {
+            if (!fateHistory && !plaintextHistory) return;
+            
+            const ctx = document.getElementById('compareChart').getContext('2d');
+            if (compareChart) compareChart.destroy();
+            
+            const datasets = [];
+            if (fateHistory) datasets.push({label: 'FATE Accuracy', data: fateHistory.map(h => h.accuracy * 100), borderColor: '#2563eb', type: 'bar'});
+            if (plaintextHistory) datasets.push({label: 'Plaintext Accuracy', data: plaintextHistory.map(h => h.accuracy * 100), borderColor: '#f59e0b', type: 'bar'});
+            
+            compareChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Array(10).fill(0).map((_, i) => `Epoch ${i+1}`),
+                    datasets: datasets
+                },
+                options: {responsive: true, maintainAspectRatio: false}
+            });
+        }
+
+        // 更新加密对比
+        async function updateEncryptionComparison() {
+            const dataSize = parseInt(document.getElementById('dataSize').value);
+            document.getElementById('dataSizeValue').textContent = dataSize + ' MB';
+            
+            try {
+                const res = await fetch('/api/compare_encryption', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({data_size_mb: dataSize})
+                });
+                const data = await res.json();
+                
+                document.getElementById('tradEncTime').textContent = data.traditional.encryption_time_ms + ' ms';
+                document.getElementById('tradDecTime').textContent = data.traditional.decryption_time_ms + ' ms';
+                document.getElementById('tradThroughput').textContent = data.traditional.throughput_mbps + ' Mbps';
+                
+                document.getElementById('homoEncTime').textContent = data.homomorphic.encryption_time_ms + ' ms';
+                document.getElementById('homoDecTime').textContent = data.homomorphic.decryption_time_ms + ' ms';
+                document.getElementById('homoThroughput').textContent = data.homomorphic.throughput_mbps + ' Mbps';
+                
+                updateEncCompareChart(dataSize);
+            } catch(e) {
+                console.error('Failed to compare encryption', e);
+            }
+        }
+
+        // 更新加密对比图表
+        function updateEncCompareChart(dataSize) {
+            const ctx = document.getElementById('encryptionCompareChart').getContext('2d');
+            if (encryptionCompareChart) encryptionCompareChart.destroy();
+            
+            const labels = Array(10).fill(0).map((_, i) => `${(i+1)*10} MB`);
+            const tradThroughputs = labels.map(l => Math.max(5, 80 - parseInt(l)*2.5));
+            const homoThroughputs = labels.map(l => Math.max(3, 25 - parseInt(l)*0.8));
+            
+            encryptionCompareChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {label: '传统加密 - 吞吐量', data: tradThroughputs, borderColor: '#ef4444', backgroundColor: 'transparent', tension: 0.4},
+                        {label: '同态加密 - 吞吐量', data: homoThroughputs, borderColor: '#2563eb', backgroundColor: 'transparent', tension: 0.4}
+                    ]
+                },
+                options: {responsive: true, maintainAspectRatio: false}
+            });
+        }
+
+        // 文件上传
+        async function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            try {
+                const res = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                displayUploadResults(data);
+            } catch(e) {
+                alert('上传失败: ' + e);
+            }
+        }
+
+        // 显示上传结果
+        function displayUploadResults(data) {
+            document.getElementById('uploadResultArea').classList.remove('d-none');
+            document.getElementById('resultRecords').textContent = data.record_count;
+            document.getElementById('resultAnomalies').textContent = data.detections.filter(d => d.is_attack).length;
+            
+            document.getElementById('uploadDataCard').classList.remove('d-none');
+            document.getElementById('uploadTableBody').innerHTML = data.detections.map(row => `
+                <tr><td>${row.id}</td><td>${row.timestamp}</td><td>${row.key_generation_time}s</td><td>${row.request_frequency}/s</td><td>${row.failed_attempts}</td><td>${row.anomaly_score}</td><td><span class="tag ${row.is_attack ? 'tag-danger' : 'tag-success'}">${row.is_attack ? row.attack_type : '正常'}</span></td></tr>
+            `).join('');
+        }
+
+        // 拖拽上传
+        document.addEventListener('DOMContentLoaded', function() {
+            const uploadZone = document.getElementById('uploadZone');
+            uploadZone.addEventListener('click', () => document.getElementById('fileInput').click());
+            
+            uploadZone.addEventListener('dragover', e => {
+                e.preventDefault();
+                uploadZone.classList.add('drag-over');
+            });
+            
+            uploadZone.addEventListener('dragleave', e => {
+                uploadZone.classList.remove('drag-over');
+            });
+            
+            uploadZone.addEventListener('drop', e => {
+                e.preventDefault();
+                uploadZone.classList.remove('drag-over');
+                const file = e.dataTransfer.files[0];
+                if (file) {
+                    document.getElementById('fileInput').files = e.dataTransfer.files;
+                    handleFileSelect({target: {files: [file]}});
+                }
+            });
+            
+            document.getElementById('dataSize').addEventListener('input', updateEncryptionComparison);
+            loadStats();
+        });
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

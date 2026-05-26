@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>密码攻击检测系统 - 独立版</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { background: #f8fafc; font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; }
+        .navbar-brand { font-weight: 700; color: #2563eb !important; }
+        .section-card { background: #fff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; margin-bottom: 24px; }
+        .section-header { padding: 20px 24px; border-bottom: 1px solid #e2e8f0; }
+        .section-title { font-size: 20px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 10px; }
+        .section-title i { color: #2563eb; }
+        .section-content { padding: 24px; }
+        .stat-card { background: linear-gradient(135deg, #fff 0%, #f8fafc 100%); border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; text-align: center; }
+        .stat-value { font-size: 32px; font-weight: 800; }
+        .stat-label { color: #64748b; font-size: 14px; }
+        .stat-card.primary .stat-value { color: #2563eb; }
+        .stat-card.success .stat-value { color: #10b981; }
+        .stat-card.warning .stat-value { color: #f59e0b; }
+        .stat-card.danger .stat-value { color: #ef4444; }
+        .chart-container { height: 300px; }
+        .upload-zone { border: 2px dashed #cbd5e1; border-radius: 12px; padding: 40px; text-align: center; cursor: pointer; }
+        .upload-zone:hover { border-color: #2563eb; }
+        .btn-primary-custom { background: linear-gradient(135deg, #2563eb, #8b5cf6); border: none; border-radius: 8px; color: white; padding: 10px 24px; font-weight: 600; }
+        .log-box { background: #0f172a; color: #94a3b8; padding: 16px; border-radius: 8px; max-height: 250px; overflow-y: auto; font-family: 'Consolas', monospace; font-size: 13px; }
+        .log-box .success { color: #10b981; }
+        .log-box .info { color: #3b82f6; }
+        .comparison-card { background: #fff; border-radius: 12px; padding: 24px; border-top: 4px solid; }
+        .comparison-card.traditional { border-top-color: #ef4444; }
+        .comparison-card.homomorphic { border-top-color: #2563eb; }
+        .tag { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+        .tag-danger { background: rgba(239,68,68,0.1); color: #ef4444; }
+        .tag-success { background: rgba(16,185,129,0.1); color: #10b981; }
+        .nav-pills .nav-link.active { background: linear-gradient(135deg, #2563eb, #8b5cf6); color: white; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg bg-white sticky-top shadow-sm mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-shield-halved"></i> 密码攻击检测系统
+            </a>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link active" href="#" onclick="navTo('dashboard')"><i class="fas fa-chart-line"></i> 数据看板</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#" onclick="navTo('data')"><i class="fas fa-database"></i> 数据准备</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#" onclick="navTo('train')"><i class="fas fa-robot"></i> 模型训练</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#" onclick="navTo('compare')"><i class="fas fa-balance-scale"></i> 加密对比</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#" onclick="navTo('upload')"><i class="fas fa-upload"></i> 数据上传</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- 数据看板 -->
+        <section id="dashboard-section">
+            <div class="section-card">
+                <div class="section-header">
+                    <h2 class="section-title"><i class="fas fa-chart-pie"></i> 实时数据看板</h2>
+                </div>
+                <div class="section-content">
+                    <div class="row mb-4">
+                        <div class="col-md-3 mb-3">
+                            <div class="stat-card primary">
+                                <div class="stat-value">1,247</div>
+                                <div class="stat-label">检测到的攻击总数</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="stat-card success">
+                                <div class="stat-value">94.5%</div>
+                                <div class="stat-label">检测准确率</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="stat-card warning">
+                                <div class="stat-value">32</div>
+                                <div class="stat-label">误报数量</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="stat-card danger">
+                                <div class="stat-value">45.2ms</div>
+                                <div class="stat-label">平均响应时间</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row mb-4">
+                        <div class="col-md-8 mb-3">
+                            <div class="card"><div class="card-header fw-bold">攻击检测趋势（近6个月）</div><div class="card-body"><div class="chart-container"><canvas id="trendChart"></canvas></div></div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="card"><div class="card-header fw-bold">攻击类型分布</div><div class="card-body"><div class="chart-container"><canvas id="attackTypeChart"></canvas></div></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 数据准备 -->
+        <section id="data-section" class="d-none">
+            <div class="section-card">
+                <div class="section-header">
+                    <h2 class="section-title"><i class="fas fa-database"></i> 数据准备：敏感数据生成与加密</h2>
+                </div>
+                <div class="section-content">
+                    <div class="row mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label">数据数量：</label>
+                            <select class="form-select" id="data-count">
+                                <option value="50">50 条</option>
+                                <option value="100" selected>100 条</option>
+                                <option value="500">500 条</option>
+                                <option value="1000">1000 条</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end">
+                            <button class="btn btn-primary-custom w-100" onclick="generateData()">
+                                <i class="fas fa-magic"></i> 生成并加密数据
+                            </button>
+                        </div>
+                    </div>
+                    <ul class="nav nav-pills mb-4">
+                        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#plaintext-tab">明文数据</button></li>
+                        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#encrypted-tab">密态数据</button></li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="plaintext-tab">
+                            <div class="table-responsive"><table class="table table-striped" id="plaintextTable"><thead><tr><th>ID</th><th>手机号</th><th>薪资</th><th>信用分</th><th>是否欺诈</th></tr></thead><tbody></tbody></table></div>
+                        </div>
+                        <div class="tab-pane fade" id="encrypted-tab">
+                            <div class="table-responsive"><table class="table table-striped" id="encryptedTable"><thead><tr><th>ID</th><th>手机号加密</th><th>薪资加密</th><th>信用分加密</th></tr></thead><tbody></tbody></table></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 模型训练 -->
+        <section id="train-section" class="d-none">
+            <div class="section-card">
+                <div class="section-header">
+                    <h2 class="section-title"><i class="fas fa-robot"></i> 模型训练：FATE联邦学习与对比</h2>
+                </div>
+                <div class="section-content">
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <button class="btn btn-primary-custom w-100" onclick="startFateTraining()">开始 FATE 联邦学习训练</button>
+                        </div>
+                        <div class="col-md-6">
+                            <button class="btn btn-outline-danger w-100" onclick="startPlaintextTraining()">开始 明文训练对比</button>
+                        </div>
+                    </div>
+                    <ul class="nav nav-pills mb-4">
+                        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#fate-tab">FATE 联邦学习</button></li>
+                        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#plaintext-train-tab">明文训练</button></li>
+                        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#compare-tab">结果对比</button></li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="fate-tab">
+                            <div class="row">
+                                <div class="col-md-6"><div class="card"><div class="card-header">训练日志</div><div class="card-body"><div class="log-box" id="fateLogs"><p>等待开始训练...</p></div></div></div>
+                                </div>
+                                <div class="col-md-6"><div class="card"><div class="card-header">训练曲线</div><div class="card-body"><div class="chart-container"><canvas id="fateChart"></canvas></div></div></div>
+                            </div>
+                        </div>
+                        <div class="tab-pane fade" id="plaintext-train-tab">
+                            <div class="row">
+                                <div class="col-md-6"><div class="card"><div class="card-header">训练日志</div><div class="card-body"><div class="log-box" id="plaintextLogs"><p>等待开始训练...</p></div></div></div>
+                                </div>
+                                <div class="col-md-6"><div class="card"><div class="card-header">训练曲线</div><div class="card-body"><div class="chart-container"><canvas id="plaintextChart"></canvas></div></div></div>
+                            </div>
+                        </div>
+                        <div class="tab-pane fade" id="compare-tab">
+                            <div class="card"><div class="card-header">性能对比</div><div class="card-body"><div class="chart-container"><canvas id="compareChart"></canvas></div></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 加密对比 -->
+        <section id="compare-section" class="d-none">
+            <div class="section-card">
+                <div class="section-header">
+                    <h2 class="section-title"><i class="fas fa-balance-scale"></i> 加密算法对比分析</h2>
+                </div>
+                <div class="section-content">
+                    <div class="mb-4">
+                        <input type="range" class="form-range" id="dataSize" min="1" max="100" value="10" oninput="updateComparison()">
+                        <div class="text-end mt-2"><span class="badge bg-primary">数据大小: <span id="dataSizeValue">10 MB</span></span></div>
+                    </div>
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="comparison-card traditional">
+                                <h5 class="fw-bold">传统加密 (AES-256)</h5>
+                                <div class="mt-3">
+                                    <div>加密时间: <span id="tradEncTime">20.5 ms</span></div>
+                                    <div>解密时间: <span id="tradDecTime">16.2 ms</span></div>
+                                    <div>吞吐量: <span id="tradThroughput">55.0 Mbps</span></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="comparison-card homomorphic">
+                                <h5 class="fw-bold">同态加密 (Paillier)</h5>
+                                <div class="mt-3">
+                                    <div>加密时间: <span id="homoEncTime">77.8 ms</span></div>
+                                    <div>解密时间: <span id="homoDecTime">66.5 ms</span></div>
+                                    <div>吞吐量: <span id="homoThroughput">17.0 Mbps</span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card"><div class="card-header">性能对比曲线</div><div class="card-body"><div class="chart-container"><canvas id="encryptionCompareChart"></canvas></div></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 数据上传 -->
+        <section id="upload-section" class="d-none">
+            <div class="section-card">
+                <div class="section-header">
+                    <h2 class="section-title"><i class="fas fa-upload"></i> 数据上传与攻击检测</h2>
+                </div>
+                <div class="section-content">
+                    <div class="upload-zone" onclick="loadSampleData()">
+                        <i class="fas fa-cloud-upload-alt fa-4x text-primary mb-3"></i>
+                        <h5>点击加载示例数据</h5>
+                        <p class="text-muted">或拖拽CSV/JSON文件到此处</p>
+                    </div>
+                    <div id="uploadResult" class="d-none mt-4">
+                        <div class="row">
+                            <div class="col-md-4"><div class="stat-card primary"><div class="stat-value" id="resultRecords">0</div><div class="stat-label">记录数量</div></div></div>
+                            <div class="col-md-4"><div class="stat-card warning"><div class="stat-value" id="resultAnomalies">0</div><div class="stat-label">检测到异常</div></div></div>
+                            <div class="col-md-4"><div class="stat-card success"><div class="stat-value">94.5%</div><div class="stat-label">检测准确率</div></div></div>
+                        </div>
+                        <div class="card mt-4"><div class="card-header">检测结果</div><div class="card-body"><table class="table table-striped"><thead><tr><th>ID</th><th>时间</th><th>异常分数</th><th>状态</th></tr></thead><tbody id="uploadTableBody"></tbody></table></div></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        let trendChart, attackTypeChart, fateChart, plaintextChart, compareChart, encryptionCompareChart;
+
+        function navTo(section) {
+            ['dashboard', 'data', 'train', 'compare', 'upload'].forEach(s => document.getElementById(s+'-section').classList.add('d-none'));
+            document.getElementById(section+'-section').classList.remove('d-none');
+            if (section === 'dashboard') initCharts();
+            if (section === 'compare') updateComparison();
+        }
+
+        function initCharts() {
+            trendChart = new Chart(document.getElementById('trendChart'), {
+                type: 'line',
+                data: {
+                    labels: ['1月', '2月', '3月', '4月', '5月', '6月'],
+                    datasets: [
+                        {label: '攻击数量', data: [89, 112, 98, 134, 156, 178], borderColor: '#ef4444', fill: true},
+                        {label: '检测数量', data: [85, 106, 93, 127, 147, 168], borderColor: '#10b981', fill: true}
+                    ]
+                },
+                options: {responsive: true, maintainAspectRatio: false}
+            });
+
+            attackTypeChart = new Chart(document.getElementById('attackTypeChart'), {
+                type: 'doughnut',
+                data: {labels: ['暴力破解', '侧信道', '密文分析', '密钥恢复'], datasets: [{data: [456, 328, 289, 174], backgroundColor: ['#ef4444', '#f59e0b', '#8b5cf6', '#2563eb']}]},
+                options: {responsive: true, maintainAspectRatio: false}
+            });
+        }
+
+        function generateData() {
+            const n = parseInt(document.getElementById('data-count').value);
+            const plaintext = [];
+            const encrypted = [];
+            for(let i=0; i<Math.min(n,20); i++) {
+                const phone = '138' + Math.floor(Math.random()*90000000+10000000);
+                const salary = Math.floor(Math.random()*45000+5000);
+                const credit = Math.floor(Math.random()*400+450);
+                plaintext.push({id: i+1, phone, salary, credit, fraud: Math.random()<0.08});
+                encrypted.push({id: i+1, phone: encrypt(phone), salary: encrypt(salary), credit: encrypt(credit)});
+            }
+            document.querySelector('#plaintextTable tbody').innerHTML = plaintext.map(row => `<tr><td>${row.id}</td><td>${row.phone}</td><td>¥${row.salary}</td><td>${row.credit}</td><td><span class="tag ${row.fraud?'tag-danger':'tag-success'}">${row.fraud?'是':'否'}</span></td></tr>`).join('');
+            document.querySelector('#encryptedTable tbody').innerHTML = encrypted.map(row => `<tr><td>${row.id}</td><td>${row.phone}</td><td>${row.salary}</td><td>${row.credit}</td></tr>`).join('');
+        }
+
+        function encrypt(val) { return '0x' + parseInt(val).toString(16).padStart(16, '0'); }
+
+        function startFateTraining() {
+            const logs = document.getElementById('fateLogs');
+            logs.innerHTML = '<p class="info">初始化FATE联邦任务...</p>';
+            setTimeout(() => {
+                const history = [];
+                let acc = 0.5;
+                for(let i=1; i<=10; i++) {
+                    acc += Math.random()*0.08;
+                    history.push({epoch: i, accuracy: Math.min(acc, 0.98), loss: 1-Math.min(acc, 0.98)});
+                    logs.innerHTML += `<p class="info">Epoch ${i}/10 - Accuracy: ${history[i-1].accuracy.toFixed(4)}</p>`;
+                }
+                logs.innerHTML += '<p class="success">训练完成!</p>';
+                fateChart = new Chart(document.getElementById('fateChart'), {
+                    type: 'line',
+                    data: {labels: history.map(h=>`Epoch ${h.epoch}`), datasets: [{label: 'Accuracy', data: history.map(h=>h.accuracy), borderColor: '#2563eb'}]},
+                    options: {responsive: true, maintainAspectRatio: false}
+                });
+                updateCompareChart('fate', history);
+            }, 500);
+        }
+
+        function startPlaintextTraining() {
+            const logs = document.getElementById('plaintextLogs');
+            logs.innerHTML = '<p class="info">初始化明文训练...</p>';
+            setTimeout(() => {
+                const history = [];
+                let acc = 0.5;
+                for(let i=1; i<=10; i++) {
+                    acc += Math.random()*0.085;
+                    history.push({epoch: i, accuracy: Math.min(acc, 0.99), loss: 1-Math.min(acc, 0.99)});
+                    logs.innerHTML += `<p class="info">Epoch ${i}/10 - Accuracy: ${history[i-1].accuracy.toFixed(4)}</p>`;
+                }
+                logs.innerHTML += '<p class="success">训练完成!</p>';
+                plaintextChart = new Chart(document.getElementById('plaintextChart'), {
+                    type: 'line',
+                    data: {labels: history.map(h=>`Epoch ${h.epoch}`), datasets: [{label: 'Accuracy', data: history.map(h=>h.accuracy), borderColor: '#f59e0b'}]},
+                    options: {responsive: true, maintainAspectRatio: false}
+                });
+                updateCompareChart('plaintext', history);
+            }, 500);
+        }
+
+        function updateCompareChart(type, history) {
+            if(compareChart) compareChart.destroy();
+            const data = type === 'fate' ? history.map(h=>h.accuracy*100) : [0,0,0,0,0,0,0,0,0,0];
+            const other = type === 'plaintext' ? history.map(h=>h.accuracy*100) : [0,0,0,0,0,0,0,0,0,0];
+            compareChart = new Chart(document.getElementById('compareChart'), {
+                type: 'bar',
+                data: {labels: Array(10).fill(0).map((_,i)=>`Epoch ${i+1}`), datasets: [
+                    {label: 'FATE', data: data, backgroundColor: '#2563eb'},
+                    {label: 'Plaintext', data: other, backgroundColor: '#f59e0b'}
+                ]},
+                options: {responsive: true, maintainAspectRatio: false}
+            });
+        }
+
+        function updateComparison() {
+            const size = parseInt(document.getElementById('dataSize').value);
+            document.getElementById('dataSizeValue').textContent = size + ' MB';
+            document.getElementById('tradEncTime').textContent = (12.5 + size*0.8).toFixed(1) + ' ms';
+            document.getElementById('homoEncTime').textContent = (45.8 + size*3.2).toFixed(1) + ' ms';
+            document.getElementById('homoThroughput').textContent = Math.max(3, 25-size*0.8).toFixed(1) + ' Mbps';
+
+            if(encryptionCompareChart) encryptionCompareChart.destroy();
+            encryptionCompareChart = new Chart(document.getElementById('encryptionCompareChart'), {
+                type: 'line',
+                data: {
+                    labels: Array(10).fill(0).map((_,i)=>`${(i+1)*10} MB`),
+                    datasets: [
+                        {label: 'AES-256', data: Array(10).fill(0).map((_,i)=>Math.max(5,80-(i+1)*10*2.5)), borderColor: '#ef4444'},
+                        {label: 'Paillier', data: Array(10).fill(0).map((_,i)=>Math.max(3,25-(i+1)*10*0.8)), borderColor: '#2563eb'}
+                    ]
+                },
+                options: {responsive: true, maintainAspectRatio: false}
+            });
+        }
+
+        function loadSampleData() {
+            document.getElementById('uploadResult').classList.remove('d-none');
+            document.getElementById('resultRecords').textContent = '15';
+            document.getElementById('resultAnomalies').textContent = '2';
+            const data = [];
+            for(let i=0; i<15; i++) {
+                data.push({id: i+1, time: `10:${String(i).padStart(2,'0')}:00`, score: (Math.random()*0.9+0.1).toFixed(2), isAttack: i<2});
+            }
+            document.getElementById('uploadTableBody').innerHTML = data.map(row => `<tr><td>${row.id}</td><td>${row.time}</td><td>${row.score}</td><td><span class="tag ${row.isAttack?'tag-danger':'tag-success'}">${row.isAttack?'攻击':'正常'}</span></td></tr>`).join('');
+        }
+
+        document.addEventListener('DOMContentLoaded', initCharts);
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

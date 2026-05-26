@@ -1,0 +1,52 @@
+app:
+  name: "crypto_attack_detection"
+  version: "1.0.0"
+  description: "基于机器学习的密码攻击检测与加密算法自适应优化研究"
+
+fate:
+  host: "localhost"
+  port: 9380
+  version: "1.11.0"
+
+encryption:
+  paillier:
+    key_size: 2048
+    precision: 64
+    threshold: 0.001
+
+detection:
+  feature_dim: 18
+  isolation_forest:
+    n_estimators: 100
+    contamination: 0.1
+  lstm:
+    hidden_units: 128
+    layers: 2
+    dropout: 0.3
+    batch_size: 64
+    epochs: 50
+
+optimization:
+  q_learning:
+    alpha: 0.1
+    gamma: 0.99
+    epsilon: 0.1
+    episodes: 1000
+  action_space:
+    key_lengths: [1024, 2048, 4096]
+    rounds: [1, 2, 3]
+  state_space:
+    risk_levels: ["low", "medium", "high", "critical"]
+
+database:
+  type: "mysql"
+  host: "localhost"
+  port: 3306
+  database: "crypto_detection"
+  username: "admin"
+  password: "password"
+
+redis:
+  host: "localhost"
+  port: 6379
+  db: 0

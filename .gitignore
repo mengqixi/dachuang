@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# 本地安装的Python包（这些是依赖，不是项目代码）
+/blinker/
+/blinker-*.dist-info/
+/click/
+/click-*.dist-info/
+/colorama/
+/colorama-*.dist-info/
+/flask/
+/flask-*.dist-info/
+/itsdangerous/
+/itsdangerous-*.dist-info/
+/jinja2/
+/jinja2-*.dist-info/
+/markupsafe/
+/markupsafe-*.dist-info/
+/werkzeug/
+/werkzeug-*.dist-info/
+/bin/
+
+# 日志文件
+*.log
+
+# 上传目录
+/uploads/
+
+# 编辑器/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 环境文件
+.env
+.env.local
+
+# 操作系统
+Thumbs.db
+.DS_Store
