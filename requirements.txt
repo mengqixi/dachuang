@@ -1,15 +1,39 @@
-numpy>=1.24.0
-scipy>=1.10.0
-pandas>=2.0.0
-scikit-learn>=1.2.0
-torch>=2.0.0
-torchvision>=0.15.0
-cryptography>=41.0.0
-pycryptodome>=3.18.0
-fate-client>=1.11.0
-redis>=5.0.0
-pymysql>=1.0.0
-docker>=6.0.0
-kubernetes>=28.0.0
-tensorflow>=2.12.0
-keras>=2.12.0
+# 核心框架
+Flask>=2.0.0
+Werkzeug>=2.0.0
+
+# 数值计算
+numpy>=1.19.0
+scipy>=1.5.0
+pandas>=1.0.0
+
+# 加密
+pycryptodome>=3.10.0
+
+# 机器学习
+scikit-learn>=0.24.0
+
+# 日志
+loguru>=0.5.0
+
+# 工具
+requests>=2.25.0
+joblib>=1.0.0
+pyyaml>=5.0.0
+
+# 深度学习（可选）
+torch>=1.9.0
+
+# 强化学习（可选）
+gymnasium>=0.26.0
+stable-baselines3>=2.0.0
+
+# 可视化（可选）
+matplotlib>=3.0.0
+seaborn>=0.11.0
+
+# 加密算法
+sympy>=1.9.0
+
+# Python 3.6 dataclass backport
+dataclasses; python_version < '3.7'

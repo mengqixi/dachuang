@@ -1,8 +1,90 @@
 version: '3.8'
 
 services:
+  # ============ PrimiHub 节点 ============
+  primihub_node0:
+    image: primihub/primihub-node:latest
+    container_name: primihub_node0
+    ports:
+      - "50050:50050"
+    environment:
+      - NODE_ID=node0
+      - NODE_ADDRESS=0.0.0.0:50050
+      - PEER_NODES=primihub_node1:50051
+      - WORK_MODE=fl
+      - DATA_PATH=/app/data
+    volumes:
+      - primihub_data0:/app/data
+      - ./data:/app/shared_data
+    networks:
+      - crypto_network
+    healthcheck:
+      test: ["CMD", "grpc_health_probe", "-addr=:50050"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  primihub_node1:
+    image: primihub/primihub-node:latest
+    container_name: primihub_node1
+    ports:
+      - "50051:50051"
+    environment:
+      - NODE_ID=node1
+      - NODE_ADDRESS=0.0.0.0:50051
+      - PEER_NODES=primihub_node0:50050
+      - WORK_MODE=fl
+      - DATA_PATH=/app/data
+    volumes:
+      - primihub_data1:/app/data
+      - ./data:/app/shared_data
+    networks:
+      - crypto_network
+    depends_on:
+      - primihub_node0
+    healthcheck:
+      test: ["CMD", "grpc_health_probe", "-addr=:50051"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ============ 核心服务 ============
+  crypto-detection:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: crypto_detection_service
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=production
+      - PRIMIHUB_NODE0=primihub_node0:50050
+      - PRIMIHUB_NODE1=primihub_node1:50051
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_DATABASE=crypto_detection
+      - MYSQL_USER=admin
+      - MYSQL_PASSWORD=password
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    networks:
+      - crypto_network
+    depends_on:
+      - primihub_node0
+      - primihub_node1
+      - mysql
+      - redis
+    restart: unless-stopped
+
+  # ============ 基础设施 ============
   redis:
-    image: redis:5.0.2
+    image: redis:7.0
     container_name: crypto_redis
     ports:
       - "6379:6379"
@@ -15,19 +97,21 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    restart: unless-stopped
 
   mysql:
-    image: mysql:5.7
+    image: mysql:8.0
     container_name: crypto_mysql
     ports:
       - "3306:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: password
+      MYSQL_ROOT_PASSWORD: root_password
       MYSQL_DATABASE: crypto_detection
       MYSQL_USER: admin
       MYSQL_PASSWORD: password
     volumes:
       - mysql_data:/var/lib/mysql
+      - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - crypto_network
     healthcheck:
@@ -35,57 +119,13 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-
-  fate-board:
-    image: federatedai/standalone_fate:1.11.0
-    container_name: fate_board
-    ports:
-      - "8080:8080"
-      - "9380:9380"
-      - "9390:9390"
-    volumes:
-      - fate_data:/data/projects/fate
-    networks:
-      - crypto_network
-    depends_on:
-      - mysql
-      - redis
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  crypto-detection:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
-    container_name: crypto_detection_service
-    ports:
-      - "5000:5000"
-    environment:
-      - FATE_HOST=fate_board
-      - FATE_PORT=9380
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - MYSQL_HOST=mysql
-      - MYSQL_PORT=3306
-      - MYSQL_DATABASE=crypto_detection
-      - MYSQL_USER=admin
-      - MYSQL_PASSWORD=password
-    volumes:
-      - ./data:/app/data
-    networks:
-      - crypto_network
-    depends_on:
-      - fate-board
-      - mysql
-      - redis
+    restart: unless-stopped
 
 volumes:
   redis_data:
   mysql_data:
-  fate_data:
+  primihub_data0:
+  primihub_data1:
 
 networks:
   crypto_network:

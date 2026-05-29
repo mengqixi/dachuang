@@ -1,15 +1,24 @@
-FROM python:3.8-slim
+FROM python:3.10-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
+# 安装系统依赖
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
 
+# 复制依赖并安装
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# 复制项目文件
 COPY . .
 
-RUN mkdir -p /app/logs /app/data
+# 创建必要目录
+RUN mkdir -p logs data uploads
 
 EXPOSE 5000
 
-CMD ["python", "src/main.py"]
+# 启动Flask应用
+CMD ["python", "app.py"]
