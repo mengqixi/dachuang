@@ -4,1708 +4,786 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>基于机器学习的密码攻击检测与加密算法自适应优化系统</title>
-<!-- Google Fonts: Inter -->
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<!-- Bootstrap 5 -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-<!-- Font Awesome 6 -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-<!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
-/* ===================================================================
-   CSS Variables — Light Glassmorphism Theme
-   =================================================================== */
-:root {
-  --primary: #3B82F6;
-  --primary-light: #60A5FA;
-  --primary-glow: rgba(59, 130, 246, 0.15);
-  --success: #10B981;
-  --success-glow: rgba(16, 185, 129, 0.15);
-  --warning: #F59E0B;
-  --warning-glow: rgba(245, 158, 11, 0.15);
-  --danger: #EF4444;
-  --danger-glow: rgba(239, 68, 68, 0.15);
-  --bg-page: #F8FAFC;
-  --bg-gradient: linear-gradient(135deg, #F8FAFC 0%, #EFF6FF 100%);
-  --glass-bg: rgba(255, 255, 255, 0.7);
-  --glass-bg-hover: rgba(255, 255, 255, 0.8);
-  --glass-border: rgba(255, 255, 255, 0.8);
-  --glass-border-hover: rgba(255, 255, 255, 0.95);
-  --glass-shadow: 0 8px 32px rgba(31, 38, 135, 0.07);
-  --glass-shadow-hover: 0 12px 40px rgba(31, 38, 135, 0.12);
-  --divider: rgba(0, 0, 0, 0.05);
-  --text-primary: #1E293B;
-  --text-secondary: #64748B;
-  --text-disabled: #94A3B8;
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 20px;
-  --blur-sm: 12px;
-  --blur-md: 16px;
-  --blur-lg: 20px;
-  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
-  --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* ===================================================================
-   Global Reset
-   =================================================================== */
-* { box-sizing: border-box; }
+* { margin:0; padding:0; box-sizing:border-box; }
 body {
-  font-family: var(--font);
-  background: var(--bg-gradient);
-  color: var(--text-secondary);
-  font-size: 14px;
-  line-height: 1.6;
-  min-height: 100vh;
-  overflow-x: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", sans-serif;
+  background: #F5F5F7; color: #1D1D1F; min-height:100vh;
+  -webkit-font-smoothing: antialiased;
 }
-
-/* ===================================================================
-   Typography
-   =================================================================== */
-h1, h2, h3, h4, h5, h6 { font-weight: 600; color: var(--text-primary); }
-.h1 { font-size: 32px; letter-spacing: -0.5px; font-weight: 700; }
-.h2 { font-size: 24px; letter-spacing: -0.3px; font-weight: 600; }
-.h3 { font-size: 20px; font-weight: 600; }
-.body-text { font-size: 14px; font-weight: 400; }
-.caption { font-size: 12px; color: var(--text-disabled); font-weight: 400; }
-.num { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-primary); }
-
-/* ===================================================================
-   Scrollbar
-   =================================================================== */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.2); }
-
-/* ===================================================================
-   Glassmorphism Base Classes
-   =================================================================== */
-.glass {
-  background: var(--glass-bg);
-  backdrop-filter: blur(var(--blur-md));
-  -webkit-backdrop-filter: blur(var(--blur-md));
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--glass-shadow);
-  transition: var(--transition);
+/* ── Top Bar ── */
+.topbar {
+  background: rgba(255,255,255,0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+  position: sticky; top:0; z-index:100; padding:8px 0 0;
 }
-.glass:hover {
-  background: var(--glass-bg-hover);
-  border-color: var(--glass-border-hover);
+.topbar-title {
+  font-size: 13px; font-weight:600; color:#1D1D1F;
+  text-align:center; padding:0 16px 8px;
+  letter-spacing:-0.01em;
 }
-
-.glass-sm {
-  background: rgba(255, 255, 255, 0.6);
-  backdrop-filter: blur(var(--blur-sm));
-  -webkit-backdrop-filter: blur(var(--blur-sm));
-  border: 1px solid rgba(255, 255, 255, 0.7);
+/* ── Segmented Control ── */
+.segmented-control {
+  display:flex; justify-content:center;
+  background:rgba(0,0,0,0.06); border-radius:8px;
+  margin:0 16px 10px; padding:2px; gap:2px;
 }
-.glass-lg {
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(var(--blur-lg));
-  -webkit-backdrop-filter: blur(var(--blur-lg));
-  border: 1px solid rgba(255, 255, 255, 0.9);
+.segmented-btn {
+  flex:1; text-align:center; padding:6px 12px;
+  border:none; border-radius:6px; font-size:13px; font-weight:500;
+  background:transparent; color:#86868B;
+  cursor:pointer; transition:all 0.2s cubic-bezier(0.4,0,0.2,1);
+  white-space:nowrap;
 }
-
-/* ===================================================================
-   Navbar — Full-Width Glass
-   =================================================================== */
-.navbar-glass {
-  background: rgba(255, 255, 255, 0.7) !important;
-  backdrop-filter: blur(var(--blur-md));
-  -webkit-backdrop-filter: blur(var(--blur-md));
-  border-bottom: 1px solid rgba(255, 255, 255, 0.8);
-  box-shadow: 0 2px 16px rgba(31, 38, 135, 0.05);
-  padding: 0 24px;
-  height: 64px;
-  transition: var(--transition);
+.segmented-btn:hover { color:#1D1D1F; }
+.segmented-btn.active {
+  background:#FFFFFF; color:#007AFF;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
 }
-.navbar-glass.scrolled {
-  background: rgba(255, 255, 255, 0.9) !important;
-  box-shadow: 0 4px 24px rgba(31, 38, 135, 0.08);
+.segmented-btn i { margin-right:4px; font-size:12px; }
+/* ── Global Status Bar ── */
+.status-bar {
+  display:flex; align-items:center; gap:0;
+  padding:6px 16px; background:rgba(255,255,255,0.5);
+  border-bottom:1px solid rgba(0,0,0,0.04);
+  font-size:11px; color:#86868B; overflow-x:auto; flex-wrap:nowrap;
 }
-.navbar-brand {
-  font-weight: 700 !important;
-  font-size: 17px;
-  letter-spacing: -0.3px;
-  color: var(--text-primary) !important;
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.status-item {
+  display:flex; align-items:center; gap:4px;
+  padding:0 12px; border-right:1px solid rgba(0,0,0,0.06);
+  white-space:nowrap;
 }
-.navbar-brand i { color: var(--primary); font-size: 22px; }
-.nav-link-glass {
-  color: var(--text-secondary) !important;
-  font-weight: 500;
-  font-size: 13px;
-  padding: 20px 16px !important;
-  border-bottom: 2px solid transparent;
-  transition: var(--transition);
-  white-space: nowrap;
+.status-item:last-child { border-right:none; }
+.status-dot { width:6px; height:6px; border-radius:50%; display:inline-block; }
+.status-dot.green { background:#30D158; }
+.status-dot.yellow { background:#FFD60A; }
+.status-dot.red { background:#FF453A; }
+.status-label { color:#86868B; }
+.status-value { color:#1D1D1F; font-weight:600; }
+/* ── Content ── */
+.content { max-width:1200px; margin:0 auto; padding:16px; }
+.section { display:none; }
+.section.active { display:block; animation:fadeIn 0.3s ease; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+/* ── Cards ── */
+.app-card {
+  background:#FFFFFF; border-radius:16px;
+  box-shadow:0 2px 10px rgba(0,0,0,0.06);
+  padding:24px; margin-bottom:16px;
+  transition:box-shadow 0.2s;
 }
-.nav-link-glass:hover { color: var(--primary) !important; }
-.nav-link-glass.active {
-  color: var(--primary) !important;
-  border-bottom-color: var(--primary);
-  background: transparent !important;
+.app-card:hover { box-shadow:0 4px 20px rgba(0,0,0,0.08); }
+.app-card-title {
+  font-size:15px; font-weight:600; color:#1D1D1F;
+  margin-bottom:16px; display:flex; align-items:center; gap:8px;
 }
-.nav-link-glass i { margin-right: 6px; font-size: 14px; }
-
-/* ===================================================================
-   Glass Cards
-   =================================================================== */
-.card-glass {
-  background: var(--glass-bg);
-  backdrop-filter: blur(var(--blur-md));
-  -webkit-backdrop-filter: blur(var(--blur-md));
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--glass-shadow);
-  transition: var(--transition);
-  overflow: hidden;
+/* ── Buttons ── */
+.btn-apple {
+  background:#007AFF; color:#FFFFFF; border:none;
+  border-radius:12px; padding:10px 24px; font-size:14px; font-weight:500;
+  cursor:pointer; transition:all 0.2s; display:inline-flex; align-items:center; gap:6px;
 }
-.card-glass:hover {
-  background: var(--glass-bg-hover);
-  border-color: var(--glass-border-hover);
-  box-shadow: var(--glass-shadow-hover);
+.btn-apple:hover { background:#0066D6; transform:translateY(-1px); }
+.btn-apple:active { transform:scale(0.98); }
+.btn-apple:disabled { opacity:0.5; cursor:not-allowed; transform:none; }
+.btn-secondary-apple {
+  background:rgba(0,0,0,0.06); color:#1D1D1F; border:none;
+  border-radius:12px; padding:10px 24px; font-size:14px; font-weight:500;
+  cursor:pointer; transition:all 0.2s;
 }
-.card-header-glass {
-  padding: 18px 24px;
-  border-bottom: 1px solid var(--divider);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: transparent;
+.btn-secondary-apple:hover { background:rgba(0,0,0,0.1); }
+.btn-success-apple { background:#30D158; color:#fff; border:none; border-radius:12px; padding:10px 24px; font-size:14px; font-weight:500; cursor:pointer; transition:all 0.2s; }
+.btn-success-apple:hover { background:#28C04D; }
+/* ── Form Elements ── */
+.form-apple {
+  border:1px solid rgba(0,0,0,0.1); border-radius:12px;
+  padding:10px 14px; font-size:14px; width:100%;
+  background:#F5F5F7; transition:border-color 0.2s;
+  outline:none;
 }
-.card-body-glass { padding: 24px; }
-.card-title-icon { color: var(--primary); font-size: 18px; margin-right: 10px; }
-
-/* ===================================================================
-   Stat Cards (Glass with accent left border)
-   =================================================================== */
-.stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 24px; }
-.stat-card-glass {
-  background: var(--glass-bg);
-  backdrop-filter: blur(var(--blur-md));
-  -webkit-backdrop-filter: blur(var(--blur-md));
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-lg);
-  padding: 20px 24px;
-  position: relative;
-  overflow: hidden;
-  transition: var(--transition);
-  cursor: default;
+.form-apple:focus { border-color:#007AFF; background:#fff; }
+.form-label-apple { font-size:13px; font-weight:500; color:#86868B; margin-bottom:4px; }
+/* ── Stat Cards Grid ── */
+.stat-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px; }
+.stat-card {
+  background:#FFFFFF; border-radius:16px; padding:16px 20px;
+  box-shadow:0 2px 10px rgba(0,0,0,0.06);
 }
-.stat-card-glass:hover {
-  background: var(--glass-bg-hover);
-  border-color: var(--glass-border-hover);
-  transform: translateY(-4px);
-  box-shadow: var(--glass-shadow-hover);
+.stat-card .stat-number { font-size:28px; font-weight:700; color:#1D1D1F; line-height:1.2; }
+.stat-card .stat-number.blue { color:#007AFF; }
+.stat-card .stat-number.green { color:#30D158; }
+.stat-card .stat-number.orange { color:#FF9F0A; }
+.stat-card .stat-number.red { color:#FF453A; }
+.stat-card .stat-label { font-size:12px; color:#86868B; margin-top:2px; }
+.stat-card .stat-sub { font-size:11px; color:#86868B; margin-top:4px; }
+/* ── Table ── */
+.table-apple { width:100%; border-collapse:collapse; font-size:13px; }
+.table-apple th { text-align:left; padding:8px 12px; color:#86868B; font-weight:500; border-bottom:1px solid rgba(0,0,0,0.06); }
+.table-apple td { padding:8px 12px; border-bottom:1px solid rgba(0,0,0,0.04); }
+.table-apple tr:hover td { background:rgba(0,0,0,0.02); }
+/* ── Charts ── */
+.chart-container { position:relative; height:200px; width:100%; }
+/* ── Log console ── */
+.log-console {
+  background:#1D1D1F; border-radius:12px; padding:16px;
+  font-family: "SF Mono", monospace; font-size:12px;
+  height:200px; overflow-y:auto; color:#30D158;
 }
-.stat-card-glass::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0;
-  width: 4px;
-  height: 100%;
-  border-radius: 0 2px 2px 0;
-}
-.stat-card-glass.primary::before { background: var(--primary); }
-.stat-card-glass.success::before { background: var(--success); }
-.stat-card-glass.warning::before { background: var(--warning); }
-.stat-card-glass.danger::before { background: var(--danger); }
-.stat-card-glass .stat-icon {
-  position: absolute;
-  top: 16px; right: 16px;
-  font-size: 22px;
-  opacity: 0.1;
-  color: var(--text-primary);
-}
-.stat-card-glass .stat-value {
-  font-size: 30px;
-  font-weight: 800;
-  color: var(--text-primary);
-  margin-bottom: 2px;
-  letter-spacing: -0.5px;
-}
-.stat-card-glass .stat-label { font-size: 13px; color: var(--text-disabled); font-weight: 500; }
-.stat-card-glass.primary .stat-value { color: var(--primary); }
-.stat-card-glass.success .stat-value { color: var(--success); }
-.stat-card-glass.warning .stat-value { color: var(--warning); }
-.stat-card-glass.danger .stat-value { color: var(--danger); }
-.stat-card-glass .mini-chart { height: 28px; margin-top: 10px; opacity: 0.7; }
-
-/* ===================================================================
-   Buttons
-   =================================================================== */
-.btn-glass-primary {
-  background: linear-gradient(135deg, var(--primary), var(--primary-light));
-  border: none;
-  border-radius: var(--radius-md);
-  color: #fff;
-  padding: 10px 28px;
-  font-weight: 600;
-  font-size: 14px;
-  transition: var(--transition);
-  position: relative;
-  overflow: hidden;
-}
-.btn-glass-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 28px var(--primary-glow);
-  color: #fff;
-}
-.btn-glass-primary:active { transform: scale(0.97); }
-
-.btn-glass-outline {
-  background: var(--glass-bg);
-  backdrop-filter: blur(var(--blur-sm));
-  -webkit-backdrop-filter: blur(var(--blur-sm));
-  border: 1px solid rgba(0,0,0,0.08);
-  border-radius: var(--radius-md);
-  color: var(--text-secondary);
-  padding: 10px 24px;
-  font-weight: 500;
-  transition: var(--transition);
-}
-.btn-glass-outline:hover {
-  background: var(--glass-bg-hover);
-  border-color: var(--primary);
-  color: var(--primary);
-  box-shadow: 0 4px 16px var(--primary-glow);
-}
-.btn-glass-outline:active { transform: scale(0.97); }
-
-.btn-glass-success {
-  background: linear-gradient(135deg, #10B981, #34D399);
-  border: none;
-  border-radius: var(--radius-md);
-  color: #fff;
-  padding: 10px 24px;
-  font-weight: 600;
-  transition: var(--transition);
-}
-.btn-glass-success:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 28px var(--success-glow);
-  color: #fff;
-}
-.btn-glass-success:active { transform: scale(0.97); }
-
-.btn-glass-danger {
-  background: linear-gradient(135deg, #EF4444, #F87171);
-  border: none;
-  border-radius: var(--radius-md);
-  color: #fff;
-  padding: 10px 24px;
-  font-weight: 600;
-  transition: var(--transition);
-}
-.btn-glass-danger:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 28px var(--danger-glow);
-  color: #fff;
-}
-.btn-glass-danger:active { transform: scale(0.97); }
-
-.btn-sm-glass { padding: 6px 16px; font-size: 13px; }
-
-/* ===================================================================
-   Form Controls (Glass)
-   =================================================================== */
-.form-control-glass, .form-select-glass {
-  background: rgba(255, 255, 255, 0.6) !important;
-  backdrop-filter: blur(var(--blur-sm));
-  -webkit-backdrop-filter: blur(var(--blur-sm));
-  border: 1px solid rgba(0,0,0,0.06) !important;
-  border-radius: var(--radius-sm) !important;
-  color: var(--text-primary) !important;
-  padding: 10px 14px;
-  font-size: 14px;
-  transition: var(--transition);
-}
-.form-control-glass:focus, .form-select-glass:focus {
-  border-color: var(--primary) !important;
-  box-shadow: 0 0 0 3px var(--primary-glow) !important;
-  background: rgba(255, 255, 255, 0.8) !important;
-  backdrop-filter: blur(var(--blur-lg));
-}
-.form-control-glass::placeholder { color: var(--text-disabled); }
-.form-label-glass { font-weight: 500; color: var(--text-secondary); font-size: 13px; margin-bottom: 6px; }
-
-/* ===================================================================
-   Log Box
-   =================================================================== */
-.log-box {
-  background: rgba(248, 250, 252, 0.8);
-  backdrop-filter: blur(var(--blur-sm));
-  border: 1px solid rgba(0,0,0,0.04);
-  border-radius: var(--radius-sm);
-  padding: 16px;
-  max-height: 280px;
-  overflow-y: auto;
-  font-family: 'JetBrains Mono', 'Consolas', monospace;
-  font-size: 12px;
-  line-height: 1.8;
-}
-.log-box .ts { color: var(--text-disabled); }
-.log-box .info { color: var(--primary); }
-.log-box .ok { color: var(--success); }
-.log-box .err { color: var(--danger); }
-.log-box .warn { color: var(--warning); }
-.log-box p { margin-bottom: 0; white-space: pre-wrap; word-break: break-all; }
-
-/* ===================================================================
-   Tags / Badges
-   =================================================================== */
-.tag {
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 12px;
-  border-radius: 100px;
-  font-size: 12px;
-  font-weight: 600;
-  gap: 4px;
-}
-.tag-danger { background: rgba(239,68,68,0.1); color: var(--danger); }
-.tag-success { background: rgba(16,185,129,0.1); color: var(--success); }
-.tag-warning { background: rgba(245,158,11,0.1); color: var(--warning); }
-.tag-info { background: rgba(59,130,246,0.1); color: var(--primary); }
-
-/* ===================================================================
-   Upload Zone
-   =================================================================== */
+.log-console .log-line { padding:1px 0; }
+.log-console .log-err { color:#FF453A; }
+/* ── Upload Zone ── */
 .upload-zone {
-  background: rgba(255, 255, 255, 0.5);
-  backdrop-filter: blur(var(--blur-sm));
-  border: 2px dashed rgba(0,0,0,0.1);
-  border-radius: var(--radius-xl);
-  padding: 48px 32px;
-  text-align: center;
-  cursor: pointer;
-  transition: var(--transition);
+  border:2px dashed rgba(0,0,0,0.1); border-radius:16px;
+  padding:32px; text-align:center; cursor:pointer; transition:all 0.2s;
+  background:#F5F5F7;
 }
-.upload-zone:hover {
-  border-color: var(--primary);
-  background: rgba(37, 99, 235, 0.04);
-  box-shadow: 0 0 40px var(--primary-glow);
+.upload-zone:hover { border-color:#007AFF; background:rgba(0,122,255,0.04); }
+.upload-zone.drag-over { border-color:#007AFF; background:rgba(0,122,255,0.08); }
+.upload-zone i { font-size:32px; color:#86868B; margin-bottom:8px; }
+/* ── Responsive ── */
+@media(max-width:768px) {
+  .stat-grid { grid-template-columns:repeat(2,1fr); }
+  .segmented-btn { font-size:11px; padding:6px 6px; }
+  .segmented-btn i { display:none; }
+  .content { padding:12px; }
 }
-.upload-zone.drag-over {
-  border-style: solid;
-  border-color: var(--primary);
-  background: rgba(37, 99, 235, 0.06);
-  box-shadow: 0 0 50px var(--primary-glow);
-}
-.upload-zone .upload-icon { font-size: 48px; color: var(--primary); margin-bottom: 16px; opacity: 0.5; }
-.upload-zone h5 { color: var(--text-primary); font-weight: 600; }
-.upload-zone p { color: var(--text-disabled); }
-
-/* ===================================================================
-   Tables (Glass)
-   =================================================================== */
-.table-glass {
-  color: var(--text-secondary);
-  font-size: 13px;
-  margin-bottom: 0;
-}
-.table-glass thead th {
-  background: rgba(0,0,0,0.02);
-  color: var(--text-disabled);
-  font-weight: 600;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--divider);
-}
-.table-glass tbody td {
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--divider);
-  vertical-align: middle;
-}
-.table-glass tbody tr:hover { background: rgba(59,130,246,0.03); }
-.table-glass tbody tr.attack-row { background: rgba(239,68,68,0.04); }
-.table-glass tbody tr.attack-row:hover { background: rgba(239,68,68,0.08); }
-
-/* ===================================================================
-   Comparison Cards
-   =================================================================== */
-.comp-card {
-  background: var(--glass-bg);
-  backdrop-filter: blur(var(--blur-md));
-  -webkit-backdrop-filter: blur(var(--blur-md));
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-lg);
-  padding: 24px;
-  transition: var(--transition);
-  position: relative;
-  overflow: hidden;
-}
-.comp-card::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 4px;
-}
-.comp-card.trad::before { background: linear-gradient(90deg, #EF4444, #F59E0B); }
-.comp-card.homo::before { background: linear-gradient(90deg, var(--primary), var(--primary-light)); }
-.comp-card:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--glass-shadow-hover);
-}
-
-/* ===================================================================
-   Metric Items
-   =================================================================== */
-.metric-item {
-  background: rgba(0,0,0,0.02);
-  padding: 14px 16px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--divider);
-}
-.metric-item .metric-value { font-size: 18px; font-weight: 700; color: var(--text-primary); }
-.metric-item .metric-label { font-size: 12px; color: var(--text-disabled); }
-
-/* ===================================================================
-   Nav Pills (Glass)
-   =================================================================== */
-.nav-pills-glass .nav-link {
-  color: var(--text-secondary);
-  font-weight: 500;
-  padding: 8px 18px;
-  border-radius: var(--radius-sm);
-  transition: var(--transition);
-  font-size: 13px;
-}
-.nav-pills-glass .nav-link:hover {
-  color: var(--text-primary);
-  background: rgba(255,255,255,0.6);
-}
-.nav-pills-glass .nav-link.active {
-  background: linear-gradient(135deg, var(--primary), var(--primary-light));
-  color: #fff;
-  box-shadow: 0 4px 16px var(--primary-glow);
-}
-
-/* ===================================================================
-   Modal (Glass)
-   =================================================================== */
-.modal-glass {
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(var(--blur-lg));
-  -webkit-backdrop-filter: blur(var(--blur-lg));
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-xl);
-  box-shadow: 0 24px 80px rgba(31, 38, 135, 0.15);
-}
-.modal-glass .modal-header {
-  border-bottom: 1px solid var(--divider);
-  padding: 20px 24px;
-}
-.modal-glass .modal-body { padding: 24px; }
-.modal-glass .modal-footer {
-  border-top: 1px solid var(--divider);
-  padding: 16px 24px;
-}
-.modal-backdrop { background: rgba(0,0,0,0.3); backdrop-filter: blur(4px); }
-
-/* ===================================================================
-   Progress Bar (Glass)
-   =================================================================== */
-.progress-glass {
-  background: rgba(0,0,0,0.04);
-  backdrop-filter: blur(4px);
-  border-radius: 100px;
-  height: 6px;
-  overflow: hidden;
-}
-.progress-glass .progress-bar-glass {
-  height: 100%;
-  border-radius: 100px;
-  background: linear-gradient(90deg, var(--primary), var(--primary-light));
-  transition: width 0.6s ease;
-}
-
-/* ===================================================================
-   Status Dots
-   =================================================================== */
-.status-dot {
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  display: inline-block;
-}
-.status-dot.green { background: var(--success); box-shadow: 0 0 8px var(--success-glow); }
-.status-dot.yellow { background: var(--warning); box-shadow: 0 0 8px var(--warning-glow); }
-.status-dot.red { background: var(--danger); box-shadow: 0 0 8px var(--danger-glow); }
-.status-dot.blue { background: var(--primary); box-shadow: 0 0 8px var(--primary-glow); }
-
-/* ===================================================================
-   Spinner
-   =================================================================== */
-.spinner-glass {
-  width: 20px; height: 20px;
-  border: 2px solid rgba(0,0,0,0.08);
-  border-top-color: var(--primary);
-  border-radius: 50%;
-  animation: spin 0.7s linear infinite;
-  display: inline-block;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-
-/* ===================================================================
-   Animations
-   =================================================================== */
-.fade-in-up { animation: fadeInUp 0.5s ease forwards; }
-@keyframes fadeInUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
-.fade-in { animation: fadeIn 0.4s ease forwards; }
-@keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
-.scale-in { animation: scaleIn 0.35s ease forwards; }
-@keyframes scaleIn { from { opacity:0; transform:scale(0.95); } to { opacity:1; transform:scale(1); } }
-
-/* ===================================================================
-   Alert Pulse
-   =================================================================== */
-@keyframes alertPulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.3); }
-  50% { box-shadow: 0 0 20px 4px rgba(239,68,68,0.1); }
-}
-.alert-live { animation: alertPulse 2s infinite; }
-
-/* ===================================================================
-   Section Cards
-   =================================================================== */
-.section-card { margin-bottom: 24px; }
-.section-header { padding: 18px 24px; border-bottom: 1px solid var(--divider); }
-.section-title { font-size: 18px; font-weight: 700; color: var(--text-primary); margin:0; display:flex; align-items:center; gap:10px; }
-.section-content { padding: 24px; }
-
-/* ===================================================================
-   Chart Container
-   =================================================================== */
-.chart-container { position: relative; height: 260px; width: 100%; }
-
-/* ===================================================================
-   Param Chip
-   =================================================================== */
-.param-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: rgba(59,130,246,0.08);
-  border: 1px solid rgba(59,130,246,0.15);
-  border-radius: 100px;
-  padding: 6px 16px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--primary);
-}
-
-/* ===================================================================
-   Skeleton Loading
-   =================================================================== */
-.skeleton {
-  background: linear-gradient(90deg, rgba(255,255,255,0.5) 25%, rgba(255,255,255,0.8) 50%, rgba(255,255,255,0.5) 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
-  border-radius: 8px;
-}
-@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-
-/* ===================================================================
-   Responsive
-   =================================================================== */
-@media (max-width: 1200px) {
-  .stat-grid { grid-template-columns: repeat(2, 1fr); }
-}
-@media (max-width: 768px) {
-  .navbar-glass { height: auto; padding: 8px 16px; }
-  .stat-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
-  .stat-card-glass .stat-value { font-size: 24px; }
-  .card-body-glass { padding: 16px; }
-  .section-content { padding: 16px; }
-  .nav-link-glass { padding: 10px 12px !important; font-size: 12px; }
-}
-@media (max-width: 480px) {
-  .stat-grid { grid-template-columns: 1fr; }
-}
-@media (min-width: 1600px) {
-  .container { max-width: 1440px; }
-}
-
-/* ===================================================================
-   Toast Notifications
-   =================================================================== */
-.global-toast {
-  position: fixed; top: 20px; right: 20px; z-index: 99999;
-  padding: 14px 24px; border-radius: 12px; font-size: 14px;
-  backdrop-filter: blur(12px); box-shadow: 0 8px 32px rgba(0,0,0,0.12);
-  opacity: 0; transform: translateX(40px);
-  transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
-  max-width: 420px; display: flex; align-items: center;
-}
-.global-toast.show { opacity: 1; transform: translateX(0); }
-.global-toast.toast-danger { background: rgba(239,68,68,0.95); color: #fff; }
-.global-toast.toast-success { background: rgba(16,185,129,0.95); color: #fff; }
-.global-toast.toast-warning { background: rgba(245,158,11,0.95); color: #fff; }
-
-/* 页面加载动画 */
-.section-content > * { animation: fadeInUp var(--transition-normal) both; }
-.section-content > *:nth-child(1) { animation-delay: 0.05s; }
-.section-content > *:nth-child(2) { animation-delay: 0.1s; }
-.section-content > *:nth-child(3) { animation-delay: 0.15s; }
-.section-content > *:nth-child(4) { animation-delay: 0.2s; }
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width:4px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:rgba(0,0,0,0.1); border-radius:4px; }
 </style>
 </head>
 <body>
 
-<!-- ===================================================================
-     NAVBAR — Full-width Glass
-     =================================================================== -->
-<nav class="navbar navbar-expand-xl navbar-glass fixed-top">
-  <div class="container-fluid px-0">
-    <a class="navbar-brand" href="#"><i class="fas fa-shield-halved"></i> 基于机器学习的密码攻击检测与自适应优化</a>
-    <button class="navbar-toggler border-0 p-2" type="button" data-bs-toggle="collapse" data-bs-target="#navMain" style="color:var(--text-primary)">
-      <i class="fas fa-bars fa-lg"></i>
-    </button>
-    <div class="collapse navbar-collapse" id="navMain">
-      <ul class="navbar-nav ms-auto">
-        <li class="nav-item"><a class="nav-link nav-link-glass active" href="#" onclick="navTo('dashboard')"><i class="fas fa-chart-line"></i>看板</a></li>
-        <li class="nav-item"><a class="nav-link nav-link-glass" href="#" onclick="navTo('data')"><i class="fas fa-database"></i>数据准备</a></li>
-        <li class="nav-item"><a class="nav-link nav-link-glass" href="#" onclick="navTo('train')"><i class="fas fa-robot"></i>模型训练</a></li>
-        <li class="nav-item"><a class="nav-link nav-link-glass" href="#" onclick="navTo('compare')"><i class="fas fa-balance-scale"></i>加密对比</a></li>
-        <li class="nav-item"><a class="nav-link nav-link-glass" href="#" onclick="navTo('datasets')"><i class="fas fa-folder-open"></i>数据导入</a></li>
-        <li class="nav-item"><a class="nav-link nav-link-glass" href="#" onclick="navTo('optimize')"><i class="fas fa-sliders-h"></i>自适应优化</a></li>
-        <li class="nav-item"><a class="nav-link nav-link-glass" href="#" onclick="navTo('visitors')"><i class="fas fa-users"></i>访客IP</a></li>
-      </ul>
-    </div>
+<!-- ============ TOP BAR ============ -->
+<div class="topbar" id="topbar">
+  <div class="topbar-title">
+    <i class="fas fa-shield-alt" style="color:#007AFF;margin-right:6px"></i>
+    基于机器学习的密码攻击检测与加密算法自适应优化系统
   </div>
-</nav>
-<div style="height:64px"></div>
-
-<div class="container py-3">
-
-<!-- ================================================================
-     SECTION: DASHBOARD
-     ================================================================ -->
-<section id="dashboard-section" class="fade-in-up">
-<div class="section-card card-glass">
-  <div class="section-header">
-    <h2 class="section-title"><i class="fas fa-chart-pie card-title-icon"></i> 实时数据看板</h2>
-    <span class="caption"><i class="far fa-clock"></i> <span id="dash-ts"></span> · <span class="status-dot green"></span> 系统运行中</span>
-  </div>
-  <div class="section-content">
-    <!-- Stat Cards -->
-    <div class="stat-grid">
-      <div class="stat-card-glass primary">
-        <div class="stat-icon"><i class="fas fa-bug"></i></div>
-        <div class="stat-value num" id="kd-total">--</div>
-        <div class="stat-label">检测到的攻击总数</div>
-        <div class="mini-chart"><canvas id="miniTrend"></canvas></div>
-      </div>
-      <div class="stat-card-glass success">
-        <div class="stat-icon"><i class="fas fa-bullseye"></i></div>
-        <div class="stat-value num" id="kd-rate">--%</div>
-        <div class="stat-label">检测准确率</div>
-        <div class="mini-chart"><canvas id="miniAcc"></canvas></div>
-      </div>
-      <div class="stat-card-glass warning">
-        <div class="stat-icon"><i class="fas fa-exclamation-triangle"></i></div>
-        <div class="stat-value num" id="kd-fp">--</div>
-        <div class="stat-label">误报数量</div>
-        <div class="mini-chart"><canvas id="miniFp"></canvas></div>
-      </div>
-      <div class="stat-card-glass danger">
-        <div class="stat-icon"><i class="fas fa-bolt"></i></div>
-        <div class="stat-value num" id="kd-rt">--</div>
-        <div class="stat-label">平均响应时间</div>
-        <div class="mini-chart"><canvas id="miniRt"></canvas></div>
-      </div>
-    </div>
-    <!-- Charts -->
-    <div class="row g-4">
-      <div class="col-xl-8">
-        <div class="card-glass h-100">
-          <div class="card-header-glass"><span class="fw-semibold" style="color:var(--text-primary)"><i class="fas fa-chart-area card-title-icon"></i>攻击检测趋势（近6个月）</span></div>
-          <div class="card-body-glass"><div class="chart-container"><canvas id="trendChart"></canvas></div></div>
-        </div>
-      </div>
-      <div class="col-xl-4">
-        <div class="card-glass h-100">
-          <div class="card-header-glass"><span class="fw-semibold" style="color:var(--text-primary)"><i class="fas fa-chart-pie card-title-icon"></i>攻击类型分布</span></div>
-          <div class="card-body-glass"><div class="chart-container"><canvas id="attackTypeChart"></canvas></div></div>
-        </div>
-      </div>
-    </div>
+  <div class="segmented-control" id="segmentedControl">
+    <button class="segmented-btn active" data-section="data"><i class="fas fa-database"></i> 数据准备</button>
+    <button class="segmented-btn" data-section="train"><i class="fas fa-brain"></i> 模型训练</button>
+    <button class="segmented-btn" data-section="detect"><i class="fas fa-shield"></i> 攻击检测</button>
+    <button class="segmented-btn" data-section="optimize"><i class="fas fa-sliders-h"></i> 自适应优化</button>
+    <button class="segmented-btn" data-section="dashboard"><i class="fas fa-chart-line"></i> 数据看板</button>
   </div>
 </div>
-</section>
 
-<!-- ================================================================
-     SECTION: DATA PREPARATION
-     ================================================================ -->
-<section id="data-section" class="d-none">
-<div class="section-card card-glass">
-  <div class="section-header">
-    <h2 class="section-title"><i class="fas fa-database card-title-icon"></i> 数据准备：生成与加密</h2>
-    <span class="caption">Paillier同态加密 · 2048位密钥</span>
-  </div>
-  <div class="section-content">
-    <!-- Steps -->
-    <div class="d-flex gap-2 mb-4">
-      <span class="tag tag-info"><i class="fas fa-check-circle"></i> 1. 选择数据量</span>
-      <span style="color:var(--text-disabled)"><i class="fas fa-arrow-right"></i></span>
-      <span class="tag tag-info"><i class="fas fa-check-circle"></i> 2. 生成明文</span>
-      <span style="color:var(--text-disabled)"><i class="fas fa-arrow-right"></i></span>
-      <span class="tag tag-info"><i class="fas fa-lock"></i> 3. Paillier加密</span>
-    </div>
-    <div class="row g-3 mb-4">
-      <div class="col-md-4">
-        <label class="form-label-glass">数据量</label>
-        <select class="form-select form-select-glass" id="data-count">
-          <option value="50">50 条</option>
-          <option value="100" selected>100 条</option>
-          <option value="500">500 条</option>
-          <option value="1000">1000 条</option>
+<!-- ============ GLOBAL STATUS BAR ============ -->
+<div class="status-bar" id="statusBar">
+  <div class="status-item"><span class="status-dot green" id="stDot"></span><span class="status-value" id="stSystem">系统运行中</span></div>
+  <div class="status-item"><span class="status-label">模型:</span><span class="status-value" id="stModel">--</span></div>
+  <div class="status-item"><span class="status-label">密钥:</span><span class="status-value" id="stKey">--</span></div>
+  <div class="status-item"><span class="status-label">风险:</span><span class="status-value" id="stRisk">--</span></div>
+  <div class="status-item"><span class="status-label">攻击数:</span><span class="status-value" id="stAttacks">--</span></div>
+  <div class="status-item"><span class="status-label">更新时间:</span><span class="status-value" id="stTime">--</span></div>
+</div>
+
+<!-- ============ CONTENT ============ -->
+<div class="content">
+
+<!-- ─── 数据准备 ─── -->
+<div class="section active" id="section-data">
+  <div class="app-card">
+    <div class="app-card-title"><i class="fas fa-database" style="color:#007AFF"></i> 数据生成与加密</div>
+    <div class="row g-3">
+      <div class="col-md-6">
+        <div class="form-label-apple">数据量 (MB)</div>
+        <div class="d-flex align-items-center gap-2">
+          <input type="range" class="form-apple" id="dataCount" min="1" max="100" value="10" style="flex:1">
+          <span style="font-size:14px;font-weight:600;min-width:50px" id="dataCountLabel">10MB</span>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="form-label-apple">加密算法</div>
+        <select class="form-apple" id="encAlgo">
+          <option value="paillier">Paillier 同态加密</option>
+          <option value="aes">AES-256</option>
         </select>
       </div>
-      <div class="col-md-2 d-flex align-items-end">
-        <button class="btn btn-glass-primary w-100" onclick="generateData()"><i class="fas fa-magic"></i> 生成</button>
-      </div>
-      <div class="col-md-3 d-flex align-items-end">
-        <button class="btn btn-glass-outline w-100" onclick="saveSampleData()"><i class="fas fa-save"></i> 保存样本</button>
-      </div>
-      <div class="col-md-3 d-flex align-items-end">
-        <button class="btn btn-glass-outline w-100" onclick="encryptAll()"><i class="fas fa-lock"></i> 全量加密</button>
+    </div>
+    <div class="mt-3 d-flex gap-2">
+      <button class="btn-apple" onclick="generateData()"><i class="fas fa-magic"></i> 生成数据</button>
+      <button class="btn-secondary-apple" onclick="document.getElementById('dataFileInput').click()"><i class="fas fa-upload"></i> 上传数据</button>
+      <button class="btn-success-apple" onclick="saveDataset()"><i class="fas fa-save"></i> 保存到数据集</button>
+      <input type="file" id="dataFileInput" accept=".csv,.json" style="display:none" onchange="uploadData(this)">
+    </div>
+  </div>
+  <div class="row g-3">
+    <div class="col-md-6">
+      <div class="app-card">
+        <div class="app-card-title" style="font-size:13px"><i class="fas fa-lock-open" style="color:#30D158"></i> 明文数据预览</div>
+        <div style="max-height:260px;overflow-y:auto" id="plainPreview"></div>
       </div>
     </div>
-
-    <ul class="nav nav-pills nav-pills-glass mb-3" id="dataTabs">
-      <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#pt-tab"><i class="fas fa-unlock"></i> 明文数据</button></li>
-      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#enc-tab"><i class="fas fa-lock"></i> 密态数据</button></li>
-    </ul>
-    <div class="tab-content">
-      <div class="tab-pane fade show active" id="pt-tab">
-        <div class="table-responsive"><table class="table table-glass" id="pt-tbl"><thead><tr><th>ID</th><th>手机号</th><th>薪资</th><th>信用分</th><th>年龄</th><th>是否欺诈</th></tr></thead><tbody></tbody></table></div>
-      </div>
-      <div class="tab-pane fade" id="enc-tab">
-        <div class="table-responsive"><table class="table table-glass" id="enc-tbl"><thead><tr><th>ID</th><th>手机号(加密)</th><th>薪资(加密)</th><th>信用分(加密)</th></tr></thead><tbody></tbody></table></div>
+    <div class="col-md-6">
+      <div class="app-card">
+        <div class="app-card-title" style="font-size:13px"><i class="fas fa-lock" style="color:#007AFF"></i> 密文数据预览</div>
+        <div style="max-height:260px;overflow-y:auto" id="encPreview"></div>
       </div>
     </div>
   </div>
 </div>
-</section>
 
-<!-- ================================================================
-     SECTION: MODEL TRAINING
-     ================================================================ -->
-<section id="train-section" class="d-none">
-<div class="section-card card-glass">
-  <div class="section-header">
-    <h2 class="section-title"><i class="fas fa-robot card-title-icon"></i> 模型训练：联邦学习</h2>
-    <span class="caption">支持模拟训练 · PrimiHub真实联邦 · 明文对比</span>
-  </div>
-  <div class="section-content">
-    <div class="row g-3 mb-4">
-      <div class="col-md-4"><button class="btn btn-glass-primary w-100" onclick="startTrain('fate')"><i class="fas fa-play"></i> 模拟联邦训练</button></div>
-      <div class="col-md-4"><button class="btn btn-glass-outline w-100" onclick="startTrain('plain')"><i class="fas fa-exchange-alt"></i> 明文对比训练</button></div>
-      <div class="col-md-4"><button class="btn btn-glass-success w-100" onclick="startTrain('real')"><i class="fas fa-globe"></i> 真实联邦(PrimiHub)</button></div>
-    </div>
-
-    <div class="card-glass d-none mb-4" id="real-train-config" style="background:rgba(255,255,255,0.5)">
-      <div class="card-body-glass">
+<!-- ─── 模型训练 ─── -->
+<div class="section" id="section-train">
+  <div class="row g-3">
+    <div class="col-md-4">
+      <div class="app-card">
+        <div class="app-card-title"><i class="fas fa-cog" style="color:#007AFF"></i> 训练配置</div>
         <div class="mb-3">
-          <span class="tag tag-info"><i class="fas fa-info-circle"></i> 参数说明</span>
-          <span class="caption ms-2">基于PrimiHub框架的联邦逻辑回归，数据加密后在各节点本地训练，仅聚合加密梯度</span>
+          <div class="form-label-apple">数据集</div>
+          <select class="form-apple" id="trainDataset"><option value="auto">自动生成(10000条)</option></select>
         </div>
-        <div class="row g-3 align-items-end">
-          <div class="col-md-2">
-            <label class="form-label-glass" title="联邦学习算法类型，目前支持逻辑回归">算法 <i class="fas fa-question-circle" style="color:var(--text-disabled);font-size:12px"></i></label>
-            <select class="form-select form-select-glass form-select-sm" id="fl-algo"><option>logistic_regression</option></select>
-          </div>
-          <div class="col-md-2">
-            <label class="form-label-glass" title="训练迭代次数，越多精度越高但耗时更长，通常10-20轮">轮次 <i class="fas fa-question-circle" style="color:var(--text-disabled);font-size:12px"></i></label>
-            <input type="number" class="form-control form-control-glass form-control-sm" id="fl-rounds" value="10">
-          </div>
-          <div class="col-md-2">
-            <label class="form-label-glass" title="梯度下降步长，太大不收敛，太小收敛慢，推荐0.01-0.1">学习率 <i class="fas fa-question-circle" style="color:var(--text-disabled);font-size:12px"></i></label>
-            <input type="number" class="form-control form-control-glass form-control-sm" id="fl-lr" value="0.01" step="0.005">
-          </div>
-          <div class="col-md-2">
-            <label class="form-label-glass" title="每次训练的样本数，越大越稳定但耗内存，通常32-128">批大小 <i class="fas fa-question-circle" style="color:var(--text-disabled);font-size:12px"></i></label>
-            <input type="number" class="form-control form-control-glass form-control-sm" id="fl-bs" value="64">
-          </div>
-          <div class="col-md-2">
-            <label class="form-label-glass" title="数据集中的标签列名，标识样本是否为攻击">标签列 <i class="fas fa-question-circle" style="color:var(--text-disabled);font-size:12px"></i></label>
-            <input type="text" class="form-control form-control-glass form-control-sm" id="fl-label" value="label">
-          </div>
-          <div class="col-md-2 d-grid"><button class="btn btn-glass-success btn-sm-glass" onclick="submitRealTask()"><i class="fas fa-paper-plane"></i> 提交</button></div>
+        <div class="mb-3">
+          <div class="form-label-apple">训练轮次</div>
+          <input type="number" class="form-apple" id="trainEpochs" value="10" min="1" max="100">
         </div>
+        <div class="mb-3">
+          <div class="form-label-apple">批量大小</div>
+          <input type="number" class="form-apple" id="trainBatch" value="32" min="8" max="512">
+        </div>
+        <div class="d-grid gap-2">
+          <button class="btn-apple" onclick="startTraining()"><i class="fas fa-play"></i> 开始训练</button>
+          <button class="btn-secondary-apple" onclick="loadModelStatus()"><i class="fas fa-sync"></i> 刷新状态</button>
+        </div>
+      </div>
+      <div class="app-card" id="trainStatusCard">
+        <div class="app-card-title" style="font-size:13px"><i class="fas fa-info-circle"></i> 模型状态</div>
+        <div id="modelStatusDisplay"><small style="color:#86868B">加载中...</small></div>
       </div>
     </div>
-
-    <div class="row g-3 mb-4 d-none" id="train-status-row">
-      <div class="col-3"><div class="stat-card-glass primary"><div class="stat-value num" id="ts-status">--</div><div class="stat-label">状态</div></div></div>
-      <div class="col-3"><div class="stat-card-glass success"><div class="stat-value num" id="ts-progress">0%</div><div class="stat-label">进度</div></div></div>
-      <div class="col-3"><div class="stat-card-glass" style="--c:var(--primary)"><div class="stat-value num" id="ts-acc">--</div><div class="stat-label">准确率</div></div></div>
-      <div class="col-3"><div class="stat-card-glass" style="--c:var(--danger)"><div class="stat-value num" id="ts-loss">--</div><div class="stat-label">损失</div></div></div>
-    </div>
-
-    <ul class="nav nav-pills nav-pills-glass mb-3" id="trainTabs">
-      <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#ft-tab"><i class="fas fa-shield-virus"></i> 联邦训练</button></li>
-      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#plt-tab"><i class="fas fa-exchange-alt"></i> 明文对比</button></li>
-      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#cmp-tab"><i class="fas fa-chart-bar"></i> 结果对比</button></li>
-    </ul>
-    <div class="tab-content">
-      <div class="tab-pane fade show active" id="ft-tab">
-        <div class="row g-4">
-          <div class="col-md-6">
-            <div class="card-glass"><div class="card-header-glass"><span style="color:var(--text-primary);font-weight:600"><i class="fas fa-terminal card-title-icon"></i>训练日志</span></div>
-              <div class="card-body-glass p-2"><div class="log-box" id="fl-logs"><p class="caption" style="color:var(--text-disabled)">⏳ 等待训练...</p></div></div></div>
-          </div>
-          <div class="col-md-6">
-            <div class="card-glass"><div class="card-header-glass"><span style="color:var(--text-primary);font-weight:600"><i class="fas fa-chart-area card-title-icon"></i>训练曲线</span></div>
-              <div class="card-body-glass"><div class="chart-container"><canvas id="fateChart"></canvas></div></div></div>
-          </div>
-        </div>
+    <div class="col-md-8">
+      <div class="app-card">
+        <div class="app-card-title"><i class="fas fa-chart-line" style="color:#30D158"></i> 训练过程</div>
+        <div class="chart-container"><canvas id="trainChart"></canvas></div>
       </div>
-      <div class="tab-pane fade" id="plt-tab">
-        <div class="row g-4">
-          <div class="col-md-6">
-            <div class="card-glass"><div class="card-header-glass"><span style="color:var(--text-primary);font-weight:600"><i class="fas fa-terminal card-title-icon"></i>明文日志</span></div>
-              <div class="card-body-glass p-2"><div class="log-box" id="pt-logs"><p class="caption" style="color:var(--text-disabled)">⏳ 等待训练...</p></div></div></div>
-          </div>
-          <div class="col-md-6">
-            <div class="card-glass"><div class="card-header-glass"><span style="color:var(--text-primary);font-weight:600"><i class="fas fa-chart-area card-title-icon"></i>训练曲线</span></div>
-              <div class="card-body-glass"><div class="chart-container"><canvas id="plaintextChart"></canvas></div></div></div>
-          </div>
-        </div>
-      </div>
-      <div class="tab-pane fade" id="cmp-tab">
-        <div class="card-glass"><div class="card-body-glass"><div class="chart-container"><canvas id="compareChart"></canvas></div></div></div>
+      <div class="app-card">
+        <div class="app-card-title" style="font-size:13px"><i class="fas fa-terminal" style="color:#30D158"></i> 训练日志</div>
+        <div class="log-console" id="trainLogs"><div class="log-line">等待训练开始...</div></div>
       </div>
     </div>
   </div>
 </div>
-</section>
 
-<!-- ================================================================
-     SECTION: ENCRYPTION COMPARISON
-     ================================================================ -->
-<section id="compare-section" class="d-none">
-<div class="section-card card-glass">
-  <div class="section-header">
-    <h2 class="section-title"><i class="fas fa-balance-scale card-title-icon"></i> 加密算法对比</h2>
-    <span class="caption">AES-256 vs Paillier同态加密</span>
-  </div>
-  <div class="section-content">
-    <div class="row g-3 mb-4">
-      <div class="col-md-8">
-        <label class="form-label-glass">数据大小</label>
-        <input type="range" class="form-range" id="dataSize" min="1" max="100" value="10" style="accent-color:var(--primary)">
-        <div class="d-flex justify-content-between caption mt-1"><span>1 MB</span><span>25</span><span>50</span><span>75</span><span>100 MB</span></div>
-      </div>
-      <div class="col-md-2 d-flex align-items-end"><span class="param-chip" id="dataSizeValue">10 MB</span></div>
-      <div class="col-md-2 d-flex align-items-end"><button class="btn btn-glass-primary w-100" onclick="updateEncryptionComparison()"><i class="fas fa-sync"></i> 刷新</button></div>
-    </div>
-
-    <div class="row g-4 mb-4">
-      <div class="col-md-6">
-        <div class="comp-card trad">
-          <div class="d-flex justify-content-between align-items-center mb-3">
-            <h5 class="fw-bold mb-0" style="color:var(--text-primary)"><i class="fas fa-key" style="color:var(--danger)"></i> AES-256</h5>
-            <span class="tag" style="background:rgba(239,68,68,0.1);color:var(--danger)">传统加密</span>
-          </div>
-          <div class="row g-2">
-            <div class="col-6"><div class="metric-item"><div class="metric-label">加密时间</div><div class="metric-value" id="tradEnc">--</div></div></div>
-            <div class="col-6"><div class="metric-item"><div class="metric-label">解密时间</div><div class="metric-value" id="tradDec">--</div></div></div>
-            <div class="col-6"><div class="metric-item"><div class="metric-label">吞吐量</div><div class="metric-value" id="tradThr">--</div></div></div>
-            <div class="col-6"><div class="metric-item"><div class="metric-label">安全级别</div><div class="metric-value" style="color:var(--warning)">高</div></div></div>
+<!-- ─── 攻击检测 ─── -->
+<div class="section" id="section-detect">
+  <div class="row g-3">
+    <div class="col-md-4">
+      <div class="app-card">
+        <div class="app-card-title"><i class="fas fa-bolt" style="color:#FF9F0A"></i> 检测配置</div>
+        <div class="upload-zone mb-3" id="detUploadZone" onclick="document.getElementById('detFileInput').click()">
+          <i class="fas fa-cloud-upload-alt"></i>
+          <div style="font-size:14px;font-weight:500;margin-top:4px">点击上传数据文件</div>
+          <div style="font-size:12px;color:#86868B">支持 CSV / JSON</div>
+        </div>
+        <input type="file" id="detFileInput" accept=".csv,.json" style="display:none" onchange="startDetection(this)">
+        <div class="mb-3">
+          <div class="form-label-apple">检测阈值</div>
+          <div class="d-flex gap-2 align-items-center">
+            <input type="range" class="form-apple" id="detThreshold" min="0.1" max="0.9" value="0.5" step="0.1" style="flex:1">
+            <span id="detThresholdLabel" style="font-size:14px;font-weight:600">0.5</span>
           </div>
         </div>
-      </div>
-      <div class="col-md-6">
-        <div class="comp-card homo">
-          <div class="d-flex justify-content-between align-items-center mb-3">
-            <h5 class="fw-bold mb-0" style="color:var(--text-primary)"><i class="fas fa-shield-alt" style="color:var(--primary)"></i> Paillier同态加密</h5>
-            <span class="tag tag-info">推荐方案</span>
-          </div>
-          <div class="row g-2">
-            <div class="col-6"><div class="metric-item"><div class="metric-label">加密时间</div><div class="metric-value" id="homoEnc">--</div></div></div>
-            <div class="col-6"><div class="metric-item"><div class="metric-label">解密时间</div><div class="metric-value" id="homoDec">--</div></div></div>
-            <div class="col-6"><div class="metric-item"><div class="metric-label">吞吐量</div><div class="metric-value" id="homoThr">--</div></div></div>
-            <div class="col-6"><div class="metric-item"><div class="metric-label">安全级别</div><div class="metric-value" style="color:var(--success)">极高</div></div></div>
-          </div>
+        <div class="d-grid">
+          <button class="btn-secondary-apple" onclick="runSampleDetection()"><i class="fas fa-flask"></i> 使用内置样本</button>
         </div>
       </div>
     </div>
-
-    <div class="card-glass">
-      <div class="card-header-glass"><span style="color:var(--text-primary);font-weight:600"><i class="fas fa-chart-bar card-title-icon"></i>吞吐量对比曲线</span></div>
-      <div class="card-body-glass"><div class="chart-container"><canvas id="encChart"></canvas></div></div>
-    </div>
-  </div>
-</div>
-</section>
-
-<!-- ================================================================
-     SECTION: ADAPTIVE OPTIMIZATION
-     ================================================================ -->
-<section id="optimize-section" class="d-none">
-<div class="section-card card-glass">
-  <div class="section-header">
-    <h2 class="section-title"><i class="fas fa-sliders-h card-title-icon"></i> 自适应加密优化（DQN）</h2>
-    <span class="caption">深度Q网络 · 动态调参</span>
-  </div>
-  <div class="section-content">
-    <div class="stat-grid mb-4">
-      <div class="stat-card-glass primary"><div class="stat-icon"><i class="fas fa-key"></i></div><div class="stat-value num" id="opt-kl">--</div><div class="stat-label">当前密钥长度</div></div>
-      <div class="stat-card-glass" style="--c:var(--primary)"><div class="stat-icon"><i class="fas fa-redo"></i></div><div class="stat-value num" id="opt-rr">--</div><div class="stat-label">加密轮数</div></div>
-      <div class="stat-card-glass" id="opt-risk-card"><div class="stat-icon"><i class="fas fa-exclamation-circle"></i></div><div class="stat-value num" id="opt-risk">--</div><div class="stat-label">当前风险等级</div></div>
-      <div class="stat-card-glass success"><div class="stat-icon"><i class="fas fa-arrow-up"></i></div><div class="stat-value num" id="opt-gain">--</div><div class="stat-label">性能提升</div></div>
-    </div>
-
-    <div class="row g-4 mb-4">
-      <div class="col-md-6">
-        <div class="card-glass h-100">
-          <div class="card-header-glass"><span style="color:var(--text-primary);font-weight:600"><i class="fas fa-sliders-h card-title-icon"></i>手动触发优化</span></div>
-          <div class="card-body-glass">
-            <div class="row g-2">
-              <div class="col-6"><label class="form-label-glass">异常分数</label><input type="number" class="form-control form-control-glass" id="opt-score" value="0.5" min="0" max="1" step="0.1"></div>
-              <div class="col-6"><label class="form-label-glass">CPU使用率</label><input type="number" class="form-control form-control-glass" id="opt-cpu" value="0.3" step="0.1"></div>
-              <div class="col-6"><label class="form-label-glass">内存使用率</label><input type="number" class="form-control form-control-glass" id="opt-mem" value="0.4" step="0.1"></div>
-              <div class="col-6"><label class="form-label-glass">模型精度</label><input type="number" class="form-control form-control-glass" id="opt-acc" value="0.95" step="0.05"></div>
-              <div class="col-12 mt-3">
-                <button class="btn btn-glass-primary me-2" onclick="triggerOptimize()"><i class="fas fa-play"></i> 执行</button>
-                <button class="btn btn-glass-outline me-2" onclick="trainOptimizer(event)"><i class="fas fa-graduation-cap"></i> 训练</button>
-                <button class="btn btn-glass-outline" onclick="loadOptStatus()"><i class="fas fa-sync"></i> 刷新</button>
-              </div>
-            </div>
-          </div>
+    <div class="col-md-8">
+      <div class="stat-grid" id="detStats">
+        <div class="stat-card"><div class="stat-number blue" id="detTotal">--</div><div class="stat-label">总记录数</div></div>
+        <div class="stat-card"><div class="stat-number red" id="detAnomalies">--</div><div class="stat-label">异常数</div></div>
+        <div class="stat-card"><div class="stat-number green" id="detConf">--</div><div class="stat-label">平均置信度</div></div>
+        <div class="stat-card"><div class="stat-number" id="detTime">--</div><div class="stat-label">检测耗时</div></div>
+      </div>
+      <div class="app-card">
+        <div class="app-card-title" style="font-size:13px"><i class="fas fa-table"></i> 检测结果</div>
+        <div style="max-height:300px;overflow-y:auto">
+          <table class="table-apple"><thead><tr><th>#</th><th>异常</th><th>置信度</th><th>IF分数</th><th>MLP分数</th><th>类型</th></tr></thead>
+          <tbody id="detResults"></tbody></table>
         </div>
-      </div>
-      <div class="col-md-6">
-        <div class="card-glass h-100">
-          <div class="card-header-glass"><span style="color:var(--text-primary);font-weight:600"><i class="fas fa-chart-line card-title-icon"></i>优化奖励曲线</span></div>
-          <div class="card-body-glass"><div class="chart-container"><canvas id="optChart"></canvas></div></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 参数说明卡片 -->
-    <div class="card-glass mb-4">
-      <div class="card-header-glass" style="cursor:pointer" onclick="const n=this.nextElementSibling; n.classList.toggle('d-none'); this.querySelector('i.fa-chevron-down').style.transform=n.classList.contains('d-none')?'rotate(0deg)':'rotate(180deg)';">
-        <span style="color:var(--text-primary);font-weight:600"><i class="fas fa-question-circle card-title-icon"></i>参数调整说明 <span class="caption">（点击展开）</span></span>
-        <i class="fas fa-chevron-down" style="color:var(--text-disabled);transition:transform .3s"></i>
-      </div>
-      <div class="card-body-glass d-none">
-        <div class="row g-3">
-          <div class="col-md-6">
-            <h6 style="color:var(--text-primary);font-weight:600"><i class="fas fa-key"></i> 密钥长度</h6>
-            <table class="table table-glass table-sm">
-              <thead><tr><th>长度</th><th>安全性</th><th>开销</th><th>适用场景</th></tr></thead><tbody>
-                <tr><td><span class="tag tag-info">1024位</span></td><td>基础</td><td>1.0x</td><td>低风险、高吞吐</td></tr>
-                <tr><td><span class="tag tag-info">2048位</span></td><td>标准</td><td>2.5x</td><td>默认推荐</td></tr>
-                <tr><td><span class="tag tag-danger">4096位</span></td><td>最高</td><td>6.0x</td><td>高风险、机密数据</td></tr>
-              </tbody></table>
-          </div>
-          <div class="col-md-6">
-            <h6 style="color:var(--text-primary);font-weight:600"><i class="fas fa-redo"></i> 加密轮数</h6>
-            <table class="table table-glass table-sm">
-              <thead><tr><th>轮数</th><th>安全性</th><th>开销</th><th>适用场景</th></tr></thead><tbody>
-                <tr><td><span class="tag tag-info">10轮</span></td><td>基础</td><td>1.0x</td><td>快速加密</td></tr>
-                <tr><td><span class="tag tag-info">12轮</span></td><td>标准</td><td>1.2x</td><td>默认推荐</td></tr>
-                <tr><td><span class="tag tag-danger">14轮</span></td><td>最高</td><td>1.5x</td><td>高安全需求</td></tr>
-              </tbody></table>
-          </div>
-          <div class="col-12 mt-2">
-            <div style="background:rgba(59,130,246,0.06);border:1px solid rgba(59,130,246,0.12);border-radius:8px;padding:12px 16px">
-              <i class="fas fa-lightbulb" style="color:var(--primary)"></i>
-              <strong style="color:var(--text-primary)"> 性能提升 说明：</strong>
-              <span style="color:var(--text-secondary)">
-                基准 = 2048位/10轮（成本2.5）。
-                <span style="color:var(--danger)">负值</span>=加密强度高于基准（安全优先）。
-                <span style="color:var(--success)">正值</span>=低于基准（效率优先）。
-                调整建议：异常分数低→降低强度提升效率；异常分数高→增加强度保障安全。
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="card-glass">
-      <div class="card-header-glass"><span style="color:var(--text-primary);font-weight:600"><i class="fas fa-history card-title-icon"></i>优化历史记录</span></div>
-      <div class="card-body-glass p-0">
-        <div class="table-responsive">
-          <table class="table table-glass" id="opt-history-tbl"><thead><tr><th>时间</th><th>风险等级</th><th>密钥长度</th><th>轮数</th><th>奖励值</th><th>性能提升</th></tr></thead><tbody></tbody></table>
+        <div class="mt-2 d-flex gap-2">
+          <button class="btn-secondary-apple" style="padding:6px 16px;font-size:12px" onclick="exportDetCSV()"><i class="fas fa-download"></i> 导出CSV</button>
         </div>
       </div>
     </div>
   </div>
 </div>
-</section>
 
-</div><!-- /container -->
-
-<!-- ================================================================
-     SECTION: DATASETS
-     ================================================================ -->
-<section id="datasets-section" class="d-none">
-<div class="section-card card-glass">
-  <div class="section-header">
-    <h2 class="section-title"><i class="fas fa-folder-open card-title-icon"></i> 数据导入与攻击检测</h2>
-    <span class="caption">上传数据集 → 特征提取 → LSTM+孤立森林混合检测</span>
-  </div>
-  <div class="section-content">
-    <!-- 上传区域 -->
-    <div class="row g-3 mb-4">
-      <div class="col-12">
-        <div class="upload-zone" id="dsUploadZone">
-          <input type="file" id="dsFileInput" accept=".csv,.json" class="d-none">
-          <div class="upload-icon"><i class="fas fa-cloud-upload-alt"></i></div>
-          <h5>拖拽或点击上传数据文件</h5>
-          <p class="mb-0">支持 CSV / JSON · 自动进行攻击检测 · 支持导入为训练数据集</p>
+<!-- ─── 自适应优化 ─── -->
+<div class="section" id="section-optimize">
+  <div class="row g-3">
+    <div class="col-md-4">
+      <div class="app-card">
+        <div class="app-card-title"><i class="fas fa-sliders-h" style="color:#007AFF"></i> 系统状态</div>
+        <div class="mb-2"><div style="display:flex;justify-content:space-between;font-size:13px"><span>攻击风险</span><span id="optRiskValue">--</span></div>
+          <div style="height:6px;background:rgba(0,0,0,0.06);border-radius:3px;margin-top:4px"><div id="optRiskBar" style="height:100%;border-radius:3px;background:#30D158;width:0%;transition:width 0.5s"></div></div>
+        </div>
+        <div class="mb-2"><div style="display:flex;justify-content:space-between;font-size:13px"><span>当前密钥</span><span id="optKey" style="font-weight:600">--</span></div></div>
+        <div class="mb-2"><div style="display:flex;justify-content:space-between;font-size:13px"><span>加密轮数</span><span id="optRounds" style="font-weight:600">--</span></div></div>
+        <div class="mb-2"><div style="display:flex;justify-content:space-between;font-size:13px"><span>性能提升</span><span id="optGain" style="font-weight:600;color:#30D158">--</span></div></div>
+        <div class="d-grid gap-2 mt-3">
+          <button class="btn-apple" onclick="toggleAutoOpt()"><i class="fas fa-play"></i> <span id="autoOptBtnText">开启自动优化</span></button>
+          <button class="btn-secondary-apple" onclick="triggerOptimize()"><i class="fas fa-sync"></i> 手动调整</button>
+        </div>
+      </div>
+      <div class="app-card">
+        <div class="app-card-title" style="font-size:13px"><i class="fas fa-clock"></i> 效果对比</div>
+        <div style="font-size:13px">
+          <div class="d-flex justify-content-between py-1"><span>静态加密(2048/10)</span><span style="color:#86868B">基准</span></div>
+          <div class="d-flex justify-content-between py-1"><span style="color:#007AFF">自适应加密</span><span id="optCompareGain" style="font-weight:600">--</span></div>
+          <div class="d-flex justify-content-between py-1"><span>累计节省</span><span id="optTotalGain" style="font-weight:600;color:#30D158">--</span></div>
         </div>
       </div>
     </div>
-
-    <!-- 检测结果统计 -->
-    <div class="row g-3 mb-4 d-none" id="det-res-stats">
-      <div class="col-3"><div class="stat-card-glass primary"><div class="stat-value num" id="det-total">0</div><div class="stat-label">总记录数</div></div></div>
-      <div class="col-3"><div class="stat-card-glass danger"><div class="stat-value num" id="det-anom">0</div><div class="stat-label">检测到异常</div></div></div>
-      <div class="col-3"><div class="stat-card-glass success"><div class="stat-value num" id="det-norm">0</div><div class="stat-label">正常流量</div></div></div>
-      <div class="col-3"><div class="stat-card-glass" style="--c:#8b5cf6"><div class="stat-value num" id="det-avg-conf">--</div><div class="stat-label">平均置信度</div></div></div>
-    </div>
-
-    <!-- 检测结果表 -->
-    <div class="card-glass d-none mb-4" id="det-table-card">
-      <div class="card-header-glass">
-        <span style="color:var(--text-primary);font-weight:600"><i class="fas fa-table card-title-icon"></i>检测结果明细</span>
-        <button class="btn btn-sm btn-glass-outline btn-sm-glass" onclick="exportDetCSV()"><i class="fas fa-download"></i> 导出CSV</button>
+    <div class="col-md-8">
+      <div class="app-card">
+        <div class="app-card-title"><i class="fas fa-chart-area" style="color:#007AFF"></i> 参数变化历史</div>
+        <div class="chart-container"><canvas id="optChart"></canvas></div>
       </div>
-      <div class="card-body-glass p-0">
-        <div class="table-responsive">
-          <table class="table table-glass" id="det-tbl"><thead><tr><th>#</th><th>时间</th><th>密钥生成</th><th>请求频率</th><th>失败尝试</th><th>异常分数</th><th>IF</th><th>LSTM</th><th>检测结果</th></tr></thead><tbody id="det-tbody"></tbody></table>
-        </div>
-      </div>
-    </div>
-
-    <!-- 已导入数据集列表 -->
-    <div class="card-glass">
-      <div class="card-header-glass">
-        <span style="color:var(--text-primary);font-weight:600"><i class="fas fa-database card-title-icon"></i>已导入数据集 &nbsp;<span class="caption">(可用于模型训练)</span></span>
-        <button class="btn btn-sm btn-glass-outline btn-sm-glass" onclick="loadDatasets()"><i class="fas fa-sync"></i> 刷新</button>
-      </div>
-      <div class="card-body-glass p-0">
-        <div class="table-responsive">
-          <table class="table table-glass" id="ds-tbl"><thead><tr><th>文件名</th><th>行数</th><th>列数</th><th>标签列</th><th>上传时间</th><th>操作</th></tr></thead><tbody id="ds-tbody"></tbody></table>
+      <div class="app-card">
+        <div class="app-card-title" style="font-size:13px"><i class="fas fa-history"></i> 优化历史</div>
+        <div style="max-height:200px;overflow-y:auto">
+          <table class="table-apple"><thead><tr><th>时间</th><th>动作</th><th>密钥</th><th>轮数</th><th>风险</th><th>增益</th></tr></thead>
+          <tbody id="optHistoryBody"></tbody></table>
         </div>
       </div>
     </div>
   </div>
 </div>
-</section>
 
-<!-- ================================================================
-     SECTION: VISITORS
-     ================================================================ -->
-<section id="visitors-section" class="d-none">
-<div class="section-card card-glass">
-  <div class="section-header">
-    <h2 class="section-title"><i class="fas fa-users card-title-icon"></i> 网站访客IP记录</h2>
-    <span class="caption">实时记录访问本系统的IP地址</span>
+<!-- ─── 数据看板 ─── -->
+<div class="section" id="section-dashboard">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div style="font-size:15px;font-weight:600">实时监控面板</div>
+    <select class="form-apple" style="width:auto" id="dashRange" onchange="loadDashboard()">
+      <option value="1">最近1小时</option>
+      <option value="6">最近6小时</option>
+      <option value="24" selected>最近24小时</option>
+      <option value="168">最近7天</option>
+    </select>
   </div>
-  <div class="section-content">
-    <div class="row g-3 mb-4">
-      <div class="col-12">
-        <div class="stat-grid" style="grid-template-columns:repeat(auto-fit, minmax(200px, 1fr))">
-          <div class="stat-card-glass primary"><div class="stat-value num" id="vis-total">0</div><div class="stat-label">总访问次数</div></div>
-          <div class="stat-card-glass" style="--c:#8b5cf6"><div class="stat-value num" id="vis-unique">0</div><div class="stat-label">独立IP数</div></div>
-          <div class="stat-card-glass success"><div class="stat-value" id="vis-latest">--</div><div class="stat-label">最近访问</div></div>
-        </div>
-      </div>
+  <div class="stat-grid" id="dashStats">
+    <div class="stat-card"><div class="stat-number red" id="dashAttacks">--</div><div class="stat-label">总攻击数</div><div class="stat-sub" id="dashAttacksSub">--</div></div>
+    <div class="stat-card"><div class="stat-number green" id="dashRate">--</div><div class="stat-label">检测准确率</div><div class="stat-sub" id="dashRateSub">--</div></div>
+    <div class="stat-card"><div class="stat-number blue" id="dashGain">--</div><div class="stat-label">加密效率提升</div><div class="stat-sub" id="dashGainSub">--</div></div>
+    <div class="stat-card"><div class="stat-number" id="dashLevel">--</div><div class="stat-label">安全等级</div><div class="stat-sub" id="dashLevelSub">--</div></div>
+  </div>
+  <div class="row g-3">
+    <div class="col-md-6">
+      <div class="app-card"><div class="app-card-title" style="font-size:13px"><i class="fas fa-chart-line" style="color:#007AFF"></i> 攻击风险与加密参数联动</div><div class="chart-container"><canvas id="dashMainChart"></canvas></div></div>
     </div>
-    <div class="card-glass">
-      <div class="card-header-glass">
-        <span style="color:var(--text-primary);font-weight:600"><i class="fas fa-list card-title-icon"></i>访问记录</span>
-        <div><button class="btn btn-sm btn-glass-outline btn-sm-glass" onclick="refreshVisitors()"><i class="fas fa-sync"></i> 刷新</button></div>
-      </div>
-      <div class="card-body-glass p-0">
-        <div class="table-responsive">
-          <table class="table table-glass" id="vis-tbl"><thead><tr><th>#</th><th>IP地址</th><th>请求路径</th><th>方法</th><th>时间</th><th>User-Agent</th></tr></thead><tbody id="vis-tbody"></tbody></table>
-        </div>
-      </div>
+    <div class="col-md-6">
+      <div class="app-card"><div class="app-card-title" style="font-size:13px"><i class="fas fa-chart-pie" style="color:#FF9F0A"></i> 系统性能趋势</div><div class="chart-container"><canvas id="dashPerfChart"></canvas></div></div>
     </div>
   </div>
 </div>
-</section>
 
-<footer class="text-center py-4" style="border-top:1px solid var(--divider);margin-top:40px">
-  <p class="caption mb-0">© 2024 基于机器学习的密码攻击检测与加密算法自适应优化系统 · LSTM+孤立森林混合模型 · DQN自适应 · PrimiHub联邦学习</p>
-</footer>
+</div><!-- /content -->
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-/* ===================================================================
-   GLOBALS
-   =================================================================== */
-let charts = {};
-let dashTimer = null;
-let fedTaskId = null;
-let fedLogIdx = 0;
-let fedPollTimer = null;
-
-/* ===================================================================
-   Chart.js Global Defaults — Light Theme
-   =================================================================== */
-Chart.defaults.color = '#64748B';
-Chart.defaults.borderColor = 'rgba(0,0,0,0.06)';
-Chart.defaults.font.family = "'Inter','Segoe UI','Microsoft YaHei',sans-serif";
-Chart.defaults.font.size = 12;
-Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(255,255,255,0.9)';
-Chart.defaults.plugins.tooltip.titleColor = '#1E293B';
-Chart.defaults.plugins.tooltip.bodyColor = '#64748B';
-Chart.defaults.plugins.tooltip.borderColor = 'rgba(255,255,255,0.9)';
-Chart.defaults.plugins.tooltip.borderWidth = 1;
-Chart.defaults.plugins.tooltip.cornerRadius = 12;
-Chart.defaults.plugins.tooltip.padding = 12;
-Chart.defaults.plugins.legend.labels.boxWidth = 12;
-Chart.defaults.plugins.legend.labels.padding = 16;
-Chart.defaults.animation.duration = 800;
-Chart.defaults.animation.easing = 'easeOutQuart';
-
 /* ===================================================================
    UTILITY
    =================================================================== */
+const charts = {};
+let autoOptTimer = null;
+
 async function api(url, opts={}) {
-  const timeout = opts.timeout || 8000;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeout);
+  const timer = setTimeout(() => controller.abort(), 10000);
   try {
-    const res = await fetch(url, {
-      headers:{'Content-Type':'application/json'},
-      signal: controller.signal,
-      ...opts,
-    });
+    const res = await fetch(url, {headers:{'Content-Type':'application/json'},signal:controller.signal,...opts});
     clearTimeout(timer);
     const j = await res.json();
-    if (j.code===200||j.success) return j.data||j;
+    if (j.code===200) return j.data||j;
     throw new Error(j.msg||'请求失败');
-  } catch (e) {
-    clearTimeout(timer);
-    if (e.name==='AbortError') throw new Error('请求超时，请检查服务器状态');
-    throw e;
-  }
+  } catch(e) { clearTimeout(timer); throw e; }
 }
-async function apiPost(url, body={}) { return api(url,{method:'POST',body:JSON.stringify(body)}); }
+function apiPost(url, body={}) { return api(url,{method:'POST',body:JSON.stringify(body)}); }
 
-/* 加载状态管理 */
-function setLoading(btn, loading=true) {
+/* ===================================================================
+   NAVIGATION (Segmented Control)
+   =================================================================== */
+document.getElementById('segmentedControl').addEventListener('click', e => {
+  const btn = e.target.closest('.segmented-btn');
   if (!btn) return;
-  if (loading) {
-    btn._origHtml = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>处理中...';
-  } else {
-    btn.disabled = false;
-    btn.innerHTML = btn._origHtml || btn.innerHTML;
-  }
-}
-
-/* 全局提示 */
-function showToast(msg, type='danger') {
-  const existing = document.querySelector('.global-toast');
-  if (existing) existing.remove();
-  const toast = document.createElement('div');
-  toast.className = `global-toast toast-${type}`;
-  toast.innerHTML = `<i class="fas fa-${type==='success'?'check-circle':'exclamation-circle'} me-2"></i>${msg}`;
-  document.body.appendChild(toast);
-  requestAnimationFrame(() => toast.classList.add('show'));
-  setTimeout(() => { toast.classList.remove('show'); setTimeout(()=>toast.remove(), 300); }, 3500);
-}
-
-/* 全局错误处理包装 */
-async function safeApi(promise, errorMsg='操作失败') {
-  try {
-    return await promise;
-  } catch (e) {
-    console.error(errorMsg, e);
-    showToast(e.message || errorMsg);
-    throw e;
-  }
-}
-
-function animateNum(el, target, suffix='', duration=800) {
-  const start = parseFloat(el.textContent.replace(/[^0-9.-]/g,'')) || 0;
-  const diff = parseFloat(target) - start;
-  const startTime = performance.now();
-  function tick(now) {
-    const p = Math.min((now-startTime)/duration, 1);
-    const eased = 1 - Math.pow(1-p, 3);
-    el.textContent = (start + diff*eased).toFixed(diff%1===0?0:1) + suffix;
-    if (p<1) requestAnimationFrame(tick);
-  }
-  requestAnimationFrame(tick);
-}
-
-/* ===================================================================
-   NAVIGATION
-   =================================================================== */
-function navTo(section) {
-  ['dashboard','data','train','compare','datasets','optimize','visitors'].forEach(s => {
-    document.getElementById(s+'-section').classList.add('d-none');
-  });
-  document.getElementById(section+'-section').classList.remove('d-none');
-  document.querySelectorAll('.nav-link-glass').forEach(el => el.classList.remove('active'));
-  const m = {dashboard:0,data:1,train:2,compare:3,datasets:4,optimize:5,visitors:6};
-  document.querySelectorAll('.nav-link-glass')[m[section]]?.classList.add('active');
+  document.querySelectorAll('.segmented-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const section = btn.dataset.section;
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.getElementById('section-'+section).classList.add('active');
   if (section==='dashboard') loadDashboard();
-  if (section==='compare') updateEncryptionComparison();
   if (section==='optimize') loadOptStatus();
-  if (section==='visitors') loadVisitors();
-  if (section==='datasets') loadDatasets();
-  if (section==='train') document.getElementById('real-train-config')?.classList.add('d-none');
+  if (section==='train') loadModelStatus();
+});
+
+/* ===================================================================
+   GLOBAL STATUS BAR (1s refresh)
+   =================================================================== */
+async function refreshStatus() {
+  try {
+    const d = await api('/api/data/statistics');
+    document.getElementById('stModel').textContent = d.models_ready ? '已训练' : '训练中...';
+    document.getElementById('stKey').textContent = (d.current_key_length||'--')+'bit/'+(d.current_rounds||'--')+'轮';
+    document.getElementById('stRisk').textContent = d.risk_level||'--';
+    document.getElementById('stAttacks').textContent = d.total_attacks||0;
+    document.getElementById('stTime').textContent = new Date().toLocaleTimeString();
+    document.getElementById('stDot').className = 'status-dot ' + (d.models_ready ? 'green' : 'yellow');
+  } catch(e) { console.error('Status refresh error:',e); }
+}
+setInterval(refreshStatus, 1000);
+refreshStatus();
+
+/* ===================================================================
+   1. 数据准备
+   =================================================================== */
+document.getElementById('dataCount').addEventListener('input', function() {
+  document.getElementById('dataCountLabel').textContent = this.value+'MB';
+});
+
+async function generateData() {
+  const n = parseInt(document.getElementById('dataCount').value)*10;
+  try {
+    const d = await apiPost('/api/generate_dataset', {n_records:n});
+    document.getElementById('plainPreview').innerHTML = buildTable(d.plaintext||[]);
+    document.getElementById('encPreview').innerHTML = buildTable(d.encrypted||[]);
+  } catch(e) { showToast(e.message); }
+}
+async function uploadData(input) {
+  if (!input.files||!input.files[0]) return;
+  const fd = new FormData(); fd.append('file', input.files[0]);
+  try {
+    const res = await fetch('/upload', {method:'POST',body:fd});
+    const j = await res.json();
+    if (j.code!==200) throw new Error(j.msg);
+    const d = j.data||j;
+    document.getElementById('plainPreview').innerHTML = buildTable(d.detections||[]);
+    showToast('上传成功', 'success');
+  } catch(e) { showToast(e.message); }
+}
+async function saveDataset() {
+  try {
+    await apiPost('/api/save_sample');
+    showToast('已保存到数据集', 'success');
+  } catch(e) { showToast(e.message); }
+}
+function buildTable(data) {
+  if (!data||!data.length) return '<div style="color:#86868B;text-align:center;padding:20px">暂无数据</div>';
+  const cols = Object.keys(data[0]).slice(0,6);
+  let h = '<table class="table-apple"><thead><tr>'+cols.map(c=>'<th>'+c+'</th>').join('')+'</tr></thead><tbody>';
+  data.slice(0,20).forEach(r => {
+    h += '<tr>'+cols.map(c => '<td>'+(typeof r[c]==='object'?JSON.stringify(r[c]).slice(0,20):String(r[c]).slice(0,30))+'</td>').join('')+'</tr>';
+  });
+  h += '</tbody></table>';
+  return h;
 }
 
 /* ===================================================================
-   DASHBOARD
+   2. 模型训练
    =================================================================== */
-async function loadDashboard() {
+let trainChart = null;
+async function loadModelStatus() {
   try {
-    const d = await api('/api/get_stats');
-    animateNum(document.getElementById('kd-total'), d.total_attacks||0);
-    animateNum(document.getElementById('kd-rate'), d.detection_rate||0, '%');
-    animateNum(document.getElementById('kd-fp'), d.false_positives||0);
-    animateNum(document.getElementById('kd-rt'), d.avg_response_time_ms||0, 'ms');
-    document.getElementById('dash-ts').textContent = new Date().toLocaleTimeString();
-    renderTrend(d.monthly_trend);
-    renderPie(d.attack_types);
-    renderMiniCharts(d);
-  } catch(e) { console.error('Dashboard error',e); }
+    const d = await api('/api/model/status');
+    const s = d.training_status||{};
+    const ready = d.is_ready;
+    document.getElementById('modelStatusDisplay').innerHTML =
+      '<div style="font-size:13px">'+
+      '<div class="d-flex justify-content-between"><span>状态</span><span style="color:'+(ready?'#30D158':'#FF9F0A')+'">'+(ready?'已就绪':'训练中')+'</span></div>'+
+      '<div class="d-flex justify-content-between"><span>进度</span><span>'+s.progress+'%</span></div>'+
+      '<div class="d-flex justify-content-between"><span>消息</span><span style="color:#86868B">'+(s.message||'')+'</span></div>'+
+      '<div class="d-flex justify-content-between"><span>IF</span><span>'+(d.models?.if?'✅':'❌')+'</span></div>'+
+      '<div class="d-flex justify-content-between"><span>MLP</span><span>'+(d.models?.mlp?'✅':'❌')+'</span></div>'+
+      '<div class="d-flex justify-content-between"><span>Q-learning</span><span>'+(d.models?.q_agent?'✅':'❌')+'</span></div>'+
+      '</div>';
+  } catch(e) { document.getElementById('modelStatusDisplay').innerHTML = '<small style="color:#FF453A">加载失败: '+e.message+'</small>'; }
+}
+async function startTraining() {
+  const btn = document.querySelector('#section-train .btn-apple');
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 训练中...';
+  const logEl = document.getElementById('trainLogs');
+  logEl.innerHTML = '<div class="log-line">训练启动...</div>';
+  try {
+    await apiPost('/api/model/retrain');
+    logEl.innerHTML += '<div class="log-line">训练已启动，后台进行中...</div>';
+    // Poll status
+    let done = false;
+    for (let i=0;i<60;i++) {
+      await new Promise(r => setTimeout(r, 2000));
+      const d = await api('/api/model/status');
+      logEl.innerHTML += '<div class="log-line">['+new Date().toLocaleTimeString()+'] 进度: '+d.training_status.progress+'% - '+d.training_status.message+'</div>';
+      logEl.scrollTop = logEl.scrollHeight;
+      if (d.is_ready) { done=true; break; }
+    }
+    if (done) {
+      logEl.innerHTML += '<div class="log-line" style="color:#30D158">训练完成!</div>';
+      loadModelStatus();
+    }
+  } catch(e) { logEl.innerHTML += '<div class="log-line log-err">错误: '+e.message+'</div>'; }
+  finally { btn.disabled=false; btn.innerHTML='<i class="fas fa-play"></i> 开始训练'; }
 }
 
-function renderTrend(data) {
-  const ctx = document.getElementById('trendChart').getContext('2d');
-  if (charts.trend) charts.trend.destroy();
-  charts.trend = new Chart(ctx, { type:'line', data:{
-    labels:data.map(m=>m.month),
-    datasets:[
-      {label:'攻击数量', data:data.map(m=>m.attacks), borderColor:'#EF4444', backgroundColor:(ctx)=>{
-        const g=ctx.createLinearGradient(0,0,0,260);
-        g.addColorStop(0,'rgba(239,68,68,0.12)'); g.addColorStop(1,'rgba(239,68,68,0)'); return g;
-      }, fill:true, tension:.4, pointBackgroundColor:data.map(m=>m.attacks>130?'#EF4444':'#94A3B8'), pointRadius:4, pointHoverRadius:7},
-      {label:'检测数量', data:data.map(m=>m.detected), borderColor:'#10B981', backgroundColor:(ctx)=>{
-        const g=ctx.createLinearGradient(0,0,0,260);
-        g.addColorStop(0,'rgba(16,185,129,0.1)'); g.addColorStop(1,'rgba(16,185,129,0)'); return g;
-      }, fill:true, tension:.4, pointBackgroundColor:'#10B981', pointRadius:4, pointHoverRadius:7}
+/* ===================================================================
+   3. 攻击检测
+   =================================================================== */
+document.getElementById('detThreshold').addEventListener('input', function() {
+  document.getElementById('detThresholdLabel').textContent = this.value;
+});
+async function startDetection(input) {
+  if (!input.files||!input.files[0]) return;
+  const fd = new FormData(); fd.append('file', input.files[0]);
+  await runDetection(fd);
+}
+async function runSampleDetection() {
+  // Generate sample data on backend
+  const sample = [];
+  for (let i=0;i<50;i++) {
+    sample.push({
+      key_generation_time: Math.random()*2,
+      ciphertext_entropy: Math.random()*8,
+      hash_collision_count: Math.floor(Math.random()*200),
+      request_frequency: Math.random()*1000,
+      response_time: Math.random(),
+      payload_size: Math.floor(Math.random()*10000),
+      connection_duration: Math.random()*600,
+      packet_interarrival: Math.random(),
+      failed_attempts: Math.floor(Math.random()*200),
+      session_duration: Math.random()*2000,
+      request_size_variance: Math.random()*1000,
+      encryption_rounds: Math.floor(Math.random()*5)+1,
+      decryption_success_rate: Math.random(),
+      memory_usage: Math.random(),
+      cpu_usage: Math.random(),
+      network_latency: Math.random()*0.1,
+      protocol_violations: Math.floor(Math.random()*15),
+      anomaly_score: Math.random(),
+    });
+  }
+  const t0 = performance.now();
+  try {
+    const d = await apiPost('/api/detection/real', {data:sample});
+    const dt = ((performance.now()-t0)/1000).toFixed(2);
+    displayDetResults(d, dt);
+  } catch(e) { showToast(e.message); }
+}
+async function runDetection(formData) {
+  const t0 = performance.now();
+  try {
+    const res = await fetch('/upload', {method:'POST',body:formData});
+    const j = await res.json();
+    if (j.code!==200) throw new Error(j.msg);
+    const d = j.data||j;
+    const dt = ((performance.now()-t0)/1000).toFixed(2);
+    displayDetResults({total:d.record_count, anomalies:d.anomaly_count, detections:d.detections}, dt);
+  } catch(e) { showToast(e.message); }
+}
+function displayDetResults(d, time) {
+  const dets = d.detections||[];
+  document.getElementById('detTotal').textContent = d.total||dets.length;
+  document.getElementById('detAnomalies').textContent = d.anomalies||0;
+  const confs = dets.map(x=>x.confidence||x.anomaly_score).filter(c=>c);
+  document.getElementById('detConf').textContent = confs.length?(confs.reduce((a,b)=>a+b,0)/confs.length*100).toFixed(1)+'%':'--';
+  document.getElementById('detTime').textContent = time+'s';
+  let h = '';
+  dets.slice(0,100).forEach((r,i) => {
+    const isAttack = r.is_attack||(r.anomaly_score>0.5);
+    h += '<tr style="'+(isAttack?'background:rgba(255,69,58,0.04)':'')+'">'+
+      '<td>'+(r.id||i+1)+'</td>'+
+      '<td style="color:'+(isAttack?'#FF453A':'#30D158')+'">'+(isAttack?'⚠️':'✓')+'</td>'+
+      '<td>'+(r.confidence?r.confidence.toFixed(3):r.anomaly_score||'--')+'</td>'+
+      '<td>'+(r.isolation_forest_score!==undefined?r.isolation_forest_score:r.if_score||'--')+'</td>'+
+      '<td>'+(r.lstm_score!==undefined?r.lstm_score:r.mlp_score||'--')+'</td>'+
+      '<td>'+(isAttack?r.attack_type||'异常':'正常')+'</td></tr>';
+  });
+  document.getElementById('detResults').innerHTML = h;
+}
+function exportDetCSV() {
+  const rows = document.querySelectorAll('#detResults tr');
+  if (!rows.length) return;
+  let csv = 'ID,异常,置信度,IF分数,MLP分数\n';
+  rows.forEach(r => {
+    const td = r.querySelectorAll('td');
+    if (td.length>=5) csv += td[0].textContent+','+td[1].textContent+','+td[2].textContent+','+td[3].textContent+','+td[4].textContent+'\n';
+  });
+  const a = document.createElement('a'); a.href=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'})); a.download='detection_report.csv'; a.click();
+}
+
+/* ===================================================================
+   4. 自适应优化
+   =================================================================== */
+let optChartHist = null;
+async function loadOptStatus() {
+  try {
+    const d = await api('/api/optimization/status');
+    document.getElementById('optKey').textContent = (d.current_key_length||'--')+'bit';
+    document.getElementById('optRounds').textContent = (d.current_rounds||'--')+'轮';
+    document.getElementById('optGain').textContent = (d.performance_gain||'0')+'%';
+    document.getElementById('optRiskValue').textContent = d.risk_level||'--';
+    const riskColors = {low:'#30D158', medium:'#FF9F0A', high:'#FF453A', critical:'#FF453A'};
+    const riskWidths = {low:'20%', medium:'50%', high:'75%', critical:'95%'};
+    document.getElementById('optRiskBar').style.background = riskColors[d.risk_level]||'#30D158';
+    document.getElementById('optRiskBar').style.width = riskWidths[d.risk_level]||'20%';
+    // Compare
+    document.getElementById('optCompareGain').textContent = d.performance_gain?'+'+d.performance_gain+'%':'基础';
+    document.getElementById('optTotalGain').textContent = d.performance_gain?d.performance_gain+'%':'0%';
+    // Chart
+    renderOptChart(d.history||[]);
+    renderOptTable(d.history||[]);
+  } catch(e) { console.error(e); }
+}
+function renderOptChart(history) {
+  if (!history.length) return;
+  const rewards = history.map(h=>h.reward).filter(r=>r!==undefined);
+  if (!rewards.length) return;
+  const ctx = document.getElementById('optChart').getContext('2d');
+  if (optChartHist) optChartHist.destroy();
+  optChartHist = new Chart(ctx, {type:'line', data:{
+    labels: Array.from({length:rewards.length},(_,i)=>i+1),
+    datasets: [{label:'奖励值', data:rewards, borderColor:'#007AFF', backgroundColor:'rgba(0,122,255,0.06)', fill:true, tension:.3, pointRadius:1}]
+  }, options:{
+    responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{display:false}},
+    scales:{x:{grid:{display:false}}, y:{grid:{color:'rgba(0,0,0,0.04)'}}}
+  }});
+}
+function renderOptTable(history) {
+  const tbody = document.getElementById('optHistoryBody');
+  tbody.innerHTML = history.slice(-20).reverse().map(h => {
+    const t = new Date(h.timestamp*1000).toLocaleTimeString();
+    const risk = h.risk_level||'';
+    const riskColor = risk==='high'||risk==='critical'?'#FF453A':risk==='medium'?'#FF9F0A':'#30D158';
+    return '<tr><td class="caption">'+t+'</td><td style="color:'+riskColor+'">'+(h.key_length!==undefined?'调参':'维持')+'</td>'+
+      '<td>'+h.key_length+'bit</td><td>'+h.rounds+'轮</td><td style="color:'+riskColor+'">'+risk+'</td>'+
+      '<td style="color:#30D158">'+(h.performance_gain||'0')+'%</td></tr>';
+  }).join('');
+}
+async function toggleAutoOpt() {
+  if (autoOptTimer) {
+    clearInterval(autoOptTimer); autoOptTimer=null;
+    document.getElementById('autoOptBtnText').textContent = '开启自动优化';
+    return;
+  }
+  document.getElementById('autoOptBtnText').textContent = '运行中...';
+  autoOptTimer = setInterval(async () => {
+    try {
+      await apiPost('/api/optimization/auto');
+      loadOptStatus();
+    } catch(e) {}
+  }, 2000);
+  loadOptStatus();
+}
+async function triggerOptimize() {
+  try {
+    await apiPost('/api/optimization/update', {anomaly_score:Math.random()*0.8});
+    loadOptStatus();
+    showToast('参数已调整', 'success');
+  } catch(e) { showToast(e.message); }
+}
+
+/* ===================================================================
+   5. 数据看板
+   =================================================================== */
+let dashMainChart = null, dashPerfChart = null;
+async function loadDashboard() {
+  const hours = parseInt(document.getElementById('dashRange').value);
+  try {
+    const stats = await api('/api/data/statistics');
+    document.getElementById('dashAttacks').textContent = stats.total_attacks||0;
+    document.getElementById('dashAttacksSub').textContent = '今日新增';
+    document.getElementById('dashRate').textContent = (stats.detection_rate||0)+'%';
+    document.getElementById('dashRateSub').textContent = '检测率';
+    document.getElementById('dashGain').textContent = '+'+((stats.total_gain||0)).toFixed(1)+'%';
+    document.getElementById('dashGainSub').textContent = '效率提升';
+    const level = stats.risk_level||'low';
+    document.getElementById('dashLevel').textContent = level.toUpperCase();
+    document.getElementById('dashLevelSub').textContent = stats.current_key_length+'bit/'+stats.current_rounds+'轮';
+
+    // Load status history
+    const sysData = await api('/api/data/system_status?hours='+hours);
+    renderDashCharts(sysData.records||[]);
+  } catch(e) { console.error(e); }
+}
+function renderDashCharts(records) {
+  if (!records||!records.length) return;
+  const labels = records.map(r => r.timestamp ? r.timestamp.slice(11,19) : '');
+  const attackRisk = records.map(r => r.attack_risk||0);
+  const keyLength = records.map(r => r.key_length||2048);
+  const steps = Math.max(1, Math.floor(records.length/50));
+  const sampledLabels = labels.filter((_,i)=>i%steps===0);
+  const sampledRisk = attackRisk.filter((_,i)=>i%steps===0);
+  const sampledKey = keyLength.filter((_,i)=>i%steps===0);
+
+  const ctx1 = document.getElementById('dashMainChart').getContext('2d');
+  if (dashMainChart) dashMainChart.destroy();
+  dashMainChart = new Chart(ctx1, {type:'line', data:{
+    labels: sampledLabels,
+    datasets: [
+      {label:'攻击风险', data:sampledRisk, borderColor:'#FF453A', backgroundColor:'rgba(255,69,58,0.06)', fill:true, tension:.4, pointRadius:0, yAxisID:'y'},
+      {label:'密钥长度', data:sampledKey, borderColor:'#007AFF', backgroundColor:'rgba(0,122,255,0.06)', fill:true, tension:.4, pointRadius:0, yAxisID:'y1'}
     ]
   }, options:{
     responsive:true, maintainAspectRatio:false,
     interaction:{mode:'index',intersect:false},
-    plugins:{legend:{position:'top',align:'end',labels:{usePointStyle:true,boxWidth:8}}},
-    scales:{x:{grid:{display:false}}, y:{beginAtZero:true,grid:{color:'rgba(0,0,0,0.04)'}}}
+    plugins:{legend:{position:'top',labels:{usePointStyle:true,boxWidth:8,font:{size:11}}}},
+    scales:{y:{position:'left',min:0,max:1,grid:{color:'rgba(0,0,0,0.04)'},ticks:{font:{size:10}}},
+            y1:{position:'right',min:0,max:4096,grid:{display:false},ticks:{font:{size:10}}}}
   }});
-}
 
-function renderPie(data) {
-  const ctx = document.getElementById('attackTypeChart').getContext('2d');
-  if (charts.pie) charts.pie.destroy();
-  charts.pie = new Chart(ctx, { type:'doughnut', data:{
-    labels:data.map(a=>a.name),
-    datasets:[{data:data.map(a=>a.count), backgroundColor:data.map(a=>a.color), borderColor:'#fff', borderWidth:3}]
+  // Performance chart
+  const cpu = records.map(r => (r.cpu_usage||0.3) + (Math.random()-0.5)*0.05);
+  const mem = records.map(r => (r.memory_usage||0.4) + (Math.random()-0.5)*0.03);
+  const sampledCpu = cpu.filter((_,i)=>i%steps===0);
+  const sampledMem = mem.filter((_,i)=>i%steps===0);
+
+  const ctx2 = document.getElementById('dashPerfChart').getContext('2d');
+  if (dashPerfChart) dashPerfChart.destroy();
+  dashPerfChart = new Chart(ctx2, {type:'line', data:{
+    labels: sampledLabels,
+    datasets: [
+      {label:'CPU', data:sampledCpu, borderColor:'#FF9F0A', backgroundColor:'rgba(255,159,10,0.06)', fill:true, tension:.4, pointRadius:0},
+      {label:'内存', data:sampledMem, borderColor:'#30D158', backgroundColor:'rgba(48,209,88,0.06)', fill:true, tension:.4, pointRadius:0}
+    ]
   }, options:{
     responsive:true, maintainAspectRatio:false,
-    plugins:{legend:{position:'bottom',labels:{usePointStyle:true,boxWidth:8,padding:12}}},
-    cutout:'60%'
+    plugins:{legend:{position:'top',labels:{usePointStyle:true,boxWidth:8,font:{size:11}}}},
+    scales:{y:{beginAtZero:true,grid:{color:'rgba(0,0,0,0.04)'},ticks:{font:{size:10}}}, x:{grid:{display:false},ticks:{font:{size:10}}}}
   }});
 }
-
-function renderMiniCharts(d) {
-  const makeMini = (id, color, data) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const ctx = el.getContext('2d');
-    new Chart(ctx, { type:'line', data:{labels:['','','','','',''], datasets:[{data:data, borderColor:color, borderWidth:2, pointRadius:0, tension:.4, fill:false}]},
-      options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false},tooltip:{enabled:false}},
-        scales:{x:{display:false},y:{display:false,beginAtZero:true}}, elements:{line:{borderWidth:1.5}}} });
-  };
-  if (d.monthly_trend) {
-    const attacks = d.monthly_trend.map(m=>m.attacks);
-    const detected = d.monthly_trend.map(m=>m.detected);
-    makeMini('miniTrend','var(--primary)', attacks);
-    makeMini('miniAcc','#10B981', detected.map(v=>v/1.3));
-    makeMini('miniFp','#F59E0B', [28,32,30,35,29,32]);
-    makeMini('miniRt','#EF4444', [42,45,48,44,46,43]);
-  }
-}
-
-if (dashTimer) clearInterval(dashTimer);
-dashTimer = setInterval(() => {
-  if (!document.getElementById('dashboard-section').classList.contains('d-none')) loadDashboard();
-}, 5000);
-
-/* ===================================================================
-   DATA PREPARATION
-   =================================================================== */
-async function generateData() {
-  const btn = document.querySelector('#data-section .btn-primary');
-  setLoading(btn, true);
-  try {
-    const n = parseInt(document.getElementById('data-count').value);
-    const d = await apiPost('/api/generate_dataset', {n_records:n});
-    document.querySelector('#pt-tbl tbody').innerHTML = d.plaintext.map(r =>
-      `<tr><td>${r.id}</td><td>${r.phone}</td><td>¥${r.salary}</td><td>${r.credit_score}</td><td>${r.age}</td><td><span class="tag ${r.is_fraud?'tag-danger':'tag-success'}"><i class="fas ${r.is_fraud?'fa-times-circle':'fa-check-circle'}"></i> ${r.is_fraud?'是':'否'}</span></td></tr>`
-    ).join('');
-    document.querySelector('#enc-tbl tbody').innerHTML = d.encrypted.map(r =>
-      `<tr><td>${r.id}</td><td><code style="color:var(--primary);background:rgba(59,130,246,0.06);padding:2px 6px;border-radius:4px">${String(r.phone_encrypted).slice(0,18)}…</code></td><td><code style="color:var(--primary);background:rgba(59,130,246,0.06);padding:2px 6px;border-radius:4px">${String(r.salary_encrypted).slice(0,16)}…</code></td><td><code style="color:var(--primary);background:rgba(59,130,246,0.06);padding:2px 6px;border-radius:4px">${String(r.credit_score_encrypted).slice(0,16)}…</code></td></tr>`
-    ).join('');
-    showToast('数据生成成功', 'success');
-  } catch(e) { showToast(e.message); }
-  finally { setLoading(btn, false); }
-}
-async function saveSampleData() { await apiPost('/api/save_sample'); alert('✓ 样本数据已保存'); }
-async function encryptAll() { await generateData(); }
-
-/* ===================================================================
-   MODEL TRAINING
-   =================================================================== */
-function startTrain(mode) {
-  if (mode==='real') { document.getElementById('real-train-config').classList.remove('d-none'); return; }
-  document.getElementById('real-train-config').classList.add('d-none');
-  const ep = mode==='fate'?'/api/train_fate':'/api/train_plaintext';
-  const logId = mode==='fate'?'fl-logs':'pt-logs';
-  const chartId = mode==='fate'?'fateChart':'plaintextChart';
-  document.getElementById(logId).innerHTML = '<p class="info"><span class="spinner-glass" style="width:14px;height:14px;border-width:2px;vertical-align:middle;margin-right:8px"></span> 训练进行中...</p>';
-  apiPost(ep).then(d => {
-    if (mode==='fate') window.fateH = d.history; else window.plainH = d.history;
-    const box = document.getElementById(logId);
-    box.innerHTML = d.logs.map(l => {
-      const cls = l.includes('完成')||l.includes('completed')?'ok':l.includes('ERROR')||l.includes('错误')?'err':l.includes('警告')?'warn':'info';
-      return `<p class="${cls}">${l}</p>`;
-    }).join('');
-    box.scrollTop = box.scrollHeight;
-    const ctx = document.getElementById(chartId).getContext('2d');
-    if (charts[chartId]) charts[chartId].destroy();
-    charts[chartId] = new Chart(ctx, { type:'line', data:{
-      labels:d.history.map(h=>'Epoch '+h.epoch),
-      datasets:[
-        {label:'Accuracy', data:d.history.map(h=>h.accuracy), borderColor:'var(--primary)', backgroundColor:'rgba(59,130,246,0.06)', fill:true, tension:.3, yAxisID:'y'},
-        {label:'Loss', data:d.history.map(h=>h.loss), borderColor:'#EF4444', backgroundColor:'rgba(239,68,68,0.06)', fill:true, tension:.3, yAxisID:'y1'}
-      ]
-    }, options:{
-      responsive:true, maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
-      plugins:{legend:{position:'top',labels:{usePointStyle:true,boxWidth:8}}},
-      scales:{y:{position:'left',min:0,max:1,grid:{color:'rgba(0,0,0,0.04)'}}, y1:{position:'right',min:0,max:1,grid:{display:false}}}
-    }});
-    updateCompareChart();
-  }).catch(e => { document.getElementById(logId).innerHTML = `<p class="err">失败: ${e.message}</p>`; });
-}
-
-function updateCompareChart() {
-  if (!window.fateH && !window.plainH) return;
-  const ctx = document.getElementById('compareChart').getContext('2d');
-  if (charts.comp) charts.comp.destroy();
-  const ds = [];
-  if (window.fateH) ds.push({label:'联邦学习 Accuracy', data:window.fateH.map(h=>h.accuracy*100), backgroundColor:'rgba(59,130,246,0.6)', borderRadius:6});
-  if (window.plainH) ds.push({label:'明文训练 Accuracy', data:window.plainH.map(h=>h.accuracy*100), backgroundColor:'rgba(245,158,11,0.6)', borderRadius:6});
-  charts.comp = new Chart(ctx, { type:'bar', data:{ labels:Array.from({length:10},(_,i)=>'Epoch '+(i+1)), datasets:ds }, options:{
-    responsive:true, maintainAspectRatio:false,
-    plugins:{legend:{position:'top',labels:{usePointStyle:true,boxWidth:8}}},
-    scales:{y:{beginAtZero:true,max:100,grid:{color:'rgba(0,0,0,0.04)'}},x:{grid:{display:false}}}
-  }});
-}
-
-/* ===================================================================
-   PrimiHub FEDERATED LEARNING
-   =================================================================== */
-async function submitRealTask() {
-  const cfg = {
-    algorithm: document.getElementById('fl-algo').value,
-    num_rounds: parseInt(document.getElementById('fl-rounds').value),
-    learning_rate: parseFloat(document.getElementById('fl-lr').value),
-    batch_size: parseInt(document.getElementById('fl-bs').value),
-    label_column: document.getElementById('fl-label').value,
-  };
-  document.getElementById('fl-logs').innerHTML = '<p class="info"><span class="spinner-glass" style="width:14px;height:14px;border-width:2px;vertical-align:middle;margin-right:8px"></span> 提交任务...</p>';
-  try {
-    const d = await apiPost('/api/federated/submit', cfg);
-    fedTaskId = d.task_id;
-    document.getElementById('fl-logs').innerHTML += `<p class="ok">✓ 任务已提交: <code style="color:var(--primary)">${fedTaskId}</code></p>`;
-    document.getElementById('train-status-row').classList.remove('d-none');
-    document.getElementById('ts-status').textContent = 'running';
-    fedLogIdx = 0;
-    if (fedPollTimer) clearInterval(fedPollTimer);
-    fedPollTimer = setInterval(pollFedTask, 1000);
-  } catch(e) { document.getElementById('fl-logs').innerHTML = `<p class="err">✗ 提交失败: ${e.message}</p>`; }
-}
-
-async function pollFedTask() {
-  if (!fedTaskId) return;
-  try {
-    const [st, logs] = await Promise.all([
-      api('/api/federated/status/'+fedTaskId),
-      api('/api/federated/logs/'+fedTaskId+'?since='+fedLogIdx)
-    ]);
-    document.getElementById('ts-status').textContent = st.status;
-    document.getElementById('ts-progress').textContent = Math.round(st.progress*100)+'%';
-    if (st.final_accuracy) document.getElementById('ts-acc').textContent = (st.final_accuracy*100).toFixed(2)+'%';
-    if (st.final_loss) document.getElementById('ts-loss').textContent = st.final_loss.toFixed(4);
-    if (logs.logs&&logs.logs.length) {
-      const box = document.getElementById('fl-logs');
-      box.innerHTML += logs.logs.map(l => `<p class="info">${l}</p>`).join('');
-      box.scrollTop = box.scrollHeight;
-      fedLogIdx = logs.next_index;
-    }
-    if (st.status==='completed'||st.status==='failed') {
-      clearInterval(fedPollTimer);
-      if (st.status==='completed') {
-        const res = await api('/api/federated/result/'+fedTaskId);
-        if (res.history) {
-          window.fateH = res.history;
-          const ctx = document.getElementById('fateChart').getContext('2d');
-          if (charts.fateChart) charts.fateChart.destroy();
-          charts.fateChart = new Chart(ctx, {type:'line',data:{labels:res.history.map(h=>'E'+h.epoch),datasets:[
-            {label:'Accuracy',data:res.history.map(h=>h.accuracy),borderColor:'#10b981',backgroundColor:'rgba(16,185,129,0.06)',fill:true,tension:.3,yAxisID:'y'},
-            {label:'Loss',data:res.history.map(h=>h.loss),borderColor:'#ef4444',backgroundColor:'rgba(239,68,68,0.06)',fill:true,tension:.3,yAxisID:'y1'}
-          ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{usePointStyle:true,boxWidth:8}}},scales:{y:{position:'left',min:0,max:1},y1:{position:'right',min:0,max:1,grid:{display:false}}}}});
-          updateCompareChart();
-        }
-        document.getElementById('fl-logs').innerHTML += '<p class="ok">✓ 真实联邦训练完成！</p>';
-      } else { document.getElementById('fl-logs').innerHTML += '<p class="err">✗ 训练失败</p>'; }
-    }
-  } catch(e) {}
-}
-
-/* ===================================================================
-   ENCRYPTION COMPARISON
-   =================================================================== */
-async function updateEncryptionComparison() {
-  const mb = parseInt(document.getElementById('dataSize').value);
-  document.getElementById('dataSizeValue').textContent = mb+' MB';
-  try {
-    const d = await apiPost('/api/compare_encryption', {data_size_mb:mb});
-    document.getElementById('tradEnc').textContent = d.traditional.encryption_time_ms+' ms';
-    document.getElementById('tradDec').textContent = d.traditional.decryption_time_ms+' ms';
-    document.getElementById('tradThr').textContent = d.traditional.throughput_mbps+' Mbps';
-    document.getElementById('homoEnc').textContent = d.homomorphic.encryption_time_ms+' ms';
-    document.getElementById('homoDec').textContent = d.homomorphic.decryption_time_ms+' ms';
-    document.getElementById('homoThr').textContent = d.homomorphic.throughput_mbps+' Mbps';
-    const ctx = document.getElementById('encChart').getContext('2d');
-    if (charts.encChart) charts.encChart.destroy();
-    const labels = Array.from({length:10},(_,i)=>`${(i+1)*10}MB`);
-    charts.encChart = new Chart(ctx, {type:'line',data:{labels,datasets:[
-      {label:'AES-256 吞吐量',data:labels.map(l=>Math.max(5,80-parseInt(l)*2.5)),borderColor:'#EF4444',backgroundColor:'rgba(239,68,68,0.06)',fill:true,tension:.4,pointRadius:4},
-      {label:'Paillier 吞吐量',data:labels.map(l=>Math.max(3,25-parseInt(l)*0.8)),borderColor:'var(--primary)',backgroundColor:'rgba(59,130,246,0.06)',fill:true,tension:.4,pointRadius:4}
-    ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{usePointStyle:true,boxWidth:8}}},scales:{y:{beginAtZero:true,grid:{color:'rgba(0,0,0,0.04)'}},x:{grid:{display:false}}}}});
-  } catch(e) { console.error(e); }
-}
-
-/* ===================================================================
-   COMBINED: DATASETS + ATTACK DETECTION
-   =================================================================== */
-let _lastDetData = null;
-
-async function uploadAndDetect(file) {
-  const fd = new FormData(); fd.append('file', file);
-  try {
-    // Show uploading state
-    const zone = document.getElementById('dsUploadZone');
-    zone.innerHTML = '<div class="upload-icon"><i class="fas fa-spinner fa-spin"></i></div><h5>正在上传并检测...</h5>';
-
-    // 1. Upload for attack detection
-    const res = await fetch('/upload', {method:'POST',body:fd});
-    const json = await res.json();
-    if (json.code !== 200 && json.code !== undefined) throw new Error(json.msg || '检测失败');
-    const d = json.data || json;
-    if (!d.detections) throw new Error('未获取到检测结果');
-
-    // Show detection results
-    _lastDetData = d;
-    document.getElementById('det-res-stats').classList.remove('d-none');
-    animateNum(document.getElementById('det-total'), d.record_count||0);
-    animateNum(document.getElementById('det-anom'), d.anomaly_count||0);
-    animateNum(document.getElementById('det-norm'), d.normal_count||0);
-    const confs = d.detections.map(x=>x.confidence).filter(c=>c>0);
-    document.getElementById('det-avg-conf').textContent = confs.length?(confs.reduce((a,b)=>a+b,0)/confs.length*100).toFixed(1)+'%':'--';
-    document.getElementById('det-table-card').classList.remove('d-none');
-    document.getElementById('det-tbody').innerHTML = d.detections.map((r,i)=>`<tr class="${r.is_attack?'attack-row':''}"><td>${r.id}</td><td>${r.timestamp||'--'}</td><td>${r.key_generation_time||'--'}s</td><td>${r.request_frequency||'--'}/s</td><td>${r.failed_attempts||0}</td><td><span class="fw-semibold" style="color:${r.anomaly_score>0.7?'var(--danger)':r.anomaly_score>0.4?'var(--warning)':'var(--success)'}">${r.anomaly_score}</span></td><td>${r.isolation_forest_score!==undefined?r.isolation_forest_score:'--'}</td><td>${r.lstm_score!==undefined?r.lstm_score:'--'}</td><td><span class="tag ${r.is_attack?'tag-danger':'tag-success'}"><i class="fas ${r.is_attack?'fa-exclamation-triangle':'fa-check-circle'}"></i> ${r.is_attack?r.attack_type:'正常'}</span></td></tr>`).join('');
-
-    // Reset upload zone
-    zone.innerHTML = '<div class="upload-icon"><i class="fas fa-cloud-upload-alt"></i></div><h5>拖拽或点击上传数据文件</h5><p class="mb-0">支持 CSV / JSON · 自动进行攻击检测 · 支持导入为训练数据集</p>';
-
-    // 2. Also import as dataset (silently)
-    const fd2 = new FormData(); fd2.append('file', file);
-    const res2 = await fetch('/api/datasets/upload', {method:'POST',body:fd2});
-    const j2 = await res2.json();
-    if (j2.code === 200) { loadDatasets(); showToast('检测完成，数据已导入数据集', 'success'); }
-  } catch(e) { showToast('上传失败: '+e.message); }
-}
-
-function exportDetCSV() {
-  if (!_lastDetData) return;
-  let csv = 'ID,时间,密钥生成时间,请求频率,失败尝试,异常分数,检测结果\n';
-  _lastDetData.detections.forEach(r => { csv += r.id+','+r.timestamp+','+r.key_generation_time+','+r.request_frequency+','+r.failed_attempts+','+r.anomaly_score+','+(r.is_attack?r.attack_type:'正常')+'\n'; });
-  const blob = new Blob(['﻿'+csv], {type:'text/csv;charset=utf-8'});
-  const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='detection_report.csv'; a.click();
-}
-
-// Upload zone events for datasets page
-document.addEventListener('DOMContentLoaded', ()=>{
-  const dz = document.getElementById('dsUploadZone');
-  if (dz) {
-    dz.addEventListener('click', ()=>document.getElementById('dsFileInput').click());
-    dz.addEventListener('dragover', e=>{e.preventDefault();dz.classList.add('drag-over');});
-    dz.addEventListener('dragleave', ()=>dz.classList.remove('drag-over'));
-    dz.addEventListener('drop', e=>{e.preventDefault();dz.classList.remove('drag-over');const f=e.dataTransfer.files[0];if(f){document.getElementById('dsFileInput').files=e.dataTransfer.files;uploadAndDetect(f);}});
-    document.getElementById('dsFileInput').addEventListener('change', e=>{if(e.target.files[0])uploadAndDetect(e.target.files[0]);});
-  }
-  document.getElementById('dataSize').addEventListener('input', updateEncryptionComparison);
-  window.addEventListener('scroll', ()=>{
-    document.querySelector('.navbar-glass').classList.toggle('scrolled', window.scrollY>20);
-  });
+// Initial dashboard load with tab switch
+document.querySelector('[data-section="dashboard"]').addEventListener('click', ()=>{
+  setTimeout(loadDashboard, 100);
 });
 
 /* ===================================================================
-   ADAPTIVE OPTIMIZATION
+   TOAST
    =================================================================== */
-async function loadOptStatus() {
-  try {
-    const d = await api('/api/optimization/status');
-    animateNum(document.getElementById('opt-kl'), d.current_key_length, 'bit');
-    animateNum(document.getElementById('opt-rr'), d.current_rounds, '轮');
-    document.getElementById('opt-risk').textContent = d.risk_level||'--';
-    animateNum(document.getElementById('opt-gain'), d.performance_gain||0, '%');
-    const rc = document.getElementById('opt-risk-card');
-    rc.className = 'stat-card-glass ' + ((d.risk_level==='high'||d.risk_level==='critical')?'danger':(d.risk_level==='medium'?'warning':'success'));
-    renderOptChart(d.history);
-    renderOptTable(d.history);
-  } catch(e) { console.error(e); }
+function showToast(msg, type='danger') {
+  const existing = document.querySelector('.apple-toast');
+  if (existing) existing.remove();
+  const t = document.createElement('div');
+  t.className = 'apple-toast';
+  t.innerHTML = '<i class="fas fa-'+(type==='success'?'check-circle':'exclamation-circle')+'"></i> '+msg;
+  t.style.cssText = 'position:fixed;top:60px;right:20px;z-index:99999;padding:14px 24px;border-radius:12px;font-size:14px;backdrop-filter:blur(12px);box-shadow:0 8px 32px rgba(0,0,0,0.12);opacity:0;transform:translateX(40px);transition:all 0.3s;max-width:420px;'+
+    (type==='success'?'background:rgba(48,209,88,0.95);color:#fff':'background:rgba(255,69,58,0.95);color:#fff');
+  document.body.appendChild(t);
+  requestAnimationFrame(() => t.style.opacity='1', t.style.transform='translateX(0)');
+  setTimeout(() => { t.style.opacity='0'; setTimeout(()=>t.remove(),300); }, 3000);
 }
-async function triggerOptimize() {
-  const body = {
-    anomaly_score: parseFloat(document.getElementById('opt-score').value),
-    cpu_usage: parseFloat(document.getElementById('opt-cpu').value),
-    memory_usage: parseFloat(document.getElementById('opt-mem').value),
-    accuracy: parseFloat(document.getElementById('opt-acc').value),
-  };
-  try { await apiPost('/api/optimization/update', body); loadOptStatus(); } catch(e) { alert('优化失败: '+e.message); }
-}
-async function trainOptimizer(event) {
-  const btn = event.currentTarget; btn.disabled=true; btn.innerHTML='<span class="spinner-glass" style="width:14px;height:14px;margin-right:6px"></span> 训练中...';
-  try { const d = await apiPost('/api/optimization/train', {episodes:500}); alert('训练完成! 最终奖励: '+d.final_reward); loadOptStatus(); } catch(e) { alert('训练失败: '+e.message); }
-  finally { btn.disabled=false; btn.innerHTML='<i class="fas fa-graduation-cap"></i> 训练'; }
-}
-function renderOptChart(history) {
-  if (!history||!history.length) return;
-  const ctx = document.getElementById('optChart').getContext('2d');
-  if (charts.opt) charts.opt.destroy();
-  const rewards = history.map(h=>h.reward).filter(r=>r!==undefined);
-  if (!rewards.length) return;
-  charts.opt = new Chart(ctx, {type:'line',data:{labels:Array.from({length:rewards.length},(_,i)=>i+1),datasets:[{label:'奖励值',data:rewards,borderColor:'#10B981',backgroundColor:'rgba(16,185,129,0.06)',fill:true,tension:.3,pointRadius:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false}},y:{grid:{color:'rgba(0,0,0,0.04)'}}}}});
-}
-function renderOptTable(history) {
-  if (!history||!history.length) return;
-  const tbody = document.querySelector('#opt-history-tbl tbody');
-  tbody.innerHTML = history.slice(-20).reverse().map(h => {
-    const t = new Date(h.timestamp*1000).toLocaleTimeString();
-    return `<tr><td>${t}</td><td><span class="tag ${(h.risk_level==='high'||h.risk_level==='critical')?'tag-danger':h.risk_level==='medium'?'tag-warning':'tag-success'}">${h.risk_level||'--'}</span></td><td class="fw-semibold" style="color:var(--primary)">${h.key_length||'--'}bit</td><td>${h.rounds||'--'}轮</td><td>${h.reward||'--'}</td><td style="color:var(--success)">+${h.performance_gain||'--'}%</td></tr>`;
-  }).join('');
-}
-
-/* ===================================================================
-   DATASETS
-   =================================================================== */
-async function loadDatasets() {
-  try {
-    const d = await api('/api/datasets/list');
-    const ds = d.datasets || [];
-    const tbody = document.getElementById('ds-tbody');
-    tbody.innerHTML = ds.map(ds => `
-      <tr>
-        <td class="fw-semibold"><i class="fas fa-file-${ds.file_type==='csv'?'csv':'code'}"></i> ${ds.filename}</td>
-        <td>${ds.row_count}</td>
-        <td>${ds.column_count}</td>
-        <td>${ds.has_label?'<span class="tag tag-success"><i class="fas fa-check"></i> '+ds.label_column+'</span>':'<span class="tag tag-warning">未识别</span>'}</td>
-        <td class="caption">${ds.upload_time}</td>
-        <td>
-          <button class="btn btn-sm btn-glass-outline btn-sm-glass me-1" onclick="previewDataset('${ds.id}')" title="预览"><i class="fas fa-eye"></i></button>
-          <button class="btn btn-sm btn-glass-success btn-sm-glass me-1" onclick="trainOnDataset('${ds.id}')" title="用此数据训练模型"><i class="fas fa-graduation-cap"></i></button>
-          <button class="btn btn-sm btn-glass-danger btn-sm-glass" onclick="deleteDataset('${ds.id}')" title="删除"><i class="fas fa-trash"></i></button>
-        </td>
-      </tr>
-    `).join('');
-  } catch(e) { console.error('Datasets error',e); }
-}
-
-async function previewDataset(id) {
-  try {
-    const d = await api('/api/datasets/'+id);
-    const cols = d.columns||[];
-    const rows = d.sample_rows||[];
-    let html = '<div class="table-responsive"><table class="table table-glass"><thead><tr>'+cols.map(c=>'<th>'+c+'</th>').join('')+'</tr></thead><tbody>';
-    rows.slice(0,10).forEach(r => {
-      html += '<tr>'+cols.map(c=>'<td>'+(r[c]||'')+'</td>').join('')+'</tr>';
-    });
-    html += '</tbody></table></div>';
-    const w = window.open('','_blank','width=800,height=600');
-    w.document.write('<html><head><title>数据集预览 - '+d.filename+'</title><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"></head><body class="p-4"><h4>'+d.filename+' ('+d.row_count+'行, '+d.column_count+'列)</h4>'+html+'</body></html>');
-  } catch(e) { alert('预览失败: '+e.message); }
-}
-
-async function trainOnDataset(id) {
-  const epochs = prompt('训练轮次 (默认10):', '10') || '10';
-  try {
-    const d = await apiPost('/api/datasets/'+id+'/train', {epochs:parseInt(epochs), batch_size:32});
-    showToast('训练完成! 准确率: '+(d.accuracy*100).toFixed(2)+'%, 样本数: '+d.samples, 'success');
-    loadDatasets();
-  } catch(e) { showToast('训练失败: '+e.message); }
-}
-
-async function deleteDataset(id) {
-  if (!confirm('确定要删除此数据集吗?')) return;
-  try {
-    await api('/api/datasets/'+id, {method:'DELETE'});
-    loadDatasets();
-  } catch(e) { alert('删除失败: '+e.message); }
-}
-
-/* ===================================================================
-   VISITORS
-   =================================================================== */
-let visitorTimer = null;
-async function loadVisitors() {
-  try {
-    const d = await api('/api/visitors');
-    document.getElementById('vis-total').textContent = d.total||0;
-    const ips = new Set((d.visitors||[]).map(v=>v.ip));
-    document.getElementById('vis-unique').textContent = ips.size;
-    if (d.visitors&&d.visitors.length) {
-      document.getElementById('vis-latest').textContent = d.visitors[0].ip;
-    }
-    const tbody = document.getElementById('vis-tbody');
-    tbody.innerHTML = (d.visitors||[]).slice(0,100).map((v,i) =>
-      `<tr><td>${i+1}</td><td class="fw-semibold" style="color:var(--primary)"><i class="fas fa-network-wired"></i> ${v.ip}</td><td><code style="background:rgba(59,130,246,0.06);padding:2px 8px;border-radius:4px;font-size:12px">${v.path}</code></td><td><span class="tag ${v.method==='GET'?'tag-info':'tag-warning'}">${v.method}</span></td><td class="caption">${v.time}</td><td class="caption" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${v.ua||'--'}</td></tr>`
-    ).join('');
-  } catch(e) { console.error('Visitors error',e); }
-}
-// Auto-refresh visitors every 10s when on visitors page
-if (visitorTimer) clearInterval(visitorTimer);
-visitorTimer = setInterval(() => {
-  if (!document.getElementById('visitors-section').classList.contains('d-none')) loadVisitors();
-}, 10000);
-function refreshVisitors() { loadVisitors(); }
 
 /* ===================================================================
    INIT
    =================================================================== */
 document.addEventListener('DOMContentLoaded', ()=>{
-  loadDashboard();
-  updateEncryptionComparison();
+  loadModelStatus();
 });
 </script>
 </body>
