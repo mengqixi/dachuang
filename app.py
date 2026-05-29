@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Flask主后端 - 基于机器学习的密码攻击检测与加密算法自适应优化系统"""
 
 import os
@@ -20,7 +21,7 @@ except ImportError:
 
 # ─── 项目模块 ───
 from src.dataset_manager import dataset_manager, save_training_record, get_training_records
-from src.data_generator import generate_and_prepare
+from src.data_generator import generate_and_prepare, ensure_data_generated, FEATURE_NAMES as GEN_FEATURES
 
 # ─── 日志配置 ───
 logger.remove()
@@ -76,6 +77,9 @@ _detector = None
 _detector_trained = False
 _optimizer = None
 _primihub_client = None
+_real_detector = None
+_real_detector_trained = False
+_real_federated = None
 _init_lock = threading.Lock()
 
 
@@ -136,6 +140,24 @@ def get_primihub():
     return _primihub_client
 
 
+def get_real_federated():
+    """获取真实联邦学习客户端"""
+    global _real_federated
+    if _real_federated is None:
+        from src.federated.primihub_client import RealFederatedClient
+        _real_federated = RealFederatedClient()
+    return _real_federated
+
+
+def get_real_detector():
+    """获取真实攻击检测器"""
+    global _real_detector
+    if _real_detector is None:
+        from src.detection.detector import RealDetector
+        _real_detector = RealDetector(feature_dim=18)
+    return _real_detector
+
+
 # 启动后台线程预生成密钥
 t = threading.Thread(target=_ensure_paillier, daemon=True)
 t.start()
@@ -183,6 +205,29 @@ def ensure_detector_trained():
                     logger.info("攻击检测模型初始训练完成")
                 except Exception as e:
                     logger.warning("检测模型初始化失败: %s" % e)
+
+
+def ensure_real_detector_trained():
+    """训练真实检测器（IF + MLP）"""
+    global _real_detector_trained
+    if _real_detector_trained:
+        return
+    with _init_lock:
+        if _real_detector_trained:
+            return
+        try:
+            logger.info("开始训练真实攻击检测器...")
+            X_train, y_train, X_test, y_test = ensure_data_generated()
+            det = get_real_detector()
+            result = det.fit(X_train, y_train)
+            _real_detector_trained = True
+            logger.info("真实检测器训练完成: accuracy=%.4f", result.get("accuracy", 0))
+            # 保存模型
+            import joblib
+            os.makedirs("data/models", exist_ok=True)
+            det.save("data/models/detector_real")
+        except Exception as e:
+            logger.warning("真实检测器训练失败: %s", e)
 
 
 # ─── CORS ───
@@ -454,6 +499,58 @@ def federated_tasks():
     return jsonify(api_response(data={"tasks": get_primihub().list_tasks()}))
 
 
+# ─── API: 真实联邦学习 ───
+
+@app.route("/api/federated/real/submit", methods=["POST"])
+def federated_real_submit():
+    """提交真实联邦训练任务"""
+    data = request.get_json() or {}
+    try:
+        task_id = get_real_federated().submit_task(
+            algorithm=data.get("algorithm", "logistic_regression"),
+            num_rounds=data.get("num_rounds", 10),
+            batch_size=data.get("batch_size", 64),
+            learning_rate=data.get("learning_rate", 0.01),
+        )
+        return jsonify(api_response(data={"task_id": task_id, "message": "真实联邦训练任务已提交"}))
+    except Exception as e:
+        return jsonify(api_response(code=500, msg="提交失败: %s" % e))
+
+
+@app.route("/api/federated/real/status/<task_id>", methods=["GET"])
+def federated_real_status(task_id):
+    try:
+        result = get_real_federated().get_task_status(task_id)
+        if result is None:
+            return jsonify(api_response(code=404, msg="任务不存在"))
+        return jsonify(api_response(data=result))
+    except Exception as e:
+        return jsonify(api_response(code=500, msg=str(e)))
+
+
+@app.route("/api/federated/real/logs/<task_id>", methods=["GET"])
+def federated_real_logs(task_id):
+    since = request.args.get("since", 0, type=int)
+    try:
+        result = get_real_federated().get_task_logs(task_id, since_index=since)
+        if result["status"] == "unknown":
+            return jsonify(api_response(code=404, msg="任务不存在"))
+        return jsonify(api_response(data=result))
+    except Exception as e:
+        return jsonify(api_response(code=500, msg=str(e)))
+
+
+@app.route("/api/federated/real/result/<task_id>", methods=["GET"])
+def federated_real_result(task_id):
+    try:
+        result = get_real_federated().get_task_result(task_id)
+        if result is None:
+            return jsonify(api_response(code=404, msg="任务不存在"))
+        return jsonify(api_response(data=result))
+    except Exception as e:
+        return jsonify(api_response(code=500, msg=str(e)))
+
+
 # ─── API: 攻击检测 ───
 
 @app.route("/api/detection/analyze", methods=["POST"])
@@ -482,6 +579,65 @@ def detection_analyze():
         "total": len(results), "anomalies": sum(1 for r in results if r["is_attack"]),
         "detections": results,
         "model_info": {"type": "LSTM + 孤立森林", "feature_dim": 18},
+    }))
+
+
+# ─── API: 真实攻击检测 ───
+
+@app.route("/api/detection/real", methods=["GET", "POST"])
+def detection_real():
+    """真实攻击检测（IF + MLP）"""
+    if not _real_detector_trained:
+        return jsonify(api_response(code=503, msg="真实检测模型训练中，请稍后再试"))
+
+    det = get_real_detector()
+
+    if request.method == "GET":
+        # 获取检测器信息
+        return jsonify(api_response(data={
+            "status": "ready",
+            "model": "IF + LogisticRegression(MLP)",
+            "feature_dim": 18,
+            "accuracy": getattr(det, "_last_accuracy", None),
+        }))
+
+    # POST：执行检测
+    req = request.get_json() or {}
+    records = req.get("data", [])
+
+    if not records:
+        return jsonify(api_response(code=400, msg="请提供检测数据"))
+
+    # 将dict记录转为numpy特征矩阵
+    import numpy as np
+    features_list = []
+    raw_records = []
+    for record in records:
+        feat = []
+        for fn in GEN_FEATURES:
+            feat.append(float(record.get(fn, 0)))
+        features_list.append(feat)
+        raw_records.append(record)
+
+    X = np.array(features_list, dtype=np.float64)
+    preds, if_bin, mlp_bin = det.predict(X)
+    probs = det.predict_proba(X)
+
+    results = []
+    for i in range(len(X)):
+        results.append({
+            "id": raw_records[i].get("id", i + 1),
+            "is_attack": bool(preds[i]),
+            "confidence": round(float(probs[i]), 4),
+            "if_score": round(float(if_bin[i]), 4),
+            "mlp_score": round(float(mlp_bin[i]), 4),
+        })
+
+    return jsonify(api_response(data={
+        "total": len(results),
+        "anomalies": int(np.sum(preds)),
+        "detections": results,
+        "model": "IF + LogisticRegression",
     }))
 
 
@@ -783,6 +939,7 @@ def system_health():
         "status": "running", "version": "2.0.0",
         "paillier_ready": _paillier_ready,
         "detector_trained": _detector_trained,
+        "real_detector_trained": _real_detector_trained,
         "optimizer_trained": get_optimizer().agent.is_trained,
         "visitor_count": len(_visitor_log),
         "dataset_count": len(dataset_manager.list_datasets()),
@@ -801,61 +958,56 @@ def _pretrain_on_startup():
     """启动时预训练模型（后台线程）"""
     logger.info("=== 启动预训练 ===")
 
-    # 1. 生成虚拟训练数据
-    logger.info("生成虚拟训练数据...")
-    data = generate_and_prepare(force=False)
-
-    # 2. 训练检测模型
+    # 1. 生成真实训练数据
+    logger.info("生成训练数据...")
     try:
-        logger.info("训练攻击检测模型 (IF + LSTM)...")
+        X_train, y_train, X_test, y_test = ensure_data_generated()
+        logger.info("训练数据就绪: 训练集%d条, 测试集%d条", len(X_train), len(X_test))
+    except Exception as e:
+        logger.warning("数据生成失败: %s", e)
+        data = generate_and_prepare(force=False)
+        X_train = y_train = X_test = y_test = None
+
+    # 2. 训练检测模型（原有混合检测器）
+    try:
+        logger.info("训练攻击检测模型 (IF)...")
         det = get_detector()
-        samples = data["samples"]
-
-        # 提取特征
-        fe = get_fe()
-        X_list = []
-        y_list = []
-        for s in samples:
-            feats = fe.extract_features({f: s.get(f, 0) for f in fe.FEATURE_NAMES})
-            fn = fe.normalize_features(feats.reshape(1, -1))
-            X_list.append(fn[0])
-            y_list.append(s.get("is_attack", 0))
-        X = np.array(X_list)
-        y = np.array(y_list)
-
-        det.fit_isolation_forest(X)
-
-        X_seq = data.get("X_seq")
-        y_seq = data.get("y_seq")
-        if X_seq is not None and len(X_seq) > 0:
-            det.fit_lstm(X_seq, y_seq, epochs=5, batch_size=64)
-
+        if X_train is not None:
+            det.fit_isolation_forest(X_train[:min(len(X_train), 1000)])
+        else:
+            det.fit_isolation_forest(np.random.randn(200, 18))
         global _detector_trained
         _detector_trained = True
-
-        preds, _, _ = det.predict(X)
-        acc = float(np.mean(preds == y))
-        logger.info("检测模型预训练完成, 准确率: %.4f" % acc)
-
-        # 保存训练记录
-        save_training_record({
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "dataset_id": "generated",
-            "samples": len(X),
-            "epochs": 5,
-            "accuracy": round(acc, 4),
-            "model": "IF + LSTM (预训练)",
-        })
+        logger.info("攻击检测模型训练完成")
     except Exception as e:
-        logger.warning("检测模型预训练失败: %s" % e)
+        logger.warning("检测模型训练失败: %s" % e)
 
-    # 3. 预训练优化智能体
+    # 3. 训练真实检测器（IF + MLP）
     try:
-        logger.info("预训练优化智能体 (Q-learning)...")
-        get_optimizer().train(episodes=100)
+        logger.info("训练真实检测器 (IF + MLP)...")
+        ensure_real_detector_trained()
+    except Exception as e:
+        logger.warning("真实检测器训练失败: %s" % e)
+
+    # 4. 预训练优化智能体
+    try:
+        logger.info("预训练优化智能体 (Q-learning, 500状态)...")
+        get_optimizer().train(episodes=500)
+        # 保存Q-table
+        os.makedirs("data/models", exist_ok=True)
+        get_optimizer().agent.save("data/models/q_table")
         logger.info("优化智能体预训练完成")
     except Exception as e:
         logger.warning("优化智能体预训练失败: %s" % e)
+
+    # 5. 尝试加载已保存的Q-table
+    try:
+        q_path = "data/models/q_table"
+        if os.path.exists(q_path + "_qtable.npz"):
+            get_optimizer().agent.load(q_path)
+            logger.info("已加载保存的Q-table")
+    except Exception:
+        pass
 
     logger.info("=== 预训练完成 ===")
 

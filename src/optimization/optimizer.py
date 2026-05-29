@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """自适应优化器
 
 实现"攻击感知-参数调优-反馈优化"闭环。
@@ -194,7 +195,7 @@ class AdaptiveOptimizer:
     def _calc_cost(key_length: int, rounds: int) -> float:
         """计算加密参数的成本"""
         kl_cost = {1024: 1.0, 2048: 2.5, 4096: 6.0}
-        r_cost = {10: 1.0, 12: 1.2, 14: 1.5}
+        r_cost = {10: 1.0, 12: 1.2}
         return kl_cost.get(key_length, 2.5) * r_cost.get(rounds, 1.0)
 
     @staticmethod
