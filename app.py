@@ -785,6 +785,12 @@ def optimization_history():
     return jsonify(api_response(data={"history": get_optimizer().get_history()}))
 
 
+@app.route("/api/optimization/compare", methods=["GET"])
+def optimization_compare():
+    """获取静态vs自适应加密效果对比"""
+    return jsonify(api_response(data=get_optimizer().get_effect_comparison()))
+
+
 @app.route("/api/optimization/config", methods=["GET"])
 def optimization_config():
     return jsonify(api_response(data=get_optimizer().get_current_config()))
