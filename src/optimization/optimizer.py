@@ -2,20 +2,19 @@
 
 实现"攻击感知-参数调优-反馈优化"闭环。
 对接攻击检测模块获取实时风险等级，
-调用DQN智能体动态调整加密参数，
+调用Q-learning智能体动态调整加密参数，
 反馈性能指标持续优化策略。
 """
 
 import time
-import json
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 from dataclasses import dataclass, asdict
 
 import numpy as np
 from loguru import logger
 
 from src.optimization.environment import EncryptionEnv
-from src.optimization.agent import DQNAgent, AgentConfig
+from src.optimization.agent import QLearningAgent
 
 
 @dataclass
@@ -37,22 +36,19 @@ class AdaptiveOptimizer:
     """自适应加密参数优化器
 
     实现攻击感知 → 参数调优 → 反馈优化的闭环流程。
-    对接攻击检测模块获取实时风险等级，调用DQN智能体做出决策。
+    对接攻击检测模块获取实时风险等级，调用Q-learning智能体做出决策。
 
     属性:
-        agent: DQN强化学习智能体
-        env: 加密环境
+        agent: Q-learning强化学习智能体
         current_key_length: 当前密钥长度
         current_rounds: 当前加密轮数
         current_risk_level: 当前风险等级
         history: 优化历史记录
         performance_gain: 累计性能提升
-        _baseline_cost: 静态加密基准成本
     """
 
-    def __init__(self, agent_config: Optional[AgentConfig] = None):
-        self.agent = DQNAgent(agent_config)
-        self.env = EncryptionEnv()
+    def __init__(self):
+        self.agent = QLearningAgent()
         self.current_key_length: int = 2048
         self.current_rounds: int = 10
         self.current_risk_level: str = "low"
@@ -91,9 +87,9 @@ class AdaptiveOptimizer:
             dtype=np.float32,
         )
 
-        # 3. DQN决策
+        # 3. Q-learning决策
         action, _ = self.agent.predict(state)
-        key_length, rounds = self.env._decode_action(action)
+        key_length, rounds = self.agent.decode_action(action)
 
         # 4. 计算性能增益（相对静态基线 2048/10）
         old_cost = self._calc_cost(self.current_key_length, self.current_rounds)

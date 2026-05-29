@@ -7,5 +7,5 @@ from src.detection.attack_detector import HybridAttackDetector
 from src.detection.detector import HybridDetector
 from src.federated.primihub_client import PrimiHubClient, FederatedTaskConfig, PrimiHubNodeManager
 from src.optimization.environment import EncryptionEnv
-from src.optimization.agent import DQNAgent, AgentConfig
+from src.optimization.agent import QLearningAgent
 from src.optimization.optimizer import AdaptiveOptimizer

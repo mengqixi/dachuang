@@ -113,8 +113,8 @@ def get_fe():
 def get_detector():
     global _detector
     if _detector is None:
-        from src.detection.attack_detector import HybridAttackDetector
-        _detector = HybridAttackDetector(feature_dim=18)
+        from src.detection.detector import HybridDetector
+        _detector = HybridDetector(feature_dim=18)
     return _detector
 
 
@@ -789,7 +789,7 @@ def system_health():
         "modules": {
             "encryption": "Paillier + AES-256",
             "detection": "LSTM + 孤立森林混合模型",
-            "optimization": "DQN强化学习",
+            "optimization": "表格型Q-learning",
             "federated": "PrimiHub联邦学习",
         },
     }))
@@ -851,7 +851,7 @@ def _pretrain_on_startup():
 
     # 3. 预训练优化智能体
     try:
-        logger.info("预训练优化智能体 (DQN)...")
+        logger.info("预训练优化智能体 (Q-learning)...")
         get_optimizer().train(episodes=100)
         logger.info("优化智能体预训练完成")
     except Exception as e:

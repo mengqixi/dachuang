@@ -60,11 +60,11 @@ class TestFeatureExtractor(unittest.TestCase):
 
 
 class TestAttackDetector(unittest.TestCase):
-    """攻击检测测试"""
+    """攻击检测测试（HybridDetector - 加权投票）"""
 
     def setUp(self):
-        from src.detection.attack_detector import HybridAttackDetector
-        self.det = HybridAttackDetector(feature_dim=18)
+        from src.detection.detector import HybridDetector
+        self.det = HybridDetector(feature_dim=18)
 
     def test_isolation_forest(self):
         import numpy as np
@@ -150,6 +150,28 @@ class TestOptimization(unittest.TestCase):
         env.reset()
         state, reward, term, trunc, info = env.step(0)
         self.assertEqual(len(state), 4)
+
+    def test_qagent_discretize(self):
+        import numpy as np
+        from src.optimization.agent import QLearningAgent
+        agent = QLearningAgent()
+        state = np.array([2.0, 0.5, 0.5, 0.92], dtype=np.float32)
+        key = agent.discretize_state(state)
+        self.assertEqual(key, "2_1_1_1")
+
+    def test_qagent_predict(self):
+        import numpy as np
+        from src.optimization.agent import QLearningAgent
+        agent = QLearningAgent()
+        action, q_val = agent.predict(np.array([1.0, 0.3, 0.4, 0.95], dtype=np.float32))
+        self.assertIn(action, range(9))
+
+    def test_qagent_train(self):
+        from src.optimization.agent import QLearningAgent
+        agent = QLearningAgent()
+        rewards = agent.train(total_timesteps=200)
+        self.assertGreater(len(rewards), 0)
+        self.assertTrue(agent.is_trained)
 
     def test_optimizer_update(self):
         from src.optimization.optimizer import AdaptiveOptimizer
@@ -249,8 +271,8 @@ class TestAPI(unittest.TestCase):
         resp = self.app.get("/")
         self.assertEqual(resp.status_code, 200)
         html = resp.data.decode()
-        self.assertIn("CryptoShield", html)
         self.assertIn("Chart", html)
+        self.assertIn("glass", html)
 
 
 if __name__ == "__main__":

@@ -93,6 +93,38 @@ class HybridDetector:
         logger.info("混合检测模型训练完成")
         return lstm_history
 
+    def fit_isolation_forest(self, X: np.ndarray) -> None:
+        """仅训练孤立森林（兼容模式）
+
+        Args:
+            X: 训练数据
+        """
+        self.isolation_forest.fit(X)
+        self._is_fitted = True
+        logger.info("孤立森林训练完成: samples=%d" % len(X))
+
+    def fit_lstm(
+        self,
+        X_seq: np.ndarray,
+        y: np.ndarray,
+        epochs: int = 10,
+        batch_size: int = 32,
+    ) -> Dict[str, Any]:
+        """仅训练LSTM模型（兼容模式）
+
+        Args:
+            X_seq: 序列数据
+            y: 标签
+            epochs: 训练轮数
+            batch_size: 批大小
+
+        Returns:
+            训练历史
+        """
+        history = self.lstm.fit(X_seq, y, epochs=epochs, batch_size=batch_size)
+        logger.info("LSTM训练完成: samples=%d, epochs=%d" % (len(X_seq), epochs))
+        return history
+
     def predict(
         self,
         X: np.ndarray,

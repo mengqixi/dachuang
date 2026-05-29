@@ -24,9 +24,11 @@ pyyaml>=5.0.0
 # 深度学习（可选）
 torch>=1.9.0
 
-# 强化学习（可选）
+# 强化学习（核心依赖）
 gymnasium>=0.26.0
-stable-baselines3>=2.0.0
+
+# 联邦学习
+grpcio>=1.40.0
 
 # 可视化（可选）
 matplotlib>=3.0.0
