@@ -95,13 +95,14 @@ class AdaptiveOptimizer:
         action, _ = self.agent.predict(state)
         key_length, rounds = self.env._decode_action(action)
 
-        # 4. 记录变更
+        # 4. 计算性能增益（相对静态基线 2048/10）
+        old_cost = self._calc_cost(self.current_key_length, self.current_rounds)
+        new_cost = self._calc_cost(key_length, rounds)
+        baseline_cost = self._calc_cost(2048, 10)
         changed = (key_length != self.current_key_length) or (rounds != self.current_rounds)
 
         if changed:
-            old_cost = self._calc_cost(self.current_key_length, self.current_rounds)
-            new_cost = self._calc_cost(key_length, rounds)
-            gain = ((old_cost - new_cost) / old_cost) * 100 if old_cost > 0 else 0
+            gain = ((baseline_cost - new_cost) / baseline_cost) * 100
             self.performance_gain += gain
             logger.info(
                 f"加密参数调整: {self.current_key_length}bit/{self.current_rounds}轮 → "

@@ -655,10 +655,9 @@ h1, h2, h3, h4, h5, h6 { font-weight: 600; color: var(--text-primary); }
         <li class="nav-item"><a class="nav-link nav-link-glass" href="#" onclick="navTo('data')"><i class="fas fa-database"></i>数据准备</a></li>
         <li class="nav-item"><a class="nav-link nav-link-glass" href="#" onclick="navTo('train')"><i class="fas fa-robot"></i>模型训练</a></li>
         <li class="nav-item"><a class="nav-link nav-link-glass" href="#" onclick="navTo('compare')"><i class="fas fa-balance-scale"></i>加密对比</a></li>
-        <li class="nav-item"><a class="nav-link nav-link-glass" href="#" onclick="navTo('detection')"><i class="fas fa-search"></i>攻击检测</a></li>
+        <li class="nav-item"><a class="nav-link nav-link-glass" href="#" onclick="navTo('datasets')"><i class="fas fa-folder-open"></i>数据导入</a></li>
         <li class="nav-item"><a class="nav-link nav-link-glass" href="#" onclick="navTo('optimize')"><i class="fas fa-sliders-h"></i>自适应优化</a></li>
         <li class="nav-item"><a class="nav-link nav-link-glass" href="#" onclick="navTo('visitors')"><i class="fas fa-users"></i>访客IP</a></li>
-        <li class="nav-item"><a class="nav-link nav-link-glass" href="#" onclick="navTo('datasets')"><i class="fas fa-folder-open"></i>数据集</a></li>
       </ul>
     </div>
   </div>
@@ -796,12 +795,31 @@ h1, h2, h3, h4, h5, h6 { font-weight: 600; color: var(--text-primary); }
 
     <div class="card-glass d-none mb-4" id="real-train-config" style="background:rgba(255,255,255,0.5)">
       <div class="card-body-glass">
+        <div class="mb-3">
+          <span class="tag tag-info"><i class="fas fa-info-circle"></i> 参数说明</span>
+          <span class="caption ms-2">基于PrimiHub框架的联邦逻辑回归，数据加密后在各节点本地训练，仅聚合加密梯度</span>
+        </div>
         <div class="row g-3 align-items-end">
-          <div class="col-md-2"><label class="form-label-glass">算法</label><select class="form-select form-select-glass form-select-sm" id="fl-algo"><option>logistic_regression</option></select></div>
-          <div class="col-md-2"><label class="form-label-glass">轮次</label><input type="number" class="form-control form-control-glass form-control-sm" id="fl-rounds" value="10"></div>
-          <div class="col-md-2"><label class="form-label-glass">学习率</label><input type="number" class="form-control form-control-glass form-control-sm" id="fl-lr" value="0.01" step="0.005"></div>
-          <div class="col-md-2"><label class="form-label-glass">批大小</label><input type="number" class="form-control form-control-glass form-control-sm" id="fl-bs" value="64"></div>
-          <div class="col-md-2"><label class="form-label-glass">标签列</label><input type="text" class="form-control form-control-glass form-control-sm" id="fl-label" value="label"></div>
+          <div class="col-md-2">
+            <label class="form-label-glass" title="联邦学习算法类型，目前支持逻辑回归">算法 <i class="fas fa-question-circle" style="color:var(--text-disabled);font-size:12px"></i></label>
+            <select class="form-select form-select-glass form-select-sm" id="fl-algo"><option>logistic_regression</option></select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label-glass" title="训练迭代次数，越多精度越高但耗时更长，通常10-20轮">轮次 <i class="fas fa-question-circle" style="color:var(--text-disabled);font-size:12px"></i></label>
+            <input type="number" class="form-control form-control-glass form-control-sm" id="fl-rounds" value="10">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label-glass" title="梯度下降步长，太大不收敛，太小收敛慢，推荐0.01-0.1">学习率 <i class="fas fa-question-circle" style="color:var(--text-disabled);font-size:12px"></i></label>
+            <input type="number" class="form-control form-control-glass form-control-sm" id="fl-lr" value="0.01" step="0.005">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label-glass" title="每次训练的样本数，越大越稳定但耗内存，通常32-128">批大小 <i class="fas fa-question-circle" style="color:var(--text-disabled);font-size:12px"></i></label>
+            <input type="number" class="form-control form-control-glass form-control-sm" id="fl-bs" value="64">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label-glass" title="数据集中的标签列名，标识样本是否为攻击">标签列 <i class="fas fa-question-circle" style="color:var(--text-disabled);font-size:12px"></i></label>
+            <input type="text" class="form-control form-control-glass form-control-sm" id="fl-label" value="label">
+          </div>
           <div class="col-md-2 d-grid"><button class="btn btn-glass-success btn-sm-glass" onclick="submitRealTask()"><i class="fas fa-paper-plane"></i> 提交</button></div>
         </div>
       </div>
@@ -912,48 +930,6 @@ h1, h2, h3, h4, h5, h6 { font-weight: 600; color: var(--text-primary); }
 </section>
 
 <!-- ================================================================
-     SECTION: ATTACK DETECTION
-     ================================================================ -->
-<section id="detection-section" class="d-none">
-<div class="section-card card-glass">
-  <div class="section-header">
-    <h2 class="section-title"><i class="fas fa-search card-title-icon"></i> 攻击检测</h2>
-    <span class="caption">LSTM + 孤立森林混合模型 · 18维特征</span>
-  </div>
-  <div class="section-content">
-    <div class="row g-3 mb-4">
-      <div class="col-12">
-        <div class="upload-zone" id="uploadZone">
-          <input type="file" id="fileInput" accept=".csv,.json" class="d-none">
-          <div class="upload-icon"><i class="fas fa-cloud-upload-alt"></i></div>
-          <h5>拖拽或点击上传数据文件</h5>
-          <p class="mb-0">支持 CSV / JSON 格式 · 自动提取18维特征进行混合模型检测</p>
-        </div>
-      </div>
-    </div>
-
-    <div class="row g-3 mb-4 d-none" id="det-res-stats">
-      <div class="col-3"><div class="stat-card-glass primary"><div class="stat-value num" id="det-total">0</div><div class="stat-label">总记录数</div></div></div>
-      <div class="col-3"><div class="stat-card-glass danger"><div class="stat-value num" id="det-anom">0</div><div class="stat-label">检测到异常</div></div></div>
-      <div class="col-3"><div class="stat-card-glass success"><div class="stat-value num" id="det-norm">0</div><div class="stat-label">正常流量</div></div></div>
-      <div class="col-3"><div class="stat-card-glass" style="--c:#8b5cf6"><div class="stat-value num" id="det-avg-conf">--</div><div class="stat-label">平均置信度</div></div></div>
-    </div>
-
-    <div class="card-glass d-none" id="det-table-card">
-      <div class="card-header-glass"><span style="color:var(--text-primary);font-weight:600"><i class="fas fa-table card-title-icon"></i>检测结果明细</span>
-        <div><button class="btn btn-sm btn-glass-outline btn-sm-glass" onclick="exportDetCSV()"><i class="fas fa-download"></i> 导出CSV</button></div>
-      </div>
-      <div class="card-body-glass p-0">
-        <div class="table-responsive">
-          <table class="table table-glass" id="det-tbl"><thead><tr><th>#</th><th>时间</th><th>密钥生成</th><th>请求频率</th><th>失败尝试</th><th>异常分数</th><th>IF</th><th>LSTM</th><th>检测结果</th></tr></thead><tbody id="det-tbody"></tbody></table>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-</section>
-
-<!-- ================================================================
      SECTION: ADAPTIVE OPTIMIZATION
      ================================================================ -->
 <section id="optimize-section" class="d-none">
@@ -997,6 +973,48 @@ h1, h2, h3, h4, h5, h6 { font-weight: 600; color: var(--text-primary); }
       </div>
     </div>
 
+    <!-- 参数说明卡片 -->
+    <div class="card-glass mb-4">
+      <div class="card-header-glass" style="cursor:pointer" onclick="const n=this.nextElementSibling; n.classList.toggle('d-none'); this.querySelector('i.fa-chevron-down').style.transform=n.classList.contains('d-none')?'rotate(0deg)':'rotate(180deg)';">
+        <span style="color:var(--text-primary);font-weight:600"><i class="fas fa-question-circle card-title-icon"></i>参数调整说明 <span class="caption">（点击展开）</span></span>
+        <i class="fas fa-chevron-down" style="color:var(--text-disabled);transition:transform .3s"></i>
+      </div>
+      <div class="card-body-glass d-none">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <h6 style="color:var(--text-primary);font-weight:600"><i class="fas fa-key"></i> 密钥长度</h6>
+            <table class="table table-glass table-sm">
+              <thead><tr><th>长度</th><th>安全性</th><th>开销</th><th>适用场景</th></tr></thead><tbody>
+                <tr><td><span class="tag tag-info">1024位</span></td><td>基础</td><td>1.0x</td><td>低风险、高吞吐</td></tr>
+                <tr><td><span class="tag tag-info">2048位</span></td><td>标准</td><td>2.5x</td><td>默认推荐</td></tr>
+                <tr><td><span class="tag tag-danger">4096位</span></td><td>最高</td><td>6.0x</td><td>高风险、机密数据</td></tr>
+              </tbody></table>
+          </div>
+          <div class="col-md-6">
+            <h6 style="color:var(--text-primary);font-weight:600"><i class="fas fa-redo"></i> 加密轮数</h6>
+            <table class="table table-glass table-sm">
+              <thead><tr><th>轮数</th><th>安全性</th><th>开销</th><th>适用场景</th></tr></thead><tbody>
+                <tr><td><span class="tag tag-info">10轮</span></td><td>基础</td><td>1.0x</td><td>快速加密</td></tr>
+                <tr><td><span class="tag tag-info">12轮</span></td><td>标准</td><td>1.2x</td><td>默认推荐</td></tr>
+                <tr><td><span class="tag tag-danger">14轮</span></td><td>最高</td><td>1.5x</td><td>高安全需求</td></tr>
+              </tbody></table>
+          </div>
+          <div class="col-12 mt-2">
+            <div style="background:rgba(59,130,246,0.06);border:1px solid rgba(59,130,246,0.12);border-radius:8px;padding:12px 16px">
+              <i class="fas fa-lightbulb" style="color:var(--primary)"></i>
+              <strong style="color:var(--text-primary)"> 性能提升 说明：</strong>
+              <span style="color:var(--text-secondary)">
+                基准 = 2048位/10轮（成本2.5）。
+                <span style="color:var(--danger)">负值</span>=加密强度高于基准（安全优先）。
+                <span style="color:var(--success)">正值</span>=低于基准（效率优先）。
+                调整建议：异常分数低→降低强度提升效率；异常分数高→增加强度保障安全。
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="card-glass">
       <div class="card-header-glass"><span style="color:var(--text-primary);font-weight:600"><i class="fas fa-history card-title-icon"></i>优化历史记录</span></div>
       <div class="card-body-glass p-0">
@@ -1017,28 +1035,52 @@ h1, h2, h3, h4, h5, h6 { font-weight: 600; color: var(--text-primary); }
 <section id="datasets-section" class="d-none">
 <div class="section-card card-glass">
   <div class="section-header">
-    <h2 class="section-title"><i class="fas fa-folder-open card-title-icon"></i> 数据集管理</h2>
-    <span class="caption">导入真实数据集用于模型训练</span>
+    <h2 class="section-title"><i class="fas fa-folder-open card-title-icon"></i> 数据导入与攻击检测</h2>
+    <span class="caption">上传数据集 → 特征提取 → LSTM+孤立森林混合检测</span>
   </div>
   <div class="section-content">
+    <!-- 上传区域 -->
     <div class="row g-3 mb-4">
       <div class="col-12">
         <div class="upload-zone" id="dsUploadZone">
           <input type="file" id="dsFileInput" accept=".csv,.json" class="d-none">
           <div class="upload-icon"><i class="fas fa-cloud-upload-alt"></i></div>
-          <h5>上传真实数据集（CSV/JSON）</h5>
-          <p class="mb-0">上传后可在模型训练中使用此数据集进行训练</p>
+          <h5>拖拽或点击上传数据文件</h5>
+          <p class="mb-0">支持 CSV / JSON · 自动进行攻击检测 · 支持导入为训练数据集</p>
         </div>
       </div>
     </div>
+
+    <!-- 检测结果统计 -->
+    <div class="row g-3 mb-4 d-none" id="det-res-stats">
+      <div class="col-3"><div class="stat-card-glass primary"><div class="stat-value num" id="det-total">0</div><div class="stat-label">总记录数</div></div></div>
+      <div class="col-3"><div class="stat-card-glass danger"><div class="stat-value num" id="det-anom">0</div><div class="stat-label">检测到异常</div></div></div>
+      <div class="col-3"><div class="stat-card-glass success"><div class="stat-value num" id="det-norm">0</div><div class="stat-label">正常流量</div></div></div>
+      <div class="col-3"><div class="stat-card-glass" style="--c:#8b5cf6"><div class="stat-value num" id="det-avg-conf">--</div><div class="stat-label">平均置信度</div></div></div>
+    </div>
+
+    <!-- 检测结果表 -->
+    <div class="card-glass d-none mb-4" id="det-table-card">
+      <div class="card-header-glass">
+        <span style="color:var(--text-primary);font-weight:600"><i class="fas fa-table card-title-icon"></i>检测结果明细</span>
+        <button class="btn btn-sm btn-glass-outline btn-sm-glass" onclick="exportDetCSV()"><i class="fas fa-download"></i> 导出CSV</button>
+      </div>
+      <div class="card-body-glass p-0">
+        <div class="table-responsive">
+          <table class="table table-glass" id="det-tbl"><thead><tr><th>#</th><th>时间</th><th>密钥生成</th><th>请求频率</th><th>失败尝试</th><th>异常分数</th><th>IF</th><th>LSTM</th><th>检测结果</th></tr></thead><tbody id="det-tbody"></tbody></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- 已导入数据集列表 -->
     <div class="card-glass">
       <div class="card-header-glass">
-        <span style="color:var(--text-primary);font-weight:600"><i class="fas fa-list card-title-icon"></i>已导入数据集</span>
+        <span style="color:var(--text-primary);font-weight:600"><i class="fas fa-database card-title-icon"></i>已导入数据集 &nbsp;<span class="caption">(可用于模型训练)</span></span>
         <button class="btn btn-sm btn-glass-outline btn-sm-glass" onclick="loadDatasets()"><i class="fas fa-sync"></i> 刷新</button>
       </div>
       <div class="card-body-glass p-0">
         <div class="table-responsive">
-          <table class="table table-glass" id="ds-tbl"><thead><tr><th>文件名</th><th>行数</th><th>列数</th><th>标签列</th><th>上传时间</th><th>状态</th><th>操作</th></tr></thead><tbody id="ds-tbody"></tbody></table>
+          <table class="table table-glass" id="ds-tbl"><thead><tr><th>文件名</th><th>行数</th><th>列数</th><th>标签列</th><th>上传时间</th><th>操作</th></tr></thead><tbody id="ds-tbody"></tbody></table>
         </div>
       </div>
     </div>
@@ -1142,12 +1184,12 @@ function animateNum(el, target, suffix='', duration=800) {
    NAVIGATION
    =================================================================== */
 function navTo(section) {
-  ['dashboard','data','train','compare','detection','optimize','visitors','datasets'].forEach(s => {
+  ['dashboard','data','train','compare','datasets','optimize','visitors'].forEach(s => {
     document.getElementById(s+'-section').classList.add('d-none');
   });
   document.getElementById(section+'-section').classList.remove('d-none');
   document.querySelectorAll('.nav-link-glass').forEach(el => el.classList.remove('active'));
-  const m = {dashboard:0,data:1,train:2,compare:3,detection:4,optimize:5,visitors:6,datasets:7};
+  const m = {dashboard:0,data:1,train:2,compare:3,datasets:4,optimize:5,visitors:6};
   document.querySelectorAll('.nav-link-glass')[m[section]]?.classList.add('active');
   if (section==='dashboard') loadDashboard();
   if (section==='compare') updateEncryptionComparison();
@@ -1385,32 +1427,25 @@ async function updateEncryptionComparison() {
 }
 
 /* ===================================================================
-   ATTACK DETECTION
+   COMBINED: DATASETS + ATTACK DETECTION
    =================================================================== */
-document.addEventListener('DOMContentLoaded', ()=>{
-  const zone = document.getElementById('uploadZone');
-  zone.addEventListener('click', ()=>document.getElementById('fileInput').click());
-  zone.addEventListener('dragover', e=>{e.preventDefault();zone.classList.add('drag-over');});
-  zone.addEventListener('dragleave', ()=>zone.classList.remove('drag-over'));
-  zone.addEventListener('drop', e=>{e.preventDefault();zone.classList.remove('drag-over');const f=e.dataTransfer.files[0];if(f){document.getElementById('fileInput').files=e.dataTransfer.files;handleFile(f);}});
-  document.getElementById('fileInput').addEventListener('change', e=>{if(e.target.files[0])handleFile(e.target.files[0]);});
-  document.getElementById('dataSize').addEventListener('input', updateEncryptionComparison);
-  window.addEventListener('scroll', ()=>{
-    document.querySelector('.navbar-glass').classList.toggle('scrolled', window.scrollY>20);
-  });
-});
-
 let _lastDetData = null;
-async function handleFile(file) {
+
+async function uploadAndDetect(file) {
   const fd = new FormData(); fd.append('file', file);
   try {
+    // Show uploading state
+    const zone = document.getElementById('dsUploadZone');
+    zone.innerHTML = '<div class="upload-icon"><i class="fas fa-spinner fa-spin"></i></div><h5>正在上传并检测...</h5>';
+
+    // 1. Upload for attack detection
     const res = await fetch('/upload', {method:'POST',body:fd});
     const json = await res.json();
-    if (json.code !== 200 && json.code !== undefined) {
-      throw new Error(json.msg || '检测失败');
-    }
+    if (json.code !== 200 && json.code !== undefined) throw new Error(json.msg || '检测失败');
     const d = json.data || json;
-    if (!d.detections) { alert('检测失败: 未获取到检测结果'); return; }
+    if (!d.detections) throw new Error('未获取到检测结果');
+
+    // Show detection results
     _lastDetData = d;
     document.getElementById('det-res-stats').classList.remove('d-none');
     animateNum(document.getElementById('det-total'), d.record_count||0);
@@ -1420,16 +1455,41 @@ async function handleFile(file) {
     document.getElementById('det-avg-conf').textContent = confs.length?(confs.reduce((a,b)=>a+b,0)/confs.length*100).toFixed(1)+'%':'--';
     document.getElementById('det-table-card').classList.remove('d-none');
     document.getElementById('det-tbody').innerHTML = d.detections.map((r,i)=>`<tr class="${r.is_attack?'attack-row':''}"><td>${r.id}</td><td>${r.timestamp||'--'}</td><td>${r.key_generation_time||'--'}s</td><td>${r.request_frequency||'--'}/s</td><td>${r.failed_attempts||0}</td><td><span class="fw-semibold" style="color:${r.anomaly_score>0.7?'var(--danger)':r.anomaly_score>0.4?'var(--warning)':'var(--success)'}">${r.anomaly_score}</span></td><td>${r.isolation_forest_score!==undefined?r.isolation_forest_score:'--'}</td><td>${r.lstm_score!==undefined?r.lstm_score:'--'}</td><td><span class="tag ${r.is_attack?'tag-danger':'tag-success'}"><i class="fas ${r.is_attack?'fa-exclamation-triangle':'fa-check-circle'}"></i> ${r.is_attack?r.attack_type:'正常'}</span></td></tr>`).join('');
-  } catch(e) { alert('上传检测失败: '+e.message); }
+
+    // Reset upload zone
+    zone.innerHTML = '<div class="upload-icon"><i class="fas fa-cloud-upload-alt"></i></div><h5>拖拽或点击上传数据文件</h5><p class="mb-0">支持 CSV / JSON · 自动进行攻击检测 · 支持导入为训练数据集</p>';
+
+    // 2. Also import as dataset (silently)
+    const fd2 = new FormData(); fd2.append('file', file);
+    const res2 = await fetch('/api/datasets/upload', {method:'POST',body:fd2});
+    const j2 = await res2.json();
+    if (j2.code === 200) loadDatasets();
+  } catch(e) { alert('上传失败: '+e.message); }
 }
 
 function exportDetCSV() {
   if (!_lastDetData) return;
   let csv = 'ID,时间,密钥生成时间,请求频率,失败尝试,异常分数,检测结果\n';
-  _lastDetData.detections.forEach(r => { csv += `${r.id},${r.timestamp},${r.key_generation_time},${r.request_frequency},${r.failed_attempts},${r.anomaly_score},${r.is_attack?r.attack_type:'正常'}\n`; });
+  _lastDetData.detections.forEach(r => { csv += r.id+','+r.timestamp+','+r.key_generation_time+','+r.request_frequency+','+r.failed_attempts+','+r.anomaly_score+','+(r.is_attack?r.attack_type:'正常')+'\n'; });
   const blob = new Blob(['﻿'+csv], {type:'text/csv;charset=utf-8'});
   const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='detection_report.csv'; a.click();
 }
+
+// Upload zone events for datasets page
+document.addEventListener('DOMContentLoaded', ()=>{
+  const dz = document.getElementById('dsUploadZone');
+  if (dz) {
+    dz.addEventListener('click', ()=>document.getElementById('dsFileInput').click());
+    dz.addEventListener('dragover', e=>{e.preventDefault();dz.classList.add('drag-over');});
+    dz.addEventListener('dragleave', ()=>dz.classList.remove('drag-over'));
+    dz.addEventListener('drop', e=>{e.preventDefault();dz.classList.remove('drag-over');const f=e.dataTransfer.files[0];if(f){document.getElementById('dsFileInput').files=e.dataTransfer.files;uploadAndDetect(f);}});
+    document.getElementById('dsFileInput').addEventListener('change', e=>{if(e.target.files[0])uploadAndDetect(e.target.files[0]);});
+  }
+  document.getElementById('dataSize').addEventListener('input', updateEncryptionComparison);
+  window.addEventListener('scroll', ()=>{
+    document.querySelector('.navbar-glass').classList.toggle('scrolled', window.scrollY>20);
+  });
+});
 
 /* ===================================================================
    ADAPTIVE OPTIMIZATION
@@ -1493,11 +1553,10 @@ async function loadDatasets() {
         <td>${ds.column_count}</td>
         <td>${ds.has_label?'<span class="tag tag-success"><i class="fas fa-check"></i> '+ds.label_column+'</span>':'<span class="tag tag-warning">未识别</span>'}</td>
         <td class="caption">${ds.upload_time}</td>
-        <td><span class="tag ${ds.status==='ready'?'tag-success':'tag-warning'}">${ds.status}</span></td>
         <td>
-          <button class="btn btn-sm btn-glass-outline btn-sm-glass me-1" onclick="previewDataset('${ds.id}')"><i class="fas fa-eye"></i></button>
-          <button class="btn btn-sm btn-glass-success btn-sm-glass me-1" onclick="trainOnDataset('${ds.id}')"><i class="fas fa-graduation-cap"></i></button>
-          <button class="btn btn-sm btn-glass-danger btn-sm-glass" onclick="deleteDataset('${ds.id}')"><i class="fas fa-trash"></i></button>
+          <button class="btn btn-sm btn-glass-outline btn-sm-glass me-1" onclick="previewDataset('${ds.id}')" title="预览"><i class="fas fa-eye"></i></button>
+          <button class="btn btn-sm btn-glass-success btn-sm-glass me-1" onclick="trainOnDataset('${ds.id}')" title="用此数据训练模型"><i class="fas fa-graduation-cap"></i></button>
+          <button class="btn btn-sm btn-glass-danger btn-sm-glass" onclick="deleteDataset('${ds.id}')" title="删除"><i class="fas fa-trash"></i></button>
         </td>
       </tr>
     `).join('');
@@ -1537,29 +1596,6 @@ async function deleteDataset(id) {
     await api('/api/datasets/'+id, {method:'DELETE'});
     loadDatasets();
   } catch(e) { alert('删除失败: '+e.message); }
-}
-
-// Upload handler
-document.addEventListener('DOMContentLoaded', ()=>{
-  const dz = document.getElementById('dsUploadZone');
-  if (dz) {
-    dz.addEventListener('click', ()=>document.getElementById('dsFileInput').click());
-    dz.addEventListener('dragover', e=>{e.preventDefault();dz.classList.add('drag-over');});
-    dz.addEventListener('dragleave', ()=>dz.classList.remove('drag-over'));
-    dz.addEventListener('drop', e=>{e.preventDefault();dz.classList.remove('drag-over');const f=e.dataTransfer.files[0];if(f){uploadDataset(f);}});
-    document.getElementById('dsFileInput').addEventListener('change', e=>{if(e.target.files[0])uploadDataset(e.target.files[0]);});
-  }
-});
-
-async function uploadDataset(file) {
-  const fd = new FormData(); fd.append('file', file);
-  try {
-    const res = await fetch('/api/datasets/upload', {method:'POST',body:fd});
-    const json = await res.json();
-    if (json.code !== 200) throw new Error(json.msg);
-    alert('数据集导入成功!');
-    loadDatasets();
-  } catch(e) { alert('上传失败: '+e.message); }
 }
 
 /* ===================================================================

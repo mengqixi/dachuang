@@ -61,8 +61,8 @@ def log_visitor(ip, path, method, user_agent=""):
 # ─── IP中间件 ───
 @app.before_request
 def before_request():
-    # 跳过静态文件
-    if request.path.startswith("/api/"):
+    # 只记录实际页面访问，不记录API轮询
+    if request.path == "/":
         ip = request.remote_addr or request.headers.get("X-Forwarded-For", "unknown")
         log_visitor(ip, request.path, request.method, request.headers.get("User-Agent", ""))
 
@@ -379,14 +379,19 @@ def _simulate_training(data, mode):
     history = []
     acc = 0.5
     for ep in range(1, 11):
-        acc += random.uniform(0.02, 0.07)
-        if acc > (0.98 if mode == "联邦" else 0.99):
-            acc = 0.98 if mode == "联邦" else 0.99
+        if mode == "联邦":
+            acc += random.uniform(0.015, 0.06)
+            noise = random.uniform(0.005, 0.015)
+            if acc > 0.96: acc = 0.96
+            acc -= noise
+        else:
+            acc += random.uniform(0.025, 0.08)
+            if acc > 0.99: acc = 0.99
         loss = round(1 - acc, 4)
-        acc = round(acc, 4)
+        acc = round(max(0.5, acc), 4)
         history.append({"epoch": ep, "accuracy": acc, "loss": loss})
         logs.append("[%s] INFO: Epoch %d/10 - 准确率: %.4f, 损失: %.4f" % (ts(), ep, acc, loss))
-    logs.append("[%s] INFO: 训练完成!" % ts())
+    logs.append("[%s] INFO: %s训练完成! 最终准确率: %.4f" % (ts(), mode, acc))
     return logs, history, {"final_accuracy": acc, "final_loss": loss}
 
 

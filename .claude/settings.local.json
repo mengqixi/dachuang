@@ -2,7 +2,20 @@
   "permissions": {
     "allow": [
       "Bash(git init *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git config *)",
+      "Bash(git remote *)",
+      "Bash(git push *)",
+      "Bash(python -c ' *)",
+      "Bash(ping -c 1 -W 3 47.110.65.93)",
+      "Bash(apt-get install *)",
+      "Bash(yum install *)",
+      "Bash(cat)",
+      "Bash(chmod +x /tmp/deploy.exp)",
+      "Bash(expect /tmp/deploy.exp)",
+      "Bash(cat /c/Users/ADMINI~1/AppData/Local/Temp/claude/C--Users-Administrator-Documents-trae-projects-dachuang/161e90ee-d235-47f5-90e7-eebfa814fa12/tasks/bedh27p3i.output 2>/dev/null | tail -40)",
+      "Bash(python -m pytest tests/test_all.py -v)"
     ]
   }
 }
