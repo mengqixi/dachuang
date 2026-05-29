@@ -1044,9 +1044,244 @@ def model_retrain():
     try:
         X_train, y_train, X_test, y_test = ensure_data_generated()
         model_manager.retrain(X_train, y_train)
+        # 保存详细训练记录
+        try:
+            det = model_manager.get_status()
+            if det.get("history"):
+                h = det["history"][-1]
+                db.save_detailed_training({
+                    "dataset_name": "generated",
+                    "epochs": 10, "batch_size": 32,
+                    "accuracy": h.get("accuracy", 0),
+                    "training_time": time.time(),
+                    "samples": h.get("samples", 0),
+                    "model_version": 1,
+                })
+        except Exception:
+            pass
         return jsonify(api_response(data={"message": "重训练已启动，请查看 /api/model/status"}))
     except Exception as e:
         return jsonify(api_response(code=500, msg="重训练失败: %s" % e))
+
+
+@app.route("/api/model/versions", methods=["GET"])
+def model_versions():
+    """获取模型版本列表"""
+    return jsonify(api_response(data={"versions": model_manager.get_version_list()}))
+
+
+@app.route("/api/model/rollback/<int:version>", methods=["POST"])
+def model_rollback(version):
+    """回滚模型到指定版本"""
+    ok = model_manager.rollback(version)
+    return jsonify(api_response(data={"success": ok, "version": version}))
+
+
+@app.route("/api/model/compare", methods=["GET"])
+def model_compare():
+    """三模型对比检测"""
+    try:
+        _, _, X_test, y_test = ensure_data_generated()
+        result = model_manager.compare_models(X_test[:min(len(X_test), 500)], y_test[:min(len(y_test), 500)])
+        return jsonify(api_response(data=result))
+    except Exception as e:
+        return jsonify(api_response(code=500, msg="对比失败: %s" % e))
+
+
+# ─── API: 训练历史 ───
+
+@app.route("/api/train/history", methods=["GET"])
+def train_history():
+    """获取训练历史"""
+    limit = request.args.get("limit", 50, type=int)
+    records = db.get_detailed_training(limit)
+    return jsonify(api_response(data={"records": records, "count": len(records)}))
+
+
+@app.route("/api/train/dual", methods=["POST"])
+def train_dual():
+    """双模式训练（传统+联邦对比）"""
+    req = request.get_json() or {}
+    epochs = req.get("epochs", 10)
+    batch_size = req.get("batch_size", 32)
+
+    # 生成/加载数据
+    X_train, y_train, X_test, y_test = ensure_data_generated()
+
+    # 传统训练（sklearn逻辑回归）
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import accuracy_score
+    t0 = time.time()
+    trad_model = LogisticRegression(C=1.0, max_iter=200, solver="lbfgs")
+    trad_model.fit(X_train, y_train)
+    trad_preds = trad_model.predict(X_test)
+    trad_acc = float(accuracy_score(y_test, trad_preds))
+    trad_time = time.time() - t0
+
+    # 联邦训练（numpy梯度下降模拟）
+    t0 = time.time()
+    n_features = X_train.shape[1]
+    w = np.zeros(n_features)
+    b = 0.0
+    lr = 0.01
+    fed_history = []
+    for ep in range(min(epochs, 20)):
+        idx = np.random.permutation(len(X_train))
+        for start in range(0, len(X_train), batch_size):
+            batch_idx = idx[start:start+batch_size]
+            X_b = X_train[batch_idx]
+            y_b = y_train[batch_idx]
+            logits = np.clip(X_b @ w + b, -20, 20)
+            preds = 1.0 / (1.0 + np.exp(-logits))
+            error = preds - y_b
+            gw = X_b.T @ error / len(X_b)
+            gb = np.mean(error)
+            # 加密噪声（模拟Paillier）
+            gw *= 1 + np.random.randn() * 0.001
+            gb *= 1 + np.random.randn() * 0.0005
+            w -= lr * gw
+            b -= lr * gb
+        # 评估
+        test_logits = np.clip(X_test @ w + b, -20, 20)
+        test_preds = (1.0 / (1.0 + np.exp(-test_logits)) > 0.5).astype(int)
+        ep_acc = float(accuracy_score(y_test, test_preds))
+        ep_loss = float(-np.mean(y_test * np.log(1.0/(1.0+np.exp(-test_logits)) + 1e-10) +
+                                  (1-y_test) * np.log(1 - 1.0/(1.0+np.exp(-test_logits)) + 1e-10)))
+        fed_history.append({"epoch": ep+1, "accuracy": round(ep_acc, 4), "loss": round(ep_loss, 4)})
+    fed_acc = fed_history[-1]["accuracy"] if fed_history else 0
+    fed_time = time.time() - t0
+
+    # 保存训练记录
+    db.save_detailed_training({
+        "model_type": "dual",
+        "epochs": epochs,
+        "batch_size": batch_size,
+        "accuracy": round(fed_acc, 4),
+        "loss": round(fed_history[-1]["loss"] if fed_history else 0, 4),
+        "training_time": round(fed_time + trad_time, 2),
+        "traditional_accuracy": round(trad_acc, 4),
+        "federated_accuracy": round(fed_acc, 4),
+        "samples": len(X_train),
+        "model_version": model_manager._version_counter if hasattr(model_manager, '_version_counter') else 1,
+    })
+
+    return jsonify(api_response(data={
+        "traditional": {
+            "accuracy": round(trad_acc, 4),
+            "training_time": round(trad_time, 2),
+        },
+        "federated": {
+            "accuracy": round(fed_acc, 4),
+            "training_time": round(fed_time, 2),
+            "history": fed_history,
+        },
+        "comparison": {
+            "accuracy_diff": round((fed_acc - trad_acc) * 100, 2),
+            "time_diff": "+%.1f%%" % ((fed_time / max(trad_time, 0.01) - 1) * 100),
+        },
+        "samples": len(X_train),
+        "features": n_features,
+    }))
+
+
+# ─── API: 检测历史 ───
+
+@app.route("/api/detection/history", methods=["GET"])
+def detection_history():
+    """获取检测历史"""
+    limit = request.args.get("limit", 50, type=int)
+    records = db.get_detection_history(limit)
+    return jsonify(api_response(data={"records": records, "count": len(records)}))
+
+
+@app.route("/api/detection/compare", methods=["POST"])
+def detection_compare():
+    """三模型对比检测"""
+    req = request.get_json() or {}
+    records = req.get("data", [])
+    if not records:
+        return jsonify(api_response(code=400, msg="请提供检测数据"))
+
+    import numpy as np
+    features_list = []
+    for record in records:
+        feat = []
+        for fn in GEN_FEATURES:
+            feat.append(float(record.get(fn, 0)))
+        features_list.append(feat)
+    X = np.array(features_list, dtype=np.float64)
+
+    # 规则检测
+    rule_scores = []
+    for i in range(len(X)):
+        fa = float(records[i].get("failed_attempts", 0))
+        rf = float(records[i].get("request_frequency", 0))
+        score = 1.0 if fa > 30 or rf > 200 else 0.3 if fa > 10 or rf > 100 else 0.0
+        rule_scores.append(score)
+    rule_preds = (np.array(rule_scores) > 0.5).astype(int)
+
+    # IF检测
+    if model_manager.is_ready and model_manager.if_model is not None:
+        if_raw = model_manager.if_model.decision_function(X)
+        if_s = 1.0 - (if_raw - if_raw.min()) / (if_raw.max() - if_raw.min() + 1e-10)
+        if_preds = (if_s > 0.5).astype(int)
+    else:
+        if_preds = np.zeros(len(X))
+
+    # 混合检测
+    hybrid_preds = model_manager.predict(X) if model_manager.is_ready else np.zeros(len(X))
+    hybrid_probs = model_manager.predict_proba(X) if model_manager.is_ready else np.zeros(len(X))
+
+    rule_anom = int(np.sum(rule_preds))
+    if_anom = int(np.sum(if_preds))
+    hybrid_anom = int(np.sum(hybrid_preds))
+
+    dets = []
+    for i in range(len(X)):
+        dets.append({
+            "id": records[i].get("id", i+1),
+            "rule_result": bool(rule_preds[i]),
+            "if_result": bool(if_preds[i]),
+            "hybrid_result": bool(hybrid_preds[i]),
+            "confidence": round(float(hybrid_probs[i]), 4),
+        })
+
+    return jsonify(api_response(data={
+        "total": len(X),
+        "rule_anomalies": rule_anom,
+        "if_anomalies": if_anom,
+        "hybrid_anomalies": hybrid_anom,
+        "detections": dets,
+        "summary": {
+            "rule_accuracy": "-",
+            "if_accuracy": "-",
+            "hybrid_accuracy": "-",
+        }
+    }))
+
+
+# ─── API: 导出报告 ───
+
+@app.route("/api/export/report", methods=["GET"])
+def export_report():
+    """导出时间范围报告"""
+    hours = request.args.get("hours", 24, type=int)
+    system_status = db.get_system_status(hours)
+    attack_records = db.get_attack_records(hours)
+    opt_history = db.get_optimization_history(hours)
+    stats = db.get_statistics()
+
+    report = {
+        "export_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "time_range": "%d小时" % hours,
+        "statistics": stats,
+        "system_status_count": len(system_status),
+        "attack_count": len(attack_records),
+        "optimization_count": len(opt_history),
+        "model_status": model_manager.get_status(),
+        "optimizer_status": get_optimizer().get_status(),
+    }
+    return jsonify(api_response(data=report))
 
 
 # ─── API: 数据查询 ───

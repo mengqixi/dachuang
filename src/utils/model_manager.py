@@ -42,9 +42,17 @@ class ModelManager:
         self.training_status = {"status": "idle", "progress": 0, "message": ""}
         self._lock = threading.Lock()
         self._train_history: List[Dict] = []
+        self._version_counter = 0
 
         os.makedirs(MODEL_DIR, exist_ok=True)
-        logger.info("ModelManager初始化完成: %s", MODEL_DIR)
+        # 加载版本计数器
+        try:
+            from src.utils.data_storage import db
+            v = db.get_config("model_version", "0")
+            self._version_counter = int(v)
+        except Exception:
+            self._version_counter = 0
+        logger.info("ModelManager初始化完成: %s (version=%d)", MODEL_DIR, self._version_counter)
 
     def _get_if_path(self) -> str:
         return os.path.join(MODEL_DIR, "isolation_forest.pkl")
@@ -186,6 +194,9 @@ class ModelManager:
             })
             logger.info("所有模型训练完成: accuracy=%.4f", acc)
 
+            # 保存版本
+            self._save_versioned()
+
             # 保存训练记录到数据库
             try:
                 from src.utils.data_storage import db
@@ -268,6 +279,169 @@ class ModelManager:
             } if self.is_ready else {},
             "history": self._train_history[-5:] if self._train_history else [],
         }
+
+    # ─── 版本管理 ───
+
+    def _save_versioned(self):
+        """保存当前模型为带版本号的新版本"""
+        try:
+            import shutil
+            self._version_counter += 1
+            ver = self._version_counter
+
+            # 复制当前模型文件到版本文件
+            base = os.path.join(MODEL_DIR, "v%d" % ver)
+            if os.path.exists(self._get_if_path()):
+                shutil.copy(self._get_if_path(), base + "_if.pkl")
+            if os.path.exists(self._get_mlp_weights_path()):
+                shutil.copy(self._get_mlp_weights_path(), base + "_mlp_weights.npy")
+            if os.path.exists(self._get_mlp_bias_path()):
+                shutil.copy(self._get_mlp_bias_path(), base + "_mlp_bias.npy")
+            if os.path.exists(self._get_q_path()):
+                shutil.copy(self._get_q_path(), base + "_qtable.npy")
+
+            # 保存版本计数器
+            try:
+                from src.utils.data_storage import db
+                db.set_config("model_version", str(ver))
+            except Exception:
+                pass
+
+            self._cleanup_old_versions()
+            logger.info("模型版本已保存: v%d", ver)
+        except Exception as e:
+            logger.warning("保存模型版本失败: %s", e)
+
+    def _cleanup_old_versions(self, keep: int = 5):
+        """清理超出保留数量的旧版本"""
+        import glob
+        versions = set()
+        for f in glob.glob(os.path.join(MODEL_DIR, "v*_if.pkl")):
+            try:
+                v = int(os.path.basename(f).split("_")[0][1:])
+                versions.add(v)
+            except Exception:
+                pass
+        for v in sorted(versions)[:-keep]:
+            for suffix in ["_if.pkl", "_mlp_weights.npy", "_mlp_bias.npy", "_qtable.npy"]:
+                p = os.path.join(MODEL_DIR, "v%d%s" % (v, suffix))
+                if os.path.exists(p):
+                    os.remove(p)
+
+    def get_version_list(self) -> List[Dict]:
+        """获取所有模型版本列表"""
+        import glob
+        versions = {}
+        for f in glob.glob(os.path.join(MODEL_DIR, "v*_if.pkl")):
+            try:
+                v = int(os.path.basename(f).split("_")[0][1:])
+                mtime = os.path.getmtime(f)
+                versions[v] = mtime
+            except Exception:
+                pass
+        result = []
+        for v in sorted(versions.keys(), reverse=True):
+            result.append({
+                "version": v,
+                "timestamp": versions[v],
+                "time_str": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(versions[v])),
+                "is_current": (v == self._version_counter),
+            })
+        return result
+
+    def rollback(self, version: int) -> bool:
+        """回滚到指定版本"""
+        import shutil
+        base = os.path.join(MODEL_DIR, "v%d" % version)
+        if not os.path.exists(base + "_if.pkl"):
+            logger.warning("版本v%d不存在", version)
+            return False
+        try:
+            shutil.copy(base + "_if.pkl", self._get_if_path())
+            if os.path.exists(base + "_mlp_weights.npy"):
+                shutil.copy(base + "_mlp_weights.npy", self._get_mlp_weights_path())
+            if os.path.exists(base + "_mlp_bias.npy"):
+                shutil.copy(base + "_mlp_bias.npy", self._get_mlp_bias_path())
+            if os.path.exists(base + "_qtable.npy"):
+                shutil.copy(base + "_qtable.npy", self._get_q_path())
+            # 重新加载
+            self._load_all()
+            self._version_counter = version
+            try:
+                from src.utils.data_storage import db
+                db.set_config("model_version", str(version))
+            except Exception:
+                pass
+            logger.info("模型已回滚到v%d", version)
+            return True
+        except Exception as e:
+            logger.warning("回滚失败: %s", e)
+            return False
+
+    # ─── 三模型对比 ───
+
+    def compare_models(self, X_test: np.ndarray, y_test: np.ndarray) -> Dict:
+        """对比规则检测、IF检测、混合检测三种模型
+
+        Args:
+            X_test: 测试特征
+            y_test: 真实标签
+
+        Returns:
+            {rule, if_model, hybrid} 三个模型的指标
+        """
+        n = len(X_test)
+        if n == 0 or not self.is_ready:
+            return {"error": "模型未就绪或无测试数据"}
+
+        result = {}
+
+        # 1. 规则检测：基于 anomaly_score 阈值
+        # 使用最后一列作为anomaly_score的近似
+        rule_preds = (X_test[:, -1] > 0.5).astype(int) if X_test.shape[1] >= 18 else np.zeros(n)
+        rule_acc = float(np.mean(rule_preds == y_test))
+        rule_fp = float(np.sum((rule_preds == 1) & (y_test == 0)))
+        rule_fn = float(np.sum((rule_preds == 0) & (y_test == 1)))
+        result["rule"] = {
+            "accuracy": round(rule_acc, 4),
+            "false_positive_rate": round(rule_fp / max(n, 1), 4),
+            "false_negative_rate": round(rule_fn / max(n, 1), 4),
+        }
+
+        # 2. IF 单独检测
+        if self.if_model is not None:
+            if_raw = self.if_model.decision_function(X_test)
+            if_score = 1.0 - (if_raw - if_raw.min()) / (if_raw.max() - if_raw.min() + 1e-10)
+            if_preds = (if_score > 0.5).astype(int)
+            if_acc = float(np.mean(if_preds == y_test))
+            if_fp = float(np.sum((if_preds == 1) & (y_test == 0)))
+            if_fn = float(np.sum((if_preds == 0) & (y_test == 1)))
+            result["if"] = {
+                "accuracy": round(if_acc, 4),
+                "false_positive_rate": round(if_fp / max(n, 1), 4),
+                "false_negative_rate": round(if_fn / max(n, 1), 4),
+            }
+        else:
+            result["if"] = {"accuracy": 0, "false_positive_rate": 0, "false_negative_rate": 0}
+
+        # 3. 混合模型
+        hybrid_preds = self.predict(X_test)
+        hybrid_acc = float(np.mean(hybrid_preds == y_test))
+        hybrid_fp = float(np.sum((hybrid_preds == 1) & (y_test == 0)))
+        hybrid_fn = float(np.sum((hybrid_preds == 0) & (y_test == 1)))
+        result["hybrid"] = {
+            "accuracy": round(hybrid_acc, 4),
+            "false_positive_rate": round(hybrid_fp / max(n, 1), 4),
+            "false_negative_rate": round(hybrid_fn / max(n, 1), 4),
+        }
+
+        # 计算提升
+        if result["rule"]["accuracy"] > 0:
+            result["improvement"] = {
+                "vs_rule": "+%.1f%%" % ((hybrid_acc - result["rule"]["accuracy"]) * 100),
+                "vs_if": "+%.1f%%" % ((hybrid_acc - result["if"]["accuracy"]) * 100) if result["if"]["accuracy"] > 0 else "N/A",
+            }
+        return result
 
     def get_q_agent(self):
         """获取Q-learning智能体（供优化器使用）"""

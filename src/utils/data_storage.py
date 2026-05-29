@@ -102,8 +102,49 @@ class DataStorage:
                         recall REAL DEFAULT 0,
                         f1_score REAL DEFAULT 0,
                         epochs INTEGER DEFAULT 0,
-                        samples INTEGER DEFAULT 0
+                        samples INTEGER DEFAULT 0,
+                        training_time REAL DEFAULT 0,
+                        memory_usage REAL DEFAULT 0,
+                        model_path VARCHAR(200) DEFAULT ''
                     );
+
+                    CREATE TABLE IF NOT EXISTS model_training_history (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        model_type VARCHAR(50) DEFAULT '',
+                        dataset_name VARCHAR(100) DEFAULT '',
+                        epochs INTEGER DEFAULT 0,
+                        batch_size INTEGER DEFAULT 32,
+                        accuracy REAL DEFAULT 0,
+                        loss REAL DEFAULT 0,
+                        precision REAL DEFAULT 0,
+                        recall REAL DEFAULT 0,
+                        f1_score REAL DEFAULT 0,
+                        training_time REAL DEFAULT 0,
+                        memory_usage REAL DEFAULT 0,
+                        traditional_accuracy REAL DEFAULT 0,
+                        federated_accuracy REAL DEFAULT 0,
+                        samples INTEGER DEFAULT 0,
+                        model_version INTEGER DEFAULT 1,
+                        model_path VARCHAR(200) DEFAULT ''
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_mth_ts ON model_training_history(timestamp);
+
+                    CREATE TABLE IF NOT EXISTS detection_history (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        filename VARCHAR(100) DEFAULT '',
+                        total_records INTEGER DEFAULT 0,
+                        anomaly_count INTEGER DEFAULT 0,
+                        normal_count INTEGER DEFAULT 0,
+                        rule_accuracy REAL DEFAULT 0,
+                        if_accuracy REAL DEFAULT 0,
+                        hybrid_accuracy REAL DEFAULT 0,
+                        detection_time REAL DEFAULT 0,
+                        model_used VARCHAR(50) DEFAULT 'hybrid',
+                        result_summary TEXT DEFAULT ''
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_dh_ts ON detection_history(timestamp);
                 """)
                 conn.commit()
             finally:
@@ -282,12 +323,14 @@ class DataStorage:
             conn = self._get_conn()
             try:
                 conn.execute(
-                    "INSERT INTO training_records (model_type, dataset_name, accuracy, precision, recall, f1_score, epochs, samples) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO training_records (model_type, dataset_name, accuracy, precision, recall, f1_score, epochs, samples, training_time, memory_usage, model_path) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (data.get("model_type", ""), data.get("dataset_name", ""),
                      data.get("accuracy", 0), data.get("precision", 0),
                      data.get("recall", 0), data.get("f1_score", 0),
-                     data.get("epochs", 0), data.get("samples", 0))
+                     data.get("epochs", 0), data.get("samples", 0),
+                     data.get("training_time", 0), data.get("memory_usage", 0),
+                     data.get("model_path", ""))
                 )
                 conn.commit()
             finally:
@@ -300,6 +343,77 @@ class DataStorage:
             try:
                 rows = conn.execute(
                     "SELECT * FROM training_records ORDER BY id DESC LIMIT ?", (limit,)
+                ).fetchall()
+                return [dict(r) for r in rows]
+            finally:
+                conn.close()
+
+    # ─── 模型训练历史（详细） ───
+
+    def save_detailed_training(self, data: Dict[str, Any]):
+        """保存详细训练记录"""
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                conn.execute(
+                    "INSERT INTO model_training_history (model_type, dataset_name, epochs, batch_size, "
+                    "accuracy, loss, precision, recall, f1_score, training_time, memory_usage, "
+                    "traditional_accuracy, federated_accuracy, samples, model_version, model_path) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (data.get("model_type", "dual"), data.get("dataset_name", ""),
+                     data.get("epochs", 0), data.get("batch_size", 32),
+                     data.get("accuracy", 0), data.get("loss", 0),
+                     data.get("precision", 0), data.get("recall", 0),
+                     data.get("f1_score", 0), data.get("training_time", 0),
+                     data.get("memory_usage", 0),
+                     data.get("traditional_accuracy", 0), data.get("federated_accuracy", 0),
+                     data.get("samples", 0), data.get("model_version", 1),
+                     data.get("model_path", ""))
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+    def get_detailed_training(self, limit: int = 50) -> List[Dict]:
+        """获取详细训练历史"""
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                rows = conn.execute(
+                    "SELECT * FROM model_training_history ORDER BY id DESC LIMIT ?", (limit,)
+                ).fetchall()
+                return [dict(r) for r in rows]
+            finally:
+                conn.close()
+
+    # ─── 检测历史 ───
+
+    def save_detection_history(self, data: Dict[str, Any]):
+        """保存检测记录"""
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                conn.execute(
+                    "INSERT INTO detection_history (filename, total_records, anomaly_count, normal_count, "
+                    "rule_accuracy, if_accuracy, hybrid_accuracy, detection_time, model_used, result_summary) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (data.get("filename", ""), data.get("total_records", 0),
+                     data.get("anomaly_count", 0), data.get("normal_count", 0),
+                     data.get("rule_accuracy", 0), data.get("if_accuracy", 0),
+                     data.get("hybrid_accuracy", 0), data.get("detection_time", 0),
+                     data.get("model_used", "hybrid"), data.get("result_summary", ""))
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+    def get_detection_history(self, limit: int = 50) -> List[Dict]:
+        """获取检测历史"""
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                rows = conn.execute(
+                    "SELECT * FROM detection_history ORDER BY id DESC LIMIT ?", (limit,)
                 ).fetchall()
                 return [dict(r) for r in rows]
             finally:

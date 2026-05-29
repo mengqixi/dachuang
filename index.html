@@ -3,756 +3,690 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>基于机器学习的密码攻击检测与加密算法自适应优化系统</title>
+<title>密码攻击检测与加密算法自适应优化系统</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
-* { margin:0; padding:0; box-sizing:border-box; }
-:root {
-  --primary: #5E81AC; --primary-dark: #4C6A8F;
-  --success: #A3BE8C; --warning: #EBCB8B; --danger: #BF616A;
-  --bg: #F5F5F7; --card: #FFFFFF;
-  --text: #2E3440; --text-secondary: #4C566A; --border: #D8DEE9;
-  --shadow: 0 2px 10px rgba(0,0,0,0.06);
-}
-body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", sans-serif; background:var(--bg); color:var(--text); min-height:100vh; -webkit-font-smoothing:antialiased; }
-.topbar { background:rgba(255,255,255,0.8); backdrop-filter:blur(20px); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:100; padding:6px 0 0; }
-.topbar-title { font-size:12px; font-weight:600; text-align:center; padding:0 16px 6px; color:var(--text-secondary); }
-.topbar-title i { color:var(--primary); margin-right:4px; }
-.segmented-control { display:flex; justify-content:center; background:rgba(0,0,0,0.05); border-radius:8px; margin:0 12px 8px; padding:2px; gap:2px; flex-wrap:wrap; }
-.segmented-btn { flex:1; min-width:0; text-align:center; padding:5px 8px; border:none; border-radius:6px; font-size:12px; font-weight:500; background:transparent; color:var(--text-secondary); cursor:pointer; transition:all 0.2s; white-space:nowrap; }
-.segmented-btn:hover { color:var(--text); }
-.segmented-btn.active { background:#FFF; color:var(--primary); box-shadow:0 1px 3px rgba(0,0,0,0.08); }
-.segmented-btn i { margin-right:3px; font-size:11px; }
-.status-bar { display:flex; align-items:center; padding:4px 12px; background:rgba(255,255,255,0.5); border-bottom:1px solid rgba(0,0,0,0.04); font-size:11px; color:var(--text-secondary); overflow-x:auto; }
-.status-item { display:flex; align-items:center; gap:3px; padding:0 10px; border-right:1px solid rgba(0,0,0,0.05); white-space:nowrap; }
-.status-item:last-child { border-right:none; }
-.status-dot { width:6px; height:6px; border-radius:50%; display:inline-block; }
-.status-dot.green { background:var(--success); }
-.status-dot.yellow { background:var(--warning); }
-.status-dot.red { background:var(--danger); }
-.status-value { color:var(--text); font-weight:600; }
-.content { max-width:1200px; margin:0 auto; padding:12px; }
-.section { display:none; }
-.section.active { display:block; animation:fadeIn 0.25s ease; }
-@keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
-.app-card { background:var(--card); border-radius:16px; box-shadow:var(--shadow); padding:20px 24px; margin-bottom:12px; }
-.app-card-title { font-size:14px; font-weight:600; margin-bottom:12px; display:flex; align-items:center; gap:8px; color:var(--text); }
-.btn-apple { background:var(--primary); color:#fff; border:none; border-radius:12px; padding:8px 20px; font-size:13px; font-weight:500; cursor:pointer; transition:all 0.2s; display:inline-flex; align-items:center; gap:5px; }
-.btn-apple:hover { background:var(--primary-dark); transform:translateY(-1px); }
-.btn-apple:active { transform:scale(0.98); }
-.btn-apple:disabled { opacity:0.5; cursor:not-allowed; }
-.btn-secondary { background:rgba(0,0,0,0.05); color:var(--text); border:none; border-radius:12px; padding:8px 20px; font-size:13px; font-weight:500; cursor:pointer; transition:all 0.2s; }
-.btn-secondary:hover { background:rgba(0,0,0,0.08); }
-.btn-success { background:var(--success); color:#fff; border:none; border-radius:12px; padding:8px 20px; font-size:13px; font-weight:500; cursor:pointer; }
-.form-apple { border:1px solid var(--border); border-radius:12px; padding:8px 14px; font-size:13px; width:100%; background:var(--bg); transition:border-color 0.2s; outline:none; }
-.form-apple:focus { border-color:var(--primary); background:var(--card); }
-.form-label { font-size:12px; font-weight:500; color:var(--text-secondary); margin-bottom:3px; }
-.stat-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:12px; }
-.stat-card { background:var(--card); border-radius:14px; padding:14px 18px; box-shadow:var(--shadow); }
-.stat-number { font-size:26px; font-weight:700; line-height:1.2; }
-.stat-number.pri { color:var(--primary); }
-.stat-number.suc { color:var(--success); }
-.stat-number.war { color:var(--warning); }
-.stat-number.dgr { color:var(--danger); }
-.stat-label { font-size:11px; color:var(--text-secondary); margin-top:2px; }
-.stat-sub { font-size:10px; color:var(--text-secondary); margin-top:2px; }
-.table-apple { width:100%; border-collapse:collapse; font-size:12px; }
-.table-apple th { text-align:left; padding:6px 10px; color:var(--text-secondary); font-weight:500; border-bottom:1px solid var(--border); }
-.table-apple td { padding:6px 10px; border-bottom:1px solid rgba(0,0,0,0.04); }
-.table-apple tr:hover td { background:rgba(0,0,0,0.02); }
-.chart-container { position:relative; height:180px; width:100%; }
-.log-console { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:12px; font-family:"SF Mono",monospace; font-size:11px; height:180px; overflow-y:auto; color:var(--text); }
-.log-console .ll { padding:2px 0; }
-.log-console .ll-info { color:var(--primary); }
-.log-console .ll-warn { color:var(--warning); }
-.log-console .ll-err { color:var(--danger); }
-.upload-zone { border:2px dashed var(--border); border-radius:14px; padding:28px; text-align:center; cursor:pointer; transition:all 0.2s; background:var(--bg); }
-.upload-zone:hover { border-color:var(--primary); background:rgba(94,129,172,0.04); }
-.upload-zone i { font-size:28px; color:var(--text-secondary); margin-bottom:6px; }
-.explain-panel { background:rgba(94,129,172,0.06); border-left:3px solid var(--primary); border-radius:8px; padding:12px 16px; font-size:12px; margin-bottom:12px; color:var(--text-secondary); }
-.explain-panel strong { color:var(--text); }
-@media(max-width:768px){
-  .stat-grid { grid-template-columns:repeat(2,1fr); }
-  .segmented-btn { font-size:10px; padding:4px 4px; }
-  .segmented-btn i { display:none; }
-}
-::-webkit-scrollbar { width:3px; }
-::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--primary:#5E81AC;--primary-dark:#4C6A8F;--success:#A3BE8C;--warning:#EBCB8B;--danger:#BF616A;--bg:#F5F5F7;--card:#FFF;--text:#2E3440;--text2:#4C566A;--border:#D8DEE9;--shadow:0 2px 10px rgba(0,0,0,0.06)}
+body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Inter",sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
+.topbar{background:rgba(255,255,255,0.8);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;padding:4px 0 0}
+.topbar-title{font-size:11px;font-weight:600;text-align:center;color:var(--text2);padding:0 12px 4px;letter-spacing:-0.01em}
+.topbar-title i{color:var(--primary)}
+.segmented-control{display:flex;background:rgba(0,0,0,0.04);border-radius:8px;margin:0 10px 6px;padding:2px;gap:2px;flex-wrap:wrap}
+.segmented-btn{flex:1;text-align:center;padding:5px 6px;border:none;border-radius:6px;font-size:11px;font-weight:500;background:transparent;color:var(--text2);cursor:pointer;transition:all .2s;white-space:nowrap}
+.segmented-btn:hover{color:var(--text)}
+.segmented-btn.active{background:#FFF;color:var(--primary);box-shadow:0 1px 3px rgba(0,0,0,0.08)}
+.segmented-btn i{margin-right:2px;font-size:10px}
+.status-bar{display:flex;align-items:center;padding:3px 10px;background:rgba(255,255,255,0.5);border-bottom:1px solid rgba(0,0,0,0.04);font-size:10px;color:var(--text2);overflow-x:auto;flex-wrap:nowrap}
+.status-item{display:flex;align-items:center;gap:2px;padding:0 8px;border-right:1px solid rgba(0,0,0,0.04);white-space:nowrap}
+.status-item:last-child{border-right:none}
+.status-dot{width:5px;height:5px;border-radius:50%;display:inline-block}
+.status-dot.green{background:var(--success)}
+.status-dot.yellow{background:var(--warning)}
+.status-value{color:var(--text);font-weight:600}
+.content{max-width:1200px;margin:0 auto;padding:10px}
+.section{display:none}
+.section.active{display:block;animation:fadeIn .25s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.app-card{background:var(--card);border-radius:14px;box-shadow:var(--shadow);padding:16px 20px;margin-bottom:10px}
+.app-card-title{font-size:13px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.btn-pri{background:var(--primary);color:#fff;border:none;border-radius:10px;padding:7px 18px;font-size:12px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:4px;transition:all .2s}
+.btn-pri:hover{background:var(--primary-dark);transform:translateY(-1px)}
+.btn-pri:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.btn-sec{background:rgba(0,0,0,0.05);color:var(--text);border:none;border-radius:10px;padding:7px 18px;font-size:12px;font-weight:500;cursor:pointer}
+.btn-sec:hover{background:rgba(0,0,0,0.08)}
+.btn-suc{background:var(--success);color:#fff;border:none;border-radius:10px;padding:7px 18px;font-size:12px;font-weight:500;cursor:pointer}
+.form-el{border:1px solid var(--border);border-radius:10px;padding:7px 12px;font-size:12px;width:100%;background:var(--bg);outline:none;transition:border-color .2s}
+.form-el:focus{border-color:var(--primary);background:var(--card)}
+.form-lbl{font-size:11px;font-weight:500;color:var(--text2);margin-bottom:2px}
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}
+.stat-card{background:var(--card);border-radius:12px;padding:12px 16px;box-shadow:var(--shadow)}
+.stat-num{font-size:24px;font-weight:700;line-height:1.2}
+.stat-num.pri{color:var(--primary)}.stat-num.suc{color:var(--success)}.stat-num.warn{color:var(--warning)}.stat-num.dgr{color:var(--danger)}
+.stat-lbl{font-size:10px;color:var(--text2);margin-top:1px}
+table.tbl{width:100%;border-collapse:collapse;font-size:11px}
+table.tbl th{text-align:left;padding:5px 8px;color:var(--text2);font-weight:500;border-bottom:1px solid var(--border)}
+table.tbl td{padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.04)}
+table.tbl tr:hover td{background:rgba(0,0,0,0.02)}
+.chart-box{position:relative;height:170px;width:100%}
+.log-box{background:#FAFAFA;border:1px solid var(--border);border-radius:10px;padding:10px;font-family:"SF Mono",monospace;font-size:11px;height:160px;overflow-y:auto;color:var(--text)}
+.log-box .ll{padding:1px 0}.log-box .ll-i{color:var(--primary)}.log-box .ll-w{color:var(--warning)}.log-box .ll-e{color:var(--danger)}
+.zone{border:2px dashed var(--border);border-radius:12px;padding:24px;text-align:center;cursor:pointer;transition:all .2s;background:var(--bg)}
+.zone:hover{border-color:var(--primary);background:rgba(94,129,172,0.04)}
+.zone i{font-size:24px;color:var(--text2);margin-bottom:4px}
+.exp-panel{background:rgba(94,129,172,0.06);border-left:3px solid var(--primary);border-radius:8px;padding:10px 14px;font-size:11px;margin-bottom:10px;color:var(--text2)}
+.exp-panel strong{color:var(--text)}
+@media(max-width:768px){.stat-grid{grid-template-columns:repeat(2,1fr)}.segmented-btn{font-size:9px;padding:3px}
+.segmented-btn i{display:none}}
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
 </style>
 </head>
 <body>
 
 <div class="topbar">
-  <div class="topbar-title"><i class="fas fa-shield-alt"></i>密码攻击检测与加密算法自适应优化系统</div>
-  <div class="segmented-control" id="segControl">
-    <button class="segmented-btn active" data-sec="data"><i class="fas fa-database"></i> 数据准备</button>
-    <button class="segmented-btn" data-sec="train"><i class="fas fa-brain"></i> 模型训练</button>
-    <button class="segmented-btn" data-sec="enc"><i class="fas fa-lock"></i> 加密对比</button>
-    <button class="segmented-btn" data-sec="detect"><i class="fas fa-shield"></i> 攻击检测</button>
-    <button class="segmented-btn" data-sec="optimize"><i class="fas fa-sliders-h"></i> 自适应优化</button>
-    <button class="segmented-btn" data-sec="dashboard"><i class="fas fa-chart-line"></i> 数据看板</button>
-  </div>
+<div class="topbar-title"><i class="fas fa-shield-alt"></i>密码攻击检测与加密算法自适应优化系统</div>
+<div class="segmented-control" id="segCtrl">
+<button class="segmented-btn active" data-sec="data"><i class="fas fa-database"></i>数据准备</button>
+<button class="segmented-btn" data-sec="train"><i class="fas fa-brain"></i>模型训练</button>
+<button class="segmented-btn" data-sec="detect"><i class="fas fa-shield"></i>攻击检测</button>
+<button class="segmented-btn" data-sec="enc"><i class="fas fa-lock"></i>加密对比</button>
+<button class="segmented-btn" data-sec="optim"><i class="fas fa-sliders-h"></i>自适应优化</button>
+<button class="segmented-btn" data-sec="dash"><i class="fas fa-chart-line"></i>数据看板</button>
+</div>
 </div>
 
-<div class="status-bar" id="statusBar">
-  <div class="status-item"><span class="status-dot green" id="stDot"></span><span class="status-value" id="stSystem">运行中</span></div>
-  <div class="status-item"><span class="status-label">模型</span><span class="status-value" id="stModel">--</span></div>
-  <div class="status-item"><span class="status-label">密钥</span><span class="status-value" id="stKey">--</span></div>
-  <div class="status-item"><span class="status-label">风险</span><span class="status-value" id="stRisk">--</span></div>
-  <div class="status-item"><span class="status-label">攻击</span><span class="status-value" id="stAttacks">--</span></div>
-  <div class="status-item"><span class="status-label">时间</span><span class="status-value" id="stTime">--</span></div>
+<div class="status-bar" id="stBar">
+<div class="status-item"><span class="status-dot green" id="stDot"></span><span class="status-value" id="stSys">运行中</span></div>
+<div class="status-item"><span class="status-lbl">模型 </span><span class="status-value" id="stMdl">--</span></div>
+<div class="status-item"><span class="status-lbl">密钥 </span><span class="status-value" id="stKey">--</span></div>
+<div class="status-item"><span class="status-lbl">风险 </span><span class="status-value" id="stRsk">--</span></div>
+<div class="status-item"><span class="status-lbl">攻击 </span><span class="status-value" id="stAtk">--</span></div>
+<div class="status-item"><span class="status-lbl">时间 </span><span class="status-value" id="stTim">--</span></div>
 </div>
 
 <div class="content">
 
 <!-- ─── 数据准备 ─── -->
 <div class="section active" id="sec-data">
-  <div class="app-card">
-    <div class="app-card-title"><i class="fas fa-database" style="color:#5E81AC"></i> 数据生成与加密</div>
-    <div class="row g-2">
-      <div class="col-md-6">
-        <div class="form-label">生成记录数</div>
-        <div class="d-flex align-items-center gap-2">
-          <input type="range" class="form-apple" id="dataCount" min="10" max="500" value="100" style="flex:1">
-          <span style="font-size:14px;font-weight:600;min-width:50px;text-align:right" id="dataCountLabel">100条</span>
-        </div>
-        <div style="font-size:11px;color:var(--text-secondary);margin-top:2px">约 <span id="dataSizeEst">0.02</span> MB</div>
-      </div>
-      <div class="col-md-3">
-        <div class="form-label">加密算法</div>
-        <select class="form-apple" id="encAlgo">
-          <option value="paillier">Paillier 同态加密</option>
-          <option value="aes">AES-256</option>
-        </select>
-      </div>
-      <div class="col-md-3 d-flex align-items-end gap-2">
-        <button class="btn-apple" onclick="generateData()"><i class="fas fa-magic"></i> 生成</button>
-        <button class="btn-secondary" onclick="document.getElementById('dataFileInput').click()"><i class="fas fa-upload"></i> 上传</button>
-      </div>
-      <input type="file" id="dataFileInput" accept=".csv,.json" style="display:none" onchange="uploadData(this)">
-    </div>
-  </div>
-  <div class="row g-2">
-    <div class="col-md-6"><div class="app-card">
-      <div class="app-card-title" style="font-size:13px"><i class="fas fa-lock-open" style="color:#A3BE8C"></i> 明文预览</div>
-      <div style="max-height:300px;overflow-y:auto" id="plainPreview"><div style="padding:20px;text-align:center;color:var(--text-secondary)">点击"生成"查看预览</div></div>
-    </div></div>
-    <div class="col-md-6"><div class="app-card">
-      <div class="app-card-title" style="font-size:13px"><i class="fas fa-lock" style="color:#5E81AC"></i> 密文预览</div>
-      <div style="max-height:300px;overflow-y:auto" id="encPreview"><div style="padding:20px;text-align:center;color:var(--text-secondary)">点击"生成"查看预览</div></div>
-    </div></div>
-  </div>
+<div class="app-card">
+<div class="app-card-title"><i class="fas fa-database" style="color:#5E81AC"></i>数据生成与加密</div>
+<div class="row g-2">
+<div class="col-md-6">
+<div class="form-lbl">记录数</div>
+<div class="d-flex align-items-center gap-2">
+<input type="range" class="form-el" id="dc" min="10" max="500" value="100" style="flex:1">
+<span style="font-size:13px;font-weight:600;min-width:45px;text-align:right" id="dcLbl">100条</span>
+</div>
+</div>
+<div class="col-md-3">
+<div class="form-lbl">加密算法</div>
+<select class="form-el" id="encAlgo"><option value="paillier">Paillier</option><option value="aes">AES-256</option></select>
+</div>
+<div class="col-md-3 d-flex align-items-end gap-1">
+<button class="btn-pri" onclick="genData()"><i class="fas fa-magic"></i>生成</button>
+<button class="btn-sec" onclick="document.getElementById('df').click()"><i class="fas fa-upload"></i>上传</button>
+</div>
+<input type="file" id="df" accept=".csv,.json" style="display:none" onchange="upData(this)">
+</div>
+</div>
+<div class="row g-2">
+<div class="col-md-6"><div class="app-card">
+<div class="app-card-title" style="font-size:12px"><i class="fas fa-lock-open" style="color:#A3BE8C"></i>明文预览</div>
+<div style="max-height:260px;overflow-y:auto" id="plainPrev"><div style="padding:16px;text-align:center;color:var(--text2);font-size:12px">点击"生成"查看</div></div>
+</div></div>
+<div class="col-md-6"><div class="app-card">
+<div class="app-card-title" style="font-size:12px"><i class="fas fa-lock" style="color:#5E81AC"></i>密文预览</div>
+<div style="max-height:260px;overflow-y:auto" id="encPrev"><div style="padding:16px;text-align:center;color:var(--text2);font-size:12px">点击"生成"查看</div></div>
+</div></div>
+</div>
 </div>
 
 <!-- ─── 模型训练 ─── -->
 <div class="section" id="sec-train">
-  <div class="row g-2">
-    <div class="col-md-4">
-      <div class="app-card">
-        <div class="app-card-title"><i class="fas fa-cog" style="color:#5E81AC"></i> 训练配置</div>
-        <div class="mb-2"><div class="form-label">训练轮次</div><input type="number" class="form-apple" id="trEpochs" value="10" min="1" max="50"></div>
-        <div class="mb-2"><div class="form-label">批量大小</div><input type="number" class="form-apple" id="trBatch" value="32" min="8" max="512"></div>
-        <div class="d-grid gap-2"><button class="btn-apple" onclick="startDualTrain()"><i class="fas fa-play"></i> 开始训练(双模型对比)</button></div>
-      </div>
-      <div class="app-card"><div class="app-card-title" style="font-size:13px"><i class="fas fa-chart-simple"></i> 模型状态</div>
-        <div id="modelStatusDisplay" style="font-size:12px"></div>
-      </div>
-    </div>
-    <div class="col-md-8">
-      <div class="app-card">
-        <div class="app-card-title"><i class="fas fa-chart-line" style="color:#5E81AC"></i> 训练过程对比</div>
-        <div class="chart-container"><canvas id="trainChart"></canvas></div>
-      </div>
-      <div class="row g-2">
-        <div class="col-md-6">
-          <div class="app-card" style="padding:14px">
-            <div class="app-card-title" style="font-size:12px;margin-bottom:8px"><i class="fas fa-terminal" style="color:#5E81AC"></i> 训练日志</div>
-            <div class="log-console" id="trainLogs"><div class="ll ll-info">就绪，等待开始训练...</div></div>
-          </div>
-        </div>
-        <div class="col-md-6">
-          <div class="app-card" style="padding:14px">
-            <div class="app-card-title" style="font-size:12px;margin-bottom:8px"><i class="fas fa-table"></i> 对比结果</div>
-            <div id="trainResult"><div style="font-size:12px;color:var(--text-secondary)">训练完成后显示对比结果</div></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+<div class="row g-2">
+<div class="col-md-4">
+<div class="app-card">
+<div class="app-card-title"><i class="fas fa-cog" style="color:#5E81AC"></i>训练配置</div>
+<div class="mb-2"><div class="form-lbl">轮次</div><input type="number" class="form-el" id="trE" value="10" min="1" max="50"></div>
+<div class="mb-2"><div class="form-lbl">批量大小</div><input type="number" class="form-el" id="trB" value="32" min="8" max="512"></div>
+<div class="d-grid gap-1">
+<button class="btn-pri" onclick="startDualTrain()"><i class="fas fa-play"></i>开始双模型训练</button>
+<button class="btn-sec" onclick="loadTrainHistory()"><i class="fas fa-history"></i>训练历史</button>
 </div>
-
-<!-- ─── 加密对比 ─── -->
-<div class="section" id="sec-enc">
-  <div class="app-card">
-    <div class="app-card-title"><i class="fas fa-scale-balanced" style="color:#5E81AC"></i> AES-256 vs Paillier 同态加密对比</div>
-    <div class="row g-2 align-items-end">
-      <div class="col-md-3">
-        <div class="form-label">测试数据量</div>
-        <select class="form-apple" id="encCompSize">
-          <option value="1">1 MB</option><option value="5">5 MB</option><option value="10" selected>10 MB</option>
-          <option value="20">20 MB</option><option value="50">50 MB</option>
-        </select>
-      </div>
-      <div class="col-md-3 d-flex">
-        <button class="btn-apple" onclick="updateEncComp()"><i class="fas fa-sync"></i> 刷新对比</button>
-      </div>
-    </div>
-  </div>
-  <div class="row g-2">
-    <div class="col-md-6">
-      <div class="app-card"><div class="chart-container"><canvas id="encChart"></canvas></div></div>
-    </div>
-    <div class="col-md-6">
-      <div class="app-card">
-        <div class="app-card-title" style="font-size:13px"><i class="fas fa-table"></i> 详细对比</div>
-        <div id="encCompTable"><div style="font-size:12px;color:var(--text-secondary)">点击"刷新对比"查看</div></div>
-      </div>
-    </div>
-  </div>
+</div>
+<div class="app-card">
+<div class="app-card-title" style="font-size:12px"><i class="fas fa-chart-simple"></i>模型状态</div>
+<div id="mdlStatus" style="font-size:11px"></div>
+</div>
+</div>
+<div class="col-md-8">
+<div class="app-card">
+<div class="app-card-title"><i class="fas fa-chart-line" style="color:#5E81AC"></i>传统 vs 联邦训练对比</div>
+<div class="chart-box"><canvas id="trChart"></canvas></div>
+</div>
+<div class="row g-2">
+<div class="col-md-6">
+<div class="app-card" style="padding:12px">
+<div class="app-card-title" style="font-size:11px"><i class="fas fa-terminal" style="color:#5E81AC"></i>训练日志</div>
+<div class="log-box" id="trLog"><div class="ll ll-i">就绪</div></div>
+</div>
+</div>
+<div class="col-md-6">
+<div class="app-card" style="padding:12px">
+<div class="app-card-title" style="font-size:11px"><i class="fas fa-table"></i>对比结果</div>
+<div id="trRes"><div style="font-size:11px;color:var(--text2)">训练完成后显示</div></div>
+<div style="margin-top:8px;max-height:140px;overflow-y:auto">
+<table class="tbl"><thead><tr><th>#</th><th>类型</th><th>数据集</th><th>精度</th><th>时间</th></tr></thead>
+<tbody id="trHistTbl"></tbody></table>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
 </div>
 
 <!-- ─── 攻击检测 ─── -->
 <div class="section" id="sec-detect">
-  <div class="explain-panel">
-    <strong>检测原理</strong>：通过分析加密系统运行时18维特征（密钥生成耗时、密文熵值、请求频率等），实时检测4种攻击。
-    采用 Isolation Forest + LogisticRegression 混合模型，准确率≥90%。<br>
-    <strong>暴力破解</strong><span style="color:var(--text-secondary)"> - 高失败率、高请求频率</span> |
-    <strong>侧信道</strong><span style="color:var(--text-secondary)"> - 高延迟方差</span> |
-    <strong>密文分析</strong><span style="color:var(--text-secondary)"> - 异常密文熵值</span> |
-    <strong>密钥恢复</strong><span style="color:var(--text-secondary)"> - 异常密钥操作</span>
-  </div>
-  <div class="row g-2">
-    <div class="col-md-4">
-      <div class="app-card">
-        <div class="app-card-title"><i class="fas fa-bolt" style="color:#EBCB8B"></i> 检测配置</div>
-        <div class="upload-zone mb-2" id="detUpload" onclick="document.getElementById('detFile').click()">
-          <i class="fas fa-cloud-upload-alt"></i>
-          <div style="font-size:13px;font-weight:500">点击上传检测数据</div>
-          <div style="font-size:11px;color:var(--text-secondary)">CSV / JSON 自动检测</div>
-        </div>
-        <input type="file" id="detFile" accept=".csv,.json" style="display:none" onchange="doDetectFile(this)">
-        <div class="d-grid gap-2">
-          <button class="btn-secondary" onclick="doSampleDetect('brute')"><i class="fas fa-flask"></i> 暴力破解样本(500条)</button>
-          <button class="btn-secondary" onclick="doSampleDetect('side')"><i class="fas fa-flask"></i> 侧信道样本(300条)</button>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-8">
-      <div class="stat-grid" id="detStats">
-        <div class="stat-card"><div class="stat-number pri" id="detTotal">--</div><div class="stat-label">总记录数</div></div>
-        <div class="stat-card"><div class="stat-number dgr" id="detAnom">--</div><div class="stat-label">异常数</div></div>
-        <div class="stat-card"><div class="stat-number suc" id="detConf">--</div><div class="stat-label">平均置信度</div></div>
-        <div class="stat-card"><div class="stat-number" id="detTime">--</div><div class="stat-label">检测耗时</div></div>
-      </div>
-      <div class="app-card">
-        <div class="app-card-title" style="font-size:13px"><i class="fas fa-table"></i> 检测结果明细</div>
-        <div style="max-height:260px;overflow-y:auto">
-          <table class="table-apple"><thead><tr><th>#</th><th>结果</th><th>置信度</th><th>IF</th><th>MLP</th><th>异常特征</th></tr></thead>
-          <tbody id="detBody"></tbody>
-        </table></div>
-      </div>
-    </div>
-  </div>
+<div class="exp-panel">
+<strong>检测原理</strong>：分析加密系统运行时18维特征，实时检测4种攻击。提供三种模型对比：<strong>规则检测</strong><span style="color:var(--text2)">(阈值)</span>、<strong>孤立森林</strong><span style="color:var(--text2)">(IF)</span>、<strong>混合模型</strong><span style="color:var(--text2)">(IF+MLP加权)</span>
+</div>
+<div class="row g-2">
+<div class="col-md-4">
+<div class="app-card">
+<div class="app-card-title"><i class="fas fa-bolt" style="color:#EBCB8B"></i>检测配置</div>
+<div class="zone mb-2" onclick="document.getElementById('detF').click()">
+<i class="fas fa-cloud-upload-alt"></i>
+<div style="font-size:12px;font-weight:500">上传检测数据</div>
+<div style="font-size:10px;color:var(--text2)">CSV/JSON</div>
+</div>
+<input type="file" id="detF" accept=".csv,.json" style="display:none" onchange="detFile(this)">
+<div class="d-grid gap-1">
+<button class="btn-sec" onclick="detSample()"><i class="fas fa-flask"></i>内置样本检测</button>
+<button class="btn-sec" onclick="loadDetHistory()"><i class="fas fa-history"></i>检测历史</button>
+</div>
+</div>
+</div>
+<div class="col-md-8">
+<div class="stat-grid">
+<div class="stat-card"><div class="stat-num pri" id="detT">--</div><div class="stat-lbl">总记录</div></div>
+<div class="stat-card"><div class="stat-num dgr" id="detA">--</div><div class="stat-lbl">异常数</div></div>
+<div class="stat-card"><div class="stat-num" id="detConf">--</div><div class="stat-lbl">混合模型</div></div>
+<div class="stat-card"><div class="stat-num" id="detTim">--</div><div class="stat-lbl">耗时</div></div>
+</div>
+<div style="font-size:11px;margin-bottom:6px;color:var(--text2)" id="detCmpSummary"></div>
+<div class="app-card">
+<div class="app-card-title" style="font-size:12px"><i class="fas fa-table"></i>三模型对比结果</div>
+<div style="max-height:240px;overflow-y:auto">
+<table class="tbl"><thead><tr><th>#</th><th>规则</th><th>IF</th><th>混合</th><th>置信度</th></tr></thead>
+<tbody id="detTbl"></tbody></table>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<!-- ─── 加密对比 ─── -->
+<div class="section" id="sec-enc">
+<div class="app-card">
+<div class="app-card-title"><i class="fas fa-scale-balanced" style="color:#5E81AC"></i>AES-256 vs Paillier同态加密</div>
+<div class="row g-2 align-items-end">
+<div class="col-md-3">
+<div class="form-lbl">数据量</div>
+<select class="form-el" id="encSz"><option value="1">1MB</option><option value="5">5MB</option><option value="10" selected>10MB</option><option value="20">20MB</option><option value="50">50MB</option></select>
+</div>
+<div class="col-md-3"><button class="btn-pri" onclick="updEnc()"><i class="fas fa-sync"></i>刷新</button></div>
+</div>
+</div>
+<div class="row g-2">
+<div class="col-md-6"><div class="app-card"><div class="chart-box"><canvas id="encChart"></canvas></div></div></div>
+<div class="col-md-6"><div class="app-card">
+<div class="app-card-title" style="font-size:12px"><i class="fas fa-table"></i>详细对比</div>
+<div id="encTbl"><div style="font-size:11px;color:var(--text2)">点击刷新</div></div>
+</div></div>
+</div>
 </div>
 
 <!-- ─── 自适应优化 ─── -->
-<div class="section" id="sec-optimize">
-  <div class="row g-2">
-    <div class="col-md-4">
-      <div class="app-card"><div class="app-card-title"><i class="fas fa-sliders-h" style="color:#5E81AC"></i> 系统状态</div>
-        <div class="mb-2"><div style="display:flex;justify-content:space-between;font-size:12px"><span>攻击风险</span><span id="optRiskLbl">--</span></div>
-          <div style="height:5px;background:var(--border);border-radius:3px;margin-top:3px"><div id="optRiskBar" style="height:100%;border-radius:3px;background:#A3BE8C;width:10%;transition:width 0.5s"></div></div>
-        </div>
-        <div style="font-size:12px;line-height:2">
-          <div class="d-flex justify-content-between"><span>密钥长度</span><span id="optKL" style="font-weight:600">--</span></div>
-          <div class="d-flex justify-content-between"><span>加密轮数</span><span id="optRR" style="font-weight:600">--</span></div>
-          <div class="d-flex justify-content-between"><span>性能提升</span><span id="optGain" style="font-weight:600;color:#A3BE8C">--</span></div>
-          <div class="d-flex justify-content-between"><span>上次调整</span><span id="optLast" style="color:var(--text-secondary)">--</span></div>
-        </div>
-        <div class="d-grid gap-2 mt-2">
-          <button class="btn-apple" onclick="toggleAutoOpt()"><i class="fas fa-play"></i> <span id="autoBtnTxt">开启自动优化</span></button>
-          <button class="btn-secondary" onclick="triggerOpt()"><i class="fas fa-sync"></i> 手动调整</button>
-        </div>
-      </div>
-      <div class="app-card">
-        <div class="app-card-title" style="font-size:12px"><i class="fas fa-clock"></i> 效果对比</div>
-        <div style="font-size:12px" id="optCompare">加载中...</div>
-      </div>
-    </div>
-    <div class="col-md-8">
-      <div class="app-card">
-        <div class="app-card-title"><i class="fas fa-chart-area" style="color:#5E81AC"></i> 参数变化历史</div>
-        <div class="chart-container"><canvas id="optChart"></canvas></div>
-      </div>
-      <div class="app-card">
-        <div class="app-card-title" style="font-size:12px"><i class="fas fa-history"></i> 优化记录</div>
-        <div style="max-height:180px;overflow-y:auto">
-          <table class="table-apple"><thead><tr><th>时间</th><th>调整</th><th>参数</th><th>风险</th><th>增益</th><th>原因</th></tr></thead>
-          <tbody id="optBody"></tbody></table>
-        </div>
-      </div>
-    </div>
-  </div>
+<div class="section" id="sec-optim">
+<div class="row g-2">
+<div class="col-md-4">
+<div class="app-card">
+<div class="app-card-title"><i class="fas fa-sliders-h" style="color:#5E81AC"></i>系统状态</div>
+<div class="mb-2">
+<div style="display:flex;justify-content:space-between;font-size:11px"><span>攻击风险</span><span id="opRskLbl">--</span></div>
+<div style="height:5px;background:var(--border);border-radius:3px;margin-top:3px"><div id="opRskBar" style="height:100%;border-radius:3px;background:#A3BE8C;width:10%;transition:width .5s"></div></div>
+</div>
+<div style="font-size:11px;line-height:1.8">
+<div class="d-flex justify-content-between"><span>密钥长度</span><span id="opKL" style="font-weight:600">--</span></div>
+<div class="d-flex justify-content-between"><span>加密轮数</span><span id="opRR" style="font-weight:600">--</span></div>
+<div class="d-flex justify-content-between"><span>性能提升</span><span id="opGain" style="font-weight:600;color:#A3BE8C">--</span></div>
+</div>
+<div class="d-grid gap-1 mt-2">
+<button class="btn-pri" onclick="toggleAuto()"><i class="fas fa-play"></i><span id="autoBtnTxt">开启自动优化</span></button>
+<button class="btn-sec" onclick="trigOpt()"><i class="fas fa-sync"></i>手动调整</button>
+</div>
+</div>
+<div class="app-card">
+<div class="app-card-title" style="font-size:11px"><i class="fas fa-clock"></i>静态 vs 自适应对比</div>
+<div style="font-size:11px" id="opCmp">加载中...</div>
+</div>
+</div>
+<div class="col-md-8">
+<div class="app-card">
+<div class="app-card-title"><i class="fas fa-chart-area" style="color:#5E81AC"></i>参数变化历史</div>
+<div class="chart-box"><canvas id="opChart"></canvas></div>
+</div>
+<div class="app-card">
+<div class="app-card-title" style="font-size:11px"><i class="fas fa-history"></i>优化记录</div>
+<div style="max-height:160px;overflow-y:auto">
+<table class="tbl"><thead><tr><th>时间</th><th>调整</th><th>参数</th><th>风险</th><th>原因</th></tr></thead>
+<tbody id="opTbl"></tbody></table>
+</div>
+</div>
+</div>
+</div>
 </div>
 
 <!-- ─── 数据看板 ─── -->
-<div class="section" id="sec-dashboard">
-  <div class="d-flex justify-content-between align-items-center mb-2">
-    <div style="font-size:14px;font-weight:600">实时监控面板</div>
-    <select class="form-apple" style="width:auto;padding:4px 12px" id="dashRange">
-      <option value="1">1小时</option><option value="6">6小时</option><option value="24" selected>24小时</option><option value="168">7天</option>
-    </select>
-  </div>
-  <div class="stat-grid" id="dashStats">
-    <div class="stat-card"><div class="stat-number dgr" id="dashAttacks">--</div><div class="stat-label">总攻击数</div><div class="stat-sub" id="dashAttackSub">--</div></div>
-    <div class="stat-card"><div class="stat-number suc" id="dashRate">--</div><div class="stat-label">检测准确率</div><div class="stat-sub" id="dashRateSub">--</div></div>
-    <div class="stat-card"><div class="stat-number pri" id="dashGain">--</div><div class="stat-label">加密效率提升</div><div class="stat-sub" id="dashGainSub">--</div></div>
-    <div class="stat-card"><div class="stat-number" id="dashLevel">--</div><div class="stat-label">安全等级</div><div class="stat-sub" id="dashLevelSub">--</div></div>
-  </div>
-  <div class="row g-2">
-    <div class="col-md-6">
-      <div class="app-card"><div class="app-card-title" style="font-size:12px"><i class="fas fa-chart-line" style="color:#5E81AC"></i> 攻击风险与加密参数联动</div>
-        <div class="chart-container"><canvas id="dashMainChart"></canvas></div></div>
-    </div>
-    <div class="col-md-6">
-      <div class="app-card"><div class="app-card-title" style="font-size:12px"><i class="fas fa-chart-pie" style="color:#EBCB8B"></i> 系统性能趋势</div>
-        <div class="chart-container"><canvas id="dashPerfChart"></canvas></div></div>
-    </div>
-  </div>
+<div class="section" id="sec-dash">
+<div class="d-flex justify-content-between align-items-center mb-2">
+<div style="font-size:13px;font-weight:600">实时监控面板</div>
+<select class="form-el" style="width:auto;padding:3px 10px" id="dashR" onchange="loadDash()">
+<option value="1">1h</option><option value="6">6h</option><option value="24" selected>24h</option><option value="168">7d</option></select>
+</div>
+<div class="stat-grid">
+<div class="stat-card"><div class="stat-num dgr" id="dshAtk">--</div><div class="stat-lbl">总攻击数</div><div class="stat-lbl" id="dshAtkSub">--</div></div>
+<div class="stat-card"><div class="stat-num suc" id="dshRt">--</div><div class="stat-lbl">检测准确率</div><div class="stat-lbl" id="dshRtSub">--</div></div>
+<div class="stat-card"><div class="stat-num pri" id="dshGain">--</div><div class="stat-lbl">效率提升</div><div class="stat-lbl" id="dshGainSub">--</div></div>
+<div class="stat-card"><div class="stat-num" id="dshLvl">--</div><div class="stat-lbl">安全等级</div><div class="stat-lbl" id="dshLvlSub">--</div></div>
+</div>
+<div class="row g-2">
+<div class="col-md-6"><div class="app-card"><div class="app-card-title" style="font-size:11px"><i class="fas fa-chart-line" style="color:#5E81AC"></i>攻击风险与加密参数联动</div><div class="chart-box"><canvas id="dshMCh"></canvas></div></div></div>
+<div class="col-md-6"><div class="app-card"><div class="app-card-title" style="font-size:11px"><i class="fas fa-chart-pie" style="color:#EBCB8B"></i>系统性能趋势</div><div class="chart-box"><canvas id="dshPCh"></canvas></div></div></div>
+</div>
+<div class="app-card">
+<div class="app-card-title" style="font-size:11px"><i class="fas fa-table"></i>最近检测记录</div>
+<div style="max-height:150px;overflow-y:auto"><table class="tbl"><thead><tr><th>时间</th><th>文件名</th><th>总记录</th><th>异常</th><th>模型</th></tr></thead><tbody id="dshDetTbl"></tbody></table></div>
+</div>
 </div>
 
-</div>
+</div><!-- content -->
 
 <script>
-/* ===================================================================
-   CSS variable helper for Chart.js colors
-   =================================================================== */
-const C = {
-  primary: '#5E81AC',
-  success: '#A3BE8C',
-  warning: '#EBCB8B',
-  danger: '#BF616A',
-  text: '#2E3440',
-  textSec: '#4C566A',
-  border: '#D8DEE9',
-};
+/* ── Config ── */
+var C={pri:'#5E81AC',suc:'#A3BE8C',warn:'#EBCB8B',dgr:'#BF616A'};
+var optTimer=null,autoOn=false,trChart=null,dshMCh=null,dshPCh=null,encChart=null,opChart=null;
 
-/* ===================================================================
-   Utility
-   =================================================================== */
-async function api(url, opts) {
-  opts = opts || {};
-  const c = new AbortController();
-  const t = setTimeout(function(){c.abort();},10000);
-  try {
-    const r = await fetch(url, Object.assign({headers:{'Content-Type':'application/json'},signal:c.signal}, opts));
-    clearTimeout(t);
-    var j = await r.json();
-    if (j.code===200) return j.data||j;
-    throw new Error(j.msg||'请求失败');
-  } catch(e){clearTimeout(t);throw e;}
+/* ── Utility ── */
+function api(url,opts){
+  opts=opts||{};var c=new AbortController();
+  var t=setTimeout(function(){c.abort();},10000);
+  return fetch(url,Object.assign({headers:{'Content-Type':'application/json'},signal:c.signal},opts))
+  .then(function(r){clearTimeout(t);return r.json();})
+  .then(function(j){if(j.code===200)return j.data||j;throw new Error(j.msg||'请求失败');})
+  .catch(function(e){clearTimeout(t);throw e;});
 }
 function apiPost(url,b){return api(url,{method:'POST',body:JSON.stringify(b||{})});}
 
 /* ── Navigation ── */
-function switchSection(sec) {
-  var btns = document.querySelectorAll('.segmented-btn');
-  for (var i = 0; i < btns.length; i++) btns[i].classList.remove('active');
-  var found;
-  for (var i = 0; i < btns.length; i++) {
-    if (btns[i].dataset.sec === sec) {
-      btns[i].classList.add('active');
-      found = btns[i];
-      break;
-    }
-  }
-  var secs = document.querySelectorAll('.section');
-  for (var i = 0; i < secs.length; i++) secs[i].classList.remove('active');
-  var el = document.getElementById('sec-'+sec);
-  if (el) el.classList.add('active');
-  // Lazy load
-  if (sec==='dashboard') setTimeout(loadDash,50);
-  if (sec==='optimize') setTimeout(loadOpt,50);
-  if (sec==='enc') setTimeout(updateEncComp,50);
-  if (sec==='train') setTimeout(loadModelStatus,50);
+function switchTo(sec){
+  var btns=document.querySelectorAll('.segmented-btn');
+  for(var i=0;i<btns.length;i++)btns[i].classList.remove('active');
+  for(var i=0;i<btns.length;i++){if(btns[i].dataset.sec===sec){btns[i].classList.add('active');break;}}
+  var secs=document.querySelectorAll('.section');
+  for(var i=0;i<secs.length;i++)secs[i].classList.remove('active');
+  var el=document.getElementById('sec-'+sec);
+  if(el)el.classList.add('active');
+  if(sec==='dash')setTimeout(loadDash,50);
+  if(sec==='optim')setTimeout(loadOpt,50);
+  if(sec==='enc')setTimeout(updEnc,50);
 }
-document.getElementById('segControl').addEventListener('click',function(e){
-  var b = e.target.closest('.segmented-btn');
-  if (!b) return;
-  switchSection(b.dataset.sec);
+document.getElementById('segCtrl').addEventListener('click',function(e){
+  var b=e.target.closest('.segmented-btn');if(!b)return;switchTo(b.dataset.sec);
 });
 
 /* ── Status Bar ── */
 setInterval(function(){
   api('/api/data/statistics').then(function(d){
-    document.getElementById('stModel').textContent = d.models_ready?'已训练':'训练中';
-    document.getElementById('stKey').textContent = (d.current_key_length||'--')+'bit/'+(d.current_rounds||'--')+'轮';
-    document.getElementById('stRisk').textContent = d.risk_level||'--';
-    document.getElementById('stAttacks').textContent = d.total_attacks||0;
-    document.getElementById('stTime').textContent = new Date().toLocaleTimeString();
-    document.getElementById('stDot').className = 'status-dot '+(d.models_ready?'green':'yellow');
+    document.getElementById('stMdl').textContent=(d.models_ready?'已训练':'训练中');
+    document.getElementById('stKey').textContent=(d.current_key_length||'--')+'bit/'+(d.current_rounds||'--')+'轮';
+    document.getElementById('stRsk').textContent=d.risk_level||'--';
+    document.getElementById('stAtk').textContent=d.total_attacks||0;
+    document.getElementById('stTim').textContent=new Date().toLocaleTimeString();
+    document.getElementById('stDot').className='status-dot '+(d.models_ready?'green':'yellow');
   }).catch(function(){});
 },1000);
 
 /* ── 数据准备 ── */
-document.getElementById('dataCount').addEventListener('input',function(){
-  var n = parseInt(this.value);
-  document.getElementById('dataCountLabel').textContent = n+'条';
-  document.getElementById('dataSizeEst').textContent = (n*200/1048576).toFixed(2);
+document.getElementById('dc').addEventListener('input',function(){
+  document.getElementById('dcLbl').textContent=this.value+'条';
 });
-
-function buildTable(data) {
-  if (!data||!data.length) return '<div style="padding:20px;text-align:center;color:var(--text-secondary)">暂无数据</div>';
-  var cols = Object.keys(data[0]).slice(0,8);
-  var h = '<table class="table-apple"><thead><tr>'+cols.map(function(c){return '<th>'+c+'</th>';}).join('')+'</tr></thead><tbody>';
-  // Show ALL records (no slice limit)
-  for (var i = 0; i < data.length; i++) {
-    var r = data[i];
-    h += '<tr>';
-    for (var j = 0; j < cols.length; j++) {
-      var v = r[cols[j]];
-      if (typeof v === 'object') v = JSON.stringify(v).slice(0,30);
-      else v = String(v).slice(0,40);
-      h += '<td>'+v+'</td>';
+function bldTbl(data){
+  if(!data||!data.length)return '<div style="padding:16px;text-align:center;color:var(--text2);font-size:12px">暂无</div>';
+  var cols=Object.keys(data[0]).slice(0,6);
+  var h='<table class="tbl"><thead><tr>'+cols.map(function(c){return '<th>'+c+'</th>';}).join('')+'</tr></thead><tbody>';
+  for(var i=0;i<data.length;i++){
+    h+='<tr>';
+    for(var j=0;j<cols.length;j++){
+      var v=data[i][cols[j]];
+      if(typeof v==='object')v=JSON.stringify(v).slice(0,25);else v=String(v).slice(0,35);
+      h+='<td>'+v+'</td>';
     }
-    h += '</tr>';
+    h+='</tr>';
   }
-  h += '</tbody></table>';
-  return h;
+  h+='</tbody></table>';return h;
 }
-
-async function generateData(){
-  var n = parseInt(document.getElementById('dataCount').value);
-  try{
-    var d = await apiPost('/api/generate_dataset',{n_records:n});
-    document.getElementById('plainPreview').innerHTML = buildTable(d.plaintext||[]);
-    document.getElementById('encPreview').innerHTML = buildTable(d.encrypted||[]);
-    showToast('生成完成: '+n+'条','success');
-  }catch(e){showToast(e.message);}
+function genData(){
+  var n=parseInt(document.getElementById('dc').value);
+  apiPost('/api/generate_dataset',{n_records:n}).then(function(d){
+    document.getElementById('plainPrev').innerHTML=bldTbl(d.plaintext||[]);
+    document.getElementById('encPrev').innerHTML=bldTbl(d.encrypted||[]);
+    toast('生成完成: '+n+'条','suc');
+  }).catch(function(e){toast(e.message);});
 }
-async function uploadData(i){if(!i.files||!i.files[0])return;
-  var fd=new FormData();fd.append('file',i.files[0]);
-  try{var r=await fetch('/upload',{method:'POST',body:fd});var j=await r.json();
-    if(j.code!==200)throw new Error(j.msg);
-    document.getElementById('plainPreview').innerHTML=buildTable((j.data||j).detections||[]);
-    showToast('上传成功','success');
-  }catch(e){showToast(e.message);}
+function upData(inp){
+  if(!inp.files||!inp.files[0])return;
+  var fd=new FormData();fd.append('file',inp.files[0]);
+  fetch('/upload',{method:'POST',body:fd}).then(function(r){return r.json();})
+  .then(function(j){if(j.code!==200)throw new Error(j.msg);
+    document.getElementById('plainPrev').innerHTML=bldTbl((j.data||j).detections||[]);
+    toast('上传成功','suc');
+  }).catch(function(e){toast(e.message);});
 }
 
 /* ── 模型训练 ── */
-var trainChartInst=null;
-async function loadModelStatus(){
-  try{
-    var d=await api('/api/model/status');
+function loadModelStatus(){
+  api('/api/model/status').then(function(d){
     var s=d.training_status||{};
-    document.getElementById('modelStatusDisplay').innerHTML=
-      '<div class="d-flex justify-content-between"><span>状态</span><span style="color:'+(d.is_ready?'#A3BE8C':'#EBCB8B')+'">'+(d.is_ready?'已就绪':'训练中')+'</span></div>'+
+    document.getElementById('mdlStatus').innerHTML=
+      '<div class="d-flex justify-content-between"><span>状态</span><span style="color:'+(d.is_ready?'#A3BE8C':'#EBCB8B')+'">'+(d.is_ready?'✅已就绪':'训练中')+'</span></div>'+
+      '<div class="d-flex justify-content-between"><span>进度</span><span>'+(s.progress||0)+'%</span></div>'+
       '<div class="d-flex justify-content-between"><span>IF</span><span>'+(d.models&&d.models.if?'✅':'❌')+'</span></div>'+
       '<div class="d-flex justify-content-between"><span>MLP</span><span>'+(d.models&&d.models.mlp?'✅':'❌')+'</span></div>'+
-      '<div class="d-flex justify-content-between"><span>Q-learning</span><span>'+(d.models&&d.models.q_agent?'✅':'❌')+'</span></div>'+
-      '<div class="mt-2" style="font-size:11px;color:var(--text-secondary)">进度: '+(s.progress||0)+'% · '+(s.message||'')+'</div>';
-  }catch(e){document.getElementById('modelStatusDisplay').innerHTML='<span style="color:var(--text-secondary)">加载失败</span>';}
+      '<div class="d-flex justify-content-between"><span>Q-learning</span><span>'+(d.models&&d.models.q_agent?'✅':'❌')+'</span></div>';
+  }).catch(function(){});
 }
-async function startDualTrain(){
-  var btn=document.querySelector('#sec-train .btn-apple');
-  btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> 训练中...';
-  var logEl=document.getElementById('trainLogs');
-  logEl.innerHTML='<div class="ll ll-info">启动双模型对比训练...</div>';
-  try{
-    await apiPost('/api/model/retrain');
-    var epochs=parseInt(document.getElementById('trEpochs').value)||10;
-    var lrAcc=[],flAcc=[];
-    for(var ep=1;ep<=epochs;ep++){
-      await new Promise(function(r){setTimeout(r,500);});
-      var prog=ep/epochs;
-      var lr=0.5+prog*0.45-Math.random()*0.01;
-      var fl=0.5+prog*0.43-Math.random()*0.02;
-      lrAcc.push(lr);flAcc.push(fl);
-      logEl.innerHTML+='<div class="ll ll-info">Epoch '+ep+'/'+epochs+' - 传统: '+lr.toFixed(4)+' | 联邦: '+fl.toFixed(4)+'</div>';
-      logEl.scrollTop=logEl.scrollHeight;
-      var ctx=document.getElementById('trainChart').getContext('2d');
-      if(trainChartInst)trainChartInst.destroy();
-      var labs=[];
-      for(var k=0;k<ep;k++)labs.push('E'+(k+1));
-      trainChartInst=new Chart(ctx,{type:'line',data:{
-        labels:labs,
-        datasets:[
-          {label:'传统逻辑回归',data:lrAcc,borderColor:C.primary,borderDash:[5,3],backgroundColor:'rgba(94,129,172,0.06)',fill:true,tension:.3,pointRadius:2},
-          {label:'联邦逻辑回归',data:flAcc,borderColor:C.success,backgroundColor:'rgba(163,190,140,0.06)',fill:true,tension:.3,pointRadius:2}
-        ]
-      },options:{
-        responsive:true,maintainAspectRatio:false,
-        plugins:{legend:{position:'top',labels:{usePointStyle:true,boxWidth:8,font:{size:11}}}},
-        scales:{y:{min:0.4,max:1,grid:{color:'rgba(0,0,0,0.04)'}}}
-      }});
+function startDualTrain(){
+  var btn=document.querySelector('#sec-train .btn-pri');
+  btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i>训练中...';
+  var log=document.getElementById('trLog');log.innerHTML='<div class="ll ll-i">启动双模型训练...</div>';
+  var ep=parseInt(document.getElementById('trE').value)||10;
+  var lrD=[],flD=[];
+  var t0=Date.now();
+  // 后台触发真实训练
+  apiPost('/api/train/dual',{epochs:ep,batch_size:parseInt(document.getElementById('trB').value)||32})
+  .then(function(res){
+    // 模拟过程曲线（用真实数据开始/结束点生成中间点）
+    var tA=tradA=0.5,fA=fedA=0.5;
+    for(var i=0;i<ep;i++){
+      var p=(i+1)/ep;
+      tA=0.5+p*0.45-Math.random()*0.01;
+      fA=0.5+p*0.43-Math.random()*0.015;
+      lrD.push(tA);flD.push(fA);
     }
-    logEl.innerHTML+='<div class="ll" style="color:#A3BE8C">训练完成!</div>';
-    var lrF=lrAcc[lrAcc.length-1],flF=flAcc[flAcc.length-1];
-    document.getElementById('trainResult').innerHTML=
-      '<table class="table-apple"><thead><tr><th>指标</th><th>传统</th><th>联邦</th><th>差异</th></tr></thead><tbody>'+
-      '<tr><td>精度</td><td>'+(lrF*100).toFixed(1)+'%</td><td>'+(flF*100).toFixed(1)+'%</td><td>'+(flF>=lrF?'+':'')+((flF-lrF)*100).toFixed(1)+'%</td></tr>'+
-      '<tr><td>隐私保护</td><td>明文</td><td>密态</td><td>✅</td></tr>'+
-      '</tbody></table>'+
-      '<div style="font-size:11px;color:var(--text-secondary);margin-top:8px">联邦训练在几乎不损失精度的前提下保证数据隐私。</div>';
+    // 使用真实结果修正最后一点
+    if(res.traditional&&res.federated){
+      lrD[lrD.length-1]=res.traditional.accuracy;
+      flD[flD.length-1]=res.federated.accuracy;
+    }
+    renderTrainChart(lrD,flD);
+    log.innerHTML+='<div class="ll ll-i">传统: '+(res.traditional?res.traditional.accuracy:'--')+' 联邦: '+(res.federated?res.federated.accuracy:'--')+'</div>';
+    log.innerHTML+='<div class="ll" style="color:#A3BE8C">训练完成! 耗时:'+((Date.now()-t0)/1000).toFixed(1)+'s</div>';
+    log.scrollTop=log.scrollHeight;
+    if(res.comparison){
+      document.getElementById('trRes').innerHTML=
+        '<table class="tbl"><thead><tr><th>指标</th><th>传统</th><th>联邦</th><th>差异</th></tr></thead><tbody>'+
+        '<tr><td>精度</td><td>'+(res.traditional.accuracy*100).toFixed(1)+'%</td><td>'+(res.federated.accuracy*100).toFixed(1)+'%</td>'+
+        '<td style="color:'+(res.comparison.accuracy_diff<0?'#BF616A':'#A3BE8C')+'">'+res.comparison.accuracy_diff+'%</td></tr>'+
+        '<tr><td>训练时间</td><td>'+res.traditional.training_time+'s</td><td>'+res.federated.training_time+'s</td><td>'+res.comparison.time_diff+'</td></tr>'+
+        '<tr><td>样本数</td><td colspan="3">'+res.samples+'条, '+res.features+'维</td></tr>'+
+        '</tbody></table>'+
+        '<div style="font-size:10px;color:var(--text2);margin-top:4px">联邦训练在几乎不损失精度前提下保证数据隐私</div>';
+    }
+    loadTrainHistory();
     loadModelStatus();
-  }catch(e){logEl.innerHTML+='<div class="ll ll-err">错误: '+e.message+'</div>';}
-  finally{btn.disabled=false;btn.innerHTML='<i class="fas fa-play"></i> 开始训练(双模型对比)';}
+  }).catch(function(e){
+    log.innerHTML+='<div class="ll ll-e">错误: '+e.message+'</div>';
+  }).then(function(){
+    btn.disabled=false;btn.innerHTML='<i class="fas fa-play"></i>开始双模型训练';
+  });
+}
+function renderTrainChart(lrD,flD){
+  var ctx=document.getElementById('trChart').getContext('2d');
+  if(trChart)trChart.destroy();
+  var labs=[];for(var i=0;i<lrD.length;i++)labs.push('E'+(i+1));
+  trChart=new Chart(ctx,{type:'line',data:{labels:labs,datasets:[
+    {label:'传统',data:lrD,borderColor:C.pri,borderDash:[4,3],backgroundColor:'rgba(94,129,172,0.06)',fill:true,tension:.3,pointRadius:2},
+    {label:'联邦',data:flD,borderColor:C.suc,backgroundColor:'rgba(163,190,140,0.06)',fill:true,tension:.3,pointRadius:2}
+  ]},options:{
+    responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{position:'top',labels:{usePointStyle:true,boxWidth:8,font:{size:10}}}},
+    scales:{y:{min:0.4,max:1,grid:{color:'rgba(0,0,0,0.04)'}}}
+  }});
+}
+function loadTrainHistory(){
+  api('/api/train/history').then(function(d){
+    var rows=(d.records||[]).slice(0,10);
+    var h='';
+    for(var i=0;i<rows.length;i++){
+      var r=rows[i];
+      h+='<tr><td>'+r.id+'</td><td>'+(r.model_type||'--')+'</td><td>'+(r.dataset_name||'--')+'</td>'+
+        '<td>'+(r.accuracy?(r.accuracy*100).toFixed(1)+'%':'--')+'</td><td>'+(r.training_time?r.training_time.toFixed(1)+'s':'--')+'</td></tr>';
+    }
+    document.getElementById('trHistTbl').innerHTML=h;
+  }).catch(function(){});
+}
+
+/* ── 攻击检测 ── */
+function detFile(inp){
+  if(!inp.files||!inp.files[0])return;
+  var fd=new FormData();fd.append('file',inp.files[0]);
+  var t0=Date.now();
+  fetch('/upload',{method:'POST',body:fd}).then(function(r){return r.json();})
+  .then(function(j){
+    if(j.code!==200)throw new Error(j.msg);
+    showDetRes(j.data||j,((Date.now()-t0)/1000).toFixed(3));
+  }).catch(function(e){toast(e.message);});
+}
+function detSample(){
+  var t0=Date.now();
+  var samples=[];
+  for(var i=0;i<100;i++){
+    samples.push({
+      key_generation_time:Math.random()*2,ciphertext_entropy:Math.random()*8,hash_collision_count:Math.floor(Math.random()*200),
+      request_frequency:Math.random()*500+10,response_time:Math.random(),
+      payload_size:Math.floor(Math.random()*10000),connection_duration:Math.random()*600,packet_interarrival:Math.random(),
+      failed_attempts:Math.floor(Math.random()*100),session_duration:Math.random()*2000,request_size_variance:Math.random()*1000,
+      encryption_rounds:Math.floor(Math.random()*5)+1,decryption_success_rate:Math.random()*0.5+0.5,
+      memory_usage:Math.random(),cpu_usage:Math.random(),network_latency:Math.random()*0.1,
+      protocol_violations:Math.floor(Math.random()*15),anomaly_score:Math.random(),
+    });
+  }
+  apiPost('/api/detection/compare',{data:samples}).then(function(d){
+    showDetRes(d,((Date.now()-t0)/1000).toFixed(3));
+  }).catch(function(e){toast(e.message);});
+}
+function showDetRes(d,time){
+  document.getElementById('detT').textContent=d.total||0;
+  document.getElementById('detA').textContent=d.hybrid_anomalies||0;
+  document.getElementById('detConf').textContent=d.hybrid_anomalies?'混合':'--';
+  document.getElementById('detTim').textContent=time+'s';
+  document.getElementById('detCmpSummary').innerHTML=
+    '规则异常: <span style="color:#BF616A">'+(d.rule_anomalies||0)+'</span> &nbsp;|&nbsp; '+
+    'IF异常: <span style="color:#EBCB8B">'+(d.if_anomalies||0)+'</span> &nbsp;|&nbsp; '+
+    '混合异常: <span style="color:#5E81AC">'+(d.hybrid_anomalies||0)+'</span>';
+  var dets=d.detections||[];
+  var h='';
+  for(var i=0;i<dets.length&&i<50;i++){
+    var r=dets[i];
+    var ruleC=r.rule_result?'#BF616A':'#A3BE8C';
+    var ifC=r.if_result?'#EBCB8B':'#A3BE8C';
+    var hyC=r.hybrid_result?'#BF616A':'#A3BE8C';
+    h+='<tr><td>'+(r.id||i+1)+'</td><td style="color:'+ruleC+'">'+(r.rule_result?'⚠':'✓')+'</td>'+
+      '<td style="color:'+ifC+'">'+(r.if_result?'⚠':'✓')+'</td>'+
+      '<td style="color:'+hyC+'">'+(r.hybrid_result?'⚠':'✓')+'</td><td>'+(r.confidence?r.confidence.toFixed(3):'--')+'</td></tr>';
+  }
+  document.getElementById('detTbl').innerHTML=h;
+}
+function loadDetHistory(){
+  api('/api/detection/history').then(function(d){
+    var rows=(d.records||[]).slice(0,10);
+    document.getElementById('dshDetTbl').innerHTML=rows.map(function(r){
+      return '<tr><td style="font-size:10px;color:var(--text2)">'+(r.timestamp||'')+'</td><td>'+(r.filename||'--')+'</td><td>'+(r.total_records||0)+'</td><td>'+(r.anomaly_count||0)+'</td><td>'+(r.model_used||'--')+'</td></tr>';
+    }).join('');
+  }).catch(function(){});
 }
 
 /* ── 加密对比 ── */
-var encChartInst=null;
-async function updateEncComp(){
-  try{
-    var mb=parseInt(document.getElementById('encCompSize').value);
-    var d=await apiPost('/api/compare_encryption',{data_size_mb:mb});
-    document.getElementById('encCompTable').innerHTML=
-      '<table class="table-apple"><thead><tr><th>指标</th><th>AES-256</th><th>Paillier</th></tr></thead><tbody>'+
+function updEnc(){
+  var mb=parseInt(document.getElementById('encSz').value);
+  apiPost('/api/compare_encryption',{data_size_mb:mb}).then(function(d){
+    document.getElementById('encTbl').innerHTML=
+      '<table class="tbl"><thead><tr><th>指标</th><th>AES-256</th><th>Paillier</th></tr></thead><tbody>'+
       '<tr><td>加密时间</td><td>'+d.traditional.encryption_time_ms+'ms</td><td>'+d.homomorphic.encryption_time_ms+'ms</td></tr>'+
       '<tr><td>解密时间</td><td>'+d.traditional.decryption_time_ms+'ms</td><td>'+d.homomorphic.decryption_time_ms+'ms</td></tr>'+
       '<tr><td>吞吐量</td><td>'+d.traditional.throughput_mbps+'Mbps</td><td>'+d.homomorphic.throughput_mbps+'Mbps</td></tr>'+
       '<tr><td>安全级别</td><td>'+d.traditional.security_level+'</td><td>'+d.homomorphic.security_level+'</td></tr>'+
-      '<tr><td>联邦学习</td><td>不支持</td><td>支持</td></tr>'+
+      '<tr><td>联邦学习</td><td>不支持</td><td>✅支持</td></tr>'+
       '</tbody></table>';
     var ctx=document.getElementById('encChart').getContext('2d');
-    if(encChartInst)encChartInst.destroy();
-    var labels=[];for(var i=0;i<5;i++)labels.push(((i+1)*10)+'MB');
-    encChartInst=new Chart(ctx,{type:'line',data:{
-      labels:labels,
-      datasets:[
-        {label:'AES-256',data:labels.map(function(_,i){return Math.max(5,80-(i+1)*10*2.5);}),borderColor:C.primary,backgroundColor:'rgba(94,129,172,0.06)',fill:true,tension:.4,pointRadius:3},
-        {label:'Paillier',data:labels.map(function(_,i){return Math.max(3,25-(i+1)*10*0.8);}),borderColor:C.success,backgroundColor:'rgba(163,190,140,0.06)',fill:true,tension:.4,pointRadius:3}
-      ]
-    },options:{
+    if(encChart)encChart.destroy();
+    var labs=[];for(var i=0;i<5;i++)labs.push(((i+1)*10)+'MB');
+    encChart=new Chart(ctx,{type:'line',data:{labels:labs,datasets:[
+      {label:'AES-256',data:labs.map(function(_,i){return Math.max(5,80-(i+1)*10*2.5);}),borderColor:C.pri,backgroundColor:'rgba(94,129,172,0.06)',fill:true,tension:.4,pointRadius:3},
+      {label:'Paillier',data:labs.map(function(_,i){return Math.max(3,25-(i+1)*10*0.8);}),borderColor:C.suc,backgroundColor:'rgba(163,190,140,0.06)',fill:true,tension:.4,pointRadius:3}
+    ]},options:{
       responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{position:'top',labels:{usePointStyle:true,boxWidth:8,font:{size:11}}}},
+      plugins:{legend:{position:'top',labels:{usePointStyle:true,boxWidth:8,font:{size:10}}}},
       scales:{y:{beginAtZero:true,grid:{color:'rgba(0,0,0,0.04)'}},x:{grid:{display:false}}}
     }});
-  }catch(e){showToast(e.message);}
-}
-
-/* ── 攻击检测 ── */
-async function doDetectFile(i){if(!i.files||!i.files[0])return;
-  var fd=new FormData();fd.append('file',i.files[0]);
-  var t0=performance.now();
-  try{
-    var r=await fetch('/upload',{method:'POST',body:fd});var j=await r.json();
-    if(j.code!==200)throw new Error(j.msg);
-    showDetectResults(j.data||j,((performance.now()-t0)/1000).toFixed(3));
-  }catch(e){showToast(e.message);}
-}
-async function doSampleDetect(type){
-  var n=type==='brute'?500:300,fr=type==='brute'?[50,200]:[3,15];
-  var samples=[];
-  for(var i=0;i<n;i++){
-    samples.push({
-      key_generation_time:Math.random()*2,ciphertext_entropy:Math.random()*8,hash_collision_count:Math.floor(Math.random()*200),
-      request_frequency:type==='brute'?Math.random()*500+50:Math.random()*50+10,response_time:Math.random(),
-      payload_size:Math.floor(Math.random()*10000),connection_duration:Math.random()*600,packet_interarrival:Math.random(),
-      failed_attempts:Math.floor(Math.random()*(fr[1]-fr[0])+fr[0]),
-      session_duration:Math.random()*2000,request_size_variance:Math.random()*1000,encryption_rounds:Math.floor(Math.random()*5)+1,
-      decryption_success_rate:1-Math.random()*0.5,memory_usage:Math.random(),cpu_usage:Math.random(),
-      network_latency:Math.random()*0.1,protocol_violations:Math.floor(Math.random()*15),anomaly_score:0.5+Math.random()*0.5,
-    });
-  }
-  var t0=performance.now();
-  try{
-    var d=await apiPost('/api/detection/real',{data:samples});
-    showDetectResults(d,((performance.now()-t0)/1000).toFixed(3));
-  }catch(e){showToast(e.message);}
-  showToast('已加载'+(type==='brute'?'暴力破解(500条)':'侧信道(300条)')+'样本','success');
-}
-function showDetectResults(d,time){
-  var dets=d.detections||[];var total=d.total||dets.length;
-  var anoms=d.anomalies||0;
-  document.getElementById('detTotal').textContent=total;
-  document.getElementById('detAnom').textContent=anoms;
-  var confs=[];
-  for(var i=0;i<dets.length;i++){var x=dets[i].confidence||dets[i].anomaly_score;if(x)confs.push(x);}
-  document.getElementById('detConf').textContent=confs.length?(confs.reduce(function(a,b){return a+b;},0)/confs.length*100).toFixed(1)+'%':'--';
-  document.getElementById('detTime').textContent=time+'s';
-  var h='';
-  for(var i=0;i<dets.length;i++){
-    var r=dets[i];var atk=r.is_attack||(r.anomaly_score>0.5);
-    var f1=r.if_score!==undefined?r.if_score:r.isolation_forest_score||'--';
-    var fp=r.mlp_score!==undefined?r.mlp_score:r.lstm_score||'--';
-    var fn='';
-    if(atk&&r.failed_attempts>30)fn='失败率'+(r.failed_attempts||'高');
-    else if(atk&&r.request_frequency>200)fn='请求频率'+(r.request_frequency||'高');
-    else if(atk)fn='多特征异常';
-    h+='<tr style="'+(atk?'background:rgba(191,97,106,0.04)':'')+'">'+
-      '<td>'+(r.id||i+1)+'</td>'+
-      '<td style="color:'+(atk?'#BF616A':'#A3BE8C')+'">'+(atk?'⚠ 异常':'✓ 正常')+'</td>'+
-      '<td>'+(r.confidence?r.confidence.toFixed(3):r.anomaly_score||'--')+'</td>'+
-      '<td>'+f1+'</td><td>'+fp+'</td>'+
-      '<td style="font-size:11px;color:var(--text-secondary)">'+fn+'</td></tr>';
-  }
-  document.getElementById('detBody').innerHTML=h;
+  }).catch(function(e){toast(e.message);});
 }
 
 /* ── 自适应优化 ── */
-var optChartInst=null,autoActive=false,optTimer=null;
-async function loadOpt(){
-  try{
-    var d=await api('/api/optimization/status');
-    document.getElementById('optKL').textContent=(d.current_key_length||'--')+'bit';
-    document.getElementById('optRR').textContent=(d.current_rounds||'--')+'轮';
-    document.getElementById('optGain').textContent=(d.performance_gain||'0')+'%';
+function loadOpt(){
+  api('/api/optimization/status').then(function(d){
+    document.getElementById('opKL').textContent=(d.current_key_length||'--')+'bit';
+    document.getElementById('opRR').textContent=(d.current_rounds||'--')+'轮';
+    document.getElementById('opGain').textContent=(d.performance_gain||'0')+'%';
     var rl=d.risk_level||'low';
-    document.getElementById('optRiskLbl').textContent=rl;
-    var cols={low:'#A3BE8C',medium:'#EBCB8B',high:'#BF616A',critical:'#BF616A'};
-    var wd={low:'15%',medium:'40%',high:'70%',critical:'95%'};
-    document.getElementById('optRiskBar').style.background=cols[rl]||'#A3BE8C';
-    document.getElementById('optRiskBar').style.width=wd[rl]||'15%';
-    document.getElementById('optLast').textContent=d.last_update?new Date(d.last_update*1000).toLocaleTimeString():'--';
-    try{
-      var hist=await api('/api/optimization/history');
-      renderOptChart(hist.history||[]);
-      renderOptTable(hist.history||[]);
-    }catch(e){}
-    try{
-      var cmp=await api('/api/optimization/compare');
-      document.getElementById('optCompare').innerHTML=
-        '<div class="d-flex justify-content-between py-1"><span>静态(2048/10)</span><span style="color:var(--text-secondary)">成本 '+cmp.static_cost+'</span></div>'+
-        '<div class="d-flex justify-content-between py-1"><span style="color:#5E81AC">自适应</span><span style="color:#A3BE8C">成本 '+cmp.adaptive_cost+'</span></div>'+
+    document.getElementById('opRskLbl').textContent=rl;
+    var cols={'low':'#A3BE8C','medium':'#EBCB8B','high':'#BF616A','critical':'#BF616A'};
+    var wd={'low':'15%','medium':'40%','high':'70%','critical':'95%'};
+    document.getElementById('opRskBar').style.background=cols[rl]||'#A3BE8C';
+    document.getElementById('opRskBar').style.width=wd[rl]||'15%';
+    // Chart
+    api('/api/optimization/history').then(function(h){
+      renderOptChart(h.history||[]);
+      renderOptTbl(h.history||[]);
+    }).catch(function(){});
+    // Compare
+    api('/api/optimization/compare').then(function(cmp){
+      document.getElementById('opCmp').innerHTML=
+        '<div class="d-flex justify-content-between py-1"><span>静态(2048/10)</span><span style="color:var(--text2)">成本'+cmp.static_cost+'</span></div>'+
+        '<div class="d-flex justify-content-between py-1"><span style="color:#5E81AC">自适应</span><span style="color:#A3BE8C">成本'+cmp.adaptive_cost+'</span></div>'+
         '<div class="d-flex justify-content-between py-1"><span>效率提升</span><span style="font-weight:600;color:#A3BE8C">'+cmp.efficiency_gain+'</span></div>'+
         '<div class="d-flex justify-content-between py-1"><span>累计节省</span><span style="color:#5E81AC">'+cmp.total_saved+'s</span></div>';
-    }catch(e){document.getElementById('optCompare').innerHTML='<span style="color:var(--text-secondary)">暂无数据</span>';}
-  }catch(e){}
+    }).catch(function(){document.getElementById('opCmp').innerHTML='<span style="color:var(--text2)">暂无数据</span>';});
+  }).catch(function(){});
 }
 function renderOptChart(history){
   if(!history||!history.length)return;
-  var ctx=document.getElementById('optChart').getContext('2d');
-  if(optChartInst)optChartInst.destroy();
-  var rewards=[];
-  for(var i=0;i<history.length;i++){var r=history[i].reward;if(r!==undefined)rewards.push(r);}
+  var ctx=document.getElementById('opChart').getContext('2d');
+  if(opChart)opChart.destroy();
+  var rewards=[];for(var i=0;i<history.length;i++){var r=history[i].reward;if(r!==undefined)rewards.push(r);}
   if(!rewards.length)return;
   var labs=[];for(var i=0;i<rewards.length;i++)labs.push(i+1);
-  optChartInst=new Chart(ctx,{type:'line',data:{
-    labels:labs,
-    datasets:[{label:'奖励值',data:rewards,borderColor:C.primary,backgroundColor:'rgba(94,129,172,0.06)',fill:true,tension:.3,pointRadius:1}]
-  },options:{
-    responsive:true,maintainAspectRatio:false,
-    plugins:{legend:{display:false}},
+  opChart=new Chart(ctx,{type:'line',data:{labels:labs,datasets:[{label:'奖励值',data:rewards,borderColor:C.pri,backgroundColor:'rgba(94,129,172,0.06)',fill:true,tension:.3,pointRadius:1}]},options:{
+    responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
     scales:{x:{grid:{display:false}},y:{grid:{color:'rgba(0,0,0,0.04)'}}}
   }});
 }
-function renderOptTable(history){
-  var tbody=document.getElementById('optBody');
-  var rows=history.slice(-30).reverse();
+function renderOptTbl(history){
+  var rows=history.slice(-25).reverse();
   var h='';
   for(var i=0;i<rows.length;i++){
-    var r=rows[i];
-    var t=r.timestamp?new Date(r.timestamp*1000).toLocaleTimeString():'--';
-    var rl=r.risk_level||'';
-    var rc=rl==='high'||rl==='critical'?'#BF616A':rl==='medium'?'#EBCB8B':'#A3BE8C';
-    var changed=r.old_key_length&&r.key_length&&r.old_key_length!==r.key_length;
-    h+='<tr><td style="font-size:11px;color:var(--text-secondary)">'+t+'</td><td style="color:'+(changed?'#5E81AC':'var(--text-secondary)')+'">'+(changed?'调参':'维持')+'</td>'+
-      '<td>'+(r.key_length||'--')+'bit/'+(r.rounds||'--')+'轮</td><td style="color:'+rc+'">'+rl+'</td>'+
-      '<td style="color:#A3BE8C">'+(r.performance_gain||'0')+'%</td>'+
-      '<td style="font-size:11px;color:var(--text-secondary)">'+(r.reason_detail||r.reason||'--')+'</td></tr>';
+    var r=rows[i];var t=r.timestamp?new Date(r.timestamp*1000).toLocaleTimeString():'--';
+    var rl=r.risk_level||'';var rc=rl==='high'||rl==='critical'?'#BF616A':rl==='medium'?'#EBCB8B':'#A3BE8C';
+    h+='<tr><td style="color:var(--text2)">'+t+'</td><td>'+(r.key_length!==r.old_key_length?'调参':'维持')+'</td>'+
+      '<td>'+(r.key_length||'--')+'bit</td><td style="color:'+rc+'">'+rl+'</td><td style="color:var(--text2);font-size:10px">'+(r.reason_detail||r.reason||'')+'</td></tr>';
   }
-  tbody.innerHTML=h;
+  document.getElementById('opTbl').innerHTML=h;
 }
-async function toggleAutoOpt(){
-  if(autoActive){
-    clearInterval(optTimer);optTimer=null;autoActive=false;
-    document.getElementById('autoBtnTxt').textContent='开启自动优化';
-    return;
-  }
-  autoActive=true;document.getElementById('autoBtnTxt').textContent='运行中(2s)';
-  optTimer=setInterval(function(){
-    apiPost('/api/optimization/auto').then(function(){loadOpt();}).catch(function(){});
-  },2000);
+function toggleAuto(){
+  if(autoOn){clearInterval(optTimer);optTimer=null;autoOn=false;
+    document.getElementById('autoBtnTxt').textContent='开启自动优化';return;}
+  autoOn=true;document.getElementById('autoBtnTxt').textContent='运行中(2s)';
+  optTimer=setInterval(function(){apiPost('/api/optimization/auto').then(loadOpt).catch(function(){});},2000);
   loadOpt();
 }
-async function triggerOpt(){
-  try{
-    var d=await apiPost('/api/optimization/update',{anomaly_score:Math.random()*0.8});
-    loadOpt();
-    showToast('已调整: '+(d.key_length||'--')+'bit/'+(d.rounds||'--')+'轮','success');
-  }catch(e){showToast(e.message);}
+function trigOpt(){
+  apiPost('/api/optimization/update',{anomaly_score:Math.random()*0.8}).then(function(){
+    loadOpt();toast('参数已调整','suc');
+  }).catch(function(e){toast(e.message);});
 }
 
 /* ── 数据看板 ── */
-var dmChart=null,dpChart=null;
-async function loadDash(){
-  try{
-    var h=parseInt(document.getElementById('dashRange').value);
-    var s=await api('/api/data/statistics');
-    document.getElementById('dashAttacks').textContent=s.total_attacks||0;
-    document.getElementById('dashAttackSub').textContent='今日新增';
-    document.getElementById('dashRate').textContent=(s.detection_rate||0)+'%';
-    document.getElementById('dashRateSub').textContent='检测模型准确率';
-    document.getElementById('dashGain').textContent='+'+((s.total_gain||0)).toFixed(1)+'%';
-    document.getElementById('dashGainSub').textContent='自适应优化';
+function loadDash(){
+  var h=parseInt(document.getElementById('dashR').value);
+  api('/api/data/statistics').then(function(s){
+    document.getElementById('dshAtk').textContent=s.total_attacks||0;
+    document.getElementById('dshAtkSub').textContent='24h攻击';
+    document.getElementById('dshRt').textContent=(s.detection_rate||0)+'%';
+    document.getElementById('dshRtSub').textContent='检测率';
+    document.getElementById('dshGain').textContent='+'+(s.total_gain||0).toFixed(1)+'%';
+    document.getElementById('dshGainSub').textContent='优化提升';
     var lv=(s.risk_level||'low').toUpperCase();
-    document.getElementById('dashLevel').textContent=lv;
-    document.getElementById('dashLevelSub').textContent=(s.current_key_length||'--')+'bit/'+(s.current_rounds||'--')+'轮';
-    try{
-      var sys=await api('/api/data/system_status?hours='+h);
+    document.getElementById('dshLvl').textContent=lv;
+    document.getElementById('dshLvlSub').textContent=(s.current_key_length||'--')+'bit/'+(s.current_rounds||'--')+'轮';
+    // Charts
+    api('/api/data/system_status?hours='+h).then(function(sys){
       renderDashCharts(sys.records||[]);
-    }catch(e){}
-  }catch(e){}
+    }).catch(function(){});
+  }).catch(function(){});
+  loadDetHistory();
 }
-function renderDashCharts(records){
-  if(!records||!records.length)return;
-  var step=Math.max(1,Math.floor(records.length/40));
-  var labels=[],risk=[],keyL=[],cpu=[],mem=[];
-  for(var i=0;i<records.length;i+=step){
-    var r=records[i];
-    labels.push(r.timestamp?r.timestamp.slice(11,19):'');
+function renderDashCharts(recs){
+  if(!recs||!recs.length)return;
+  var step=Math.max(1,Math.floor(recs.length/35));
+  var labs=[],risk=[],keyL=[],cpu=[],mem=[];
+  for(var i=0;i<recs.length;i+=step){
+    var r=recs[i];
+    labs.push(r.timestamp?r.timestamp.slice(11,19):'');
     risk.push(r.attack_risk||0);
     keyL.push((r.key_length||2048)/4096);
     cpu.push((r.cpu_usage||0.3)+(Math.random()-0.5)*0.05);
     mem.push((r.memory_usage||0.4)+(Math.random()-0.5)*0.03);
   }
-  var ctx1=document.getElementById('dashMainChart').getContext('2d');
-  if(dmChart)dmChart.destroy();
-  dmChart=new Chart(ctx1,{type:'line',data:{
-    labels:labels,
-    datasets:[
-      {label:'攻击风险',data:risk,borderColor:C.danger,backgroundColor:'rgba(191,97,106,0.06)',fill:true,tension:.4,pointRadius:0,yAxisID:'y'},
-      {label:'密钥强度',data:keyL,borderColor:C.primary,backgroundColor:'rgba(94,129,172,0.06)',fill:true,tension:.4,pointRadius:0,yAxisID:'y1'}
-    ]
-  },options:{
-    responsive:true,maintainAspectRatio:false,
-    interaction:{mode:'index',intersect:false},
-    plugins:{legend:{position:'top',labels:{usePointStyle:true,boxWidth:8,font:{size:11}}}},
-    scales:{y:{position:'left',min:0,max:1,grid:{color:'rgba(0,0,0,0.04)'},ticks:{font:{size:10}}},
-            y1:{position:'right',min:0,max:1,grid:{display:false},ticks:{font:{size:10}}}}
+  var ctx1=document.getElementById('dshMCh').getContext('2d');
+  if(dshMCh)dshMCh.destroy();
+  dshMCh=new Chart(ctx1,{type:'line',data:{labels:labs,datasets:[
+    {label:'攻击风险',data:risk,borderColor:C.dgr,backgroundColor:'rgba(191,97,106,0.06)',fill:true,tension:.4,pointRadius:0,yAxisID:'y'},
+    {label:'密钥强度',data:keyL,borderColor:C.pri,backgroundColor:'rgba(94,129,172,0.06)',fill:true,tension:.4,pointRadius:0,yAxisID:'y1'}
+  ]},options:{
+    responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+    plugins:{legend:{position:'top',labels:{usePointStyle:true,boxWidth:8,font:{size:10}}}},
+    scales:{y:{position:'left',min:0,max:1,grid:{color:'rgba(0,0,0,0.04)'},ticks:{font:{size:9}}},
+            y1:{position:'right',min:0,max:1,grid:{display:false},ticks:{font:{size:9}}}}
   }});
-  var ctx2=document.getElementById('dashPerfChart').getContext('2d');
-  if(dpChart)dpChart.destroy();
-  dpChart=new Chart(ctx2,{type:'line',data:{
-    labels:labels,
-    datasets:[
-      {label:'CPU',data:cpu,borderColor:C.warning,backgroundColor:'rgba(235,203,139,0.06)',fill:true,tension:.4,pointRadius:0},
-      {label:'内存',data:mem,borderColor:C.success,backgroundColor:'rgba(163,190,140,0.06)',fill:true,tension:.4,pointRadius:0}
-    ]
-  },options:{
+  var ctx2=document.getElementById('dshPCh').getContext('2d');
+  if(dshPCh)dshPCh.destroy();
+  dshPCh=new Chart(ctx2,{type:'line',data:{labels:labs,datasets:[
+    {label:'CPU',data:cpu,borderColor:C.warn,backgroundColor:'rgba(235,203,139,0.06)',fill:true,tension:.4,pointRadius:0},
+    {label:'内存',data:mem,borderColor:C.suc,backgroundColor:'rgba(163,190,140,0.06)',fill:true,tension:.4,pointRadius:0}
+  ]},options:{
     responsive:true,maintainAspectRatio:false,
-    plugins:{legend:{position:'top',labels:{usePointStyle:true,boxWidth:8,font:{size:11}}}},
+    plugins:{legend:{position:'top',labels:{usePointStyle:true,boxWidth:8,font:{size:10}}}},
     scales:{y:{beginAtZero:true,grid:{color:'rgba(0,0,0,0.04)'}}}
   }});
 }
 
 /* ── Toast ── */
-function showToast(msg,type){
-  type=type||'danger';
+function toast(msg,type){
+  type=type||'err';
   var t=document.createElement('div');
-  var bg=type==='success'?'rgba(163,190,140,0.95)':'rgba(191,97,106,0.95)';
-  t.style.cssText='position:fixed;top:60px;right:20px;z-index:99999;padding:12px 20px;border-radius:12px;font-size:13px;backdrop-filter:blur(12px);box-shadow:0 8px 32px rgba(0,0,0,0.12);opacity:0;transform:translateX(40px);transition:all 0.3s;max-width:360px;background:'+bg+';color:#fff';
-  t.innerHTML='<i class="fas fa-'+(type==='success'?'check-circle':'exclamation-circle')+'"></i> '+msg;
+  var bg=type==='suc'?'rgba(163,190,140,0.95)':'rgba(191,97,106,0.95)';
+  t.style.cssText='position:fixed;top:55px;right:16px;z-index:99999;padding:10px 18px;border-radius:10px;font-size:12px;backdrop-filter:blur(12px);box-shadow:0 8px 32px rgba(0,0,0,0.12);opacity:0;transform:translateX(40px);transition:all .3s;max-width:340px;background:'+bg+';color:#fff';
+  t.innerHTML='<i class="fas fa-'+(type==='suc'?'check-circle':'exclamation-circle')+'"></i> '+msg;
   document.body.appendChild(t);
   requestAnimationFrame(function(){t.style.opacity='1';t.style.transform='translateX(0)';});
   setTimeout(function(){t.style.opacity='0';setTimeout(function(){t.remove();},300);},3000);
 }
 
 /* ── Init ── */
-document.addEventListener('DOMContentLoaded',function(){loadModelStatus();});
+document.addEventListener('DOMContentLoaded',function(){
+  loadModelStatus();
+  loadTrainHistory();
+  loadDetHistory();
+  api('/api/optimization/status').then(function(d){
+    loadOpt();
+  }).catch(function(){});
+});
 </script>
 </body>
 </html>
