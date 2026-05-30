@@ -69,7 +69,13 @@ class EnsembleDetector:
             y: 标签 (n,)
             X_seq: 序列特征 (n-seq_len, seq_len, 18)
         """
-        logger.info("训练三模型融合检测器: X.shape=%s", X.shape)
+        logger.info("训练三模型融合检测器: X.shape=%s", str(X.shape))
+
+        # 初始化模型（如果未加载）
+        if self.if_model is None:
+            from sklearn.ensemble import IsolationForest
+            self.if_model = IsolationForest(n_estimators=80, contamination=0.15, random_state=42, n_jobs=1)
+            logger.info("Ensemble: IF初始化为新模型")
 
         # 1. 训练IF
         self.if_model.fit(X)
