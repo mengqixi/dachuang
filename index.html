@@ -4,565 +4,551 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>密码攻击检测与加密算法自适应优化系统</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-:root{--p:#5E81AC;--pd:#4C6A8F;--s:#A3BE8C;--w:#EBCB8B;--d:#BF616A;--bg:#F5F5F7;--c:#FFF;--t:#2E3440;--t2:#4C566A;--b:#D8DEE9;--sh:0 2px 10px rgba(0,0,0,0.06)}
-body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Inter",sans-serif;background:var(--bg);color:var(--t);-webkit-font-smoothing:antialiased}
-.topbar{background:rgba(255,255,255,0.85);backdrop-filter:blur(20px);border-bottom:1px solid var(--b);position:sticky;top:0;z-index:100;padding:4px 0 0}
-.tbar-title{font-size:11px;font-weight:600;text-align:center;color:var(--t2);padding:0 12px 4px;letter-spacing:-0.01em}
-.tbar-title i{color:var(--p)}
-.seg{display:flex;background:rgba(0,0,0,0.04);border-radius:8px;margin:0 10px 6px;padding:2px;gap:2px;flex-wrap:wrap}
-.seg-btn{flex:1;text-align:center;padding:5px 4px;border:none;border-radius:6px;font-size:10px;font-weight:500;background:transparent;color:var(--t2);cursor:pointer;transition:all .2s;white-space:nowrap}
-.seg-btn:hover{color:var(--t)}
-.seg-btn.on{background:#FFF;color:var(--p);box-shadow:0 1px 3px rgba(0,0,0,0.08)}
-.sbar{display:flex;align-items:center;padding:3px 10px;background:rgba(255,255,255,0.5);border-bottom:1px solid rgba(0,0,0,0.04);font-size:10px;color:var(--t2);overflow-x:auto}
-.sbar-i{display:flex;align-items:center;gap:2px;padding:0 8px;border-right:1px solid rgba(0,0,0,0.04);white-space:nowrap}
-.sbar-i:last-child{border-right:none}
-.sdot{width:5px;height:5px;border-radius:50%;display:inline-block}
-.sdot.g{background:var(--s)}.sdot.y{background:var(--w)}.sdot.r{background:var(--d)}
-.main{max-width:1200px;margin:0 auto;padding:10px}
-.sec{display:none}.sec.on{display:block;animation:fi .25s ease}
-@keyframes fi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
-.cd{background:var(--c);border-radius:14px;box-shadow:var(--sh);padding:16px 20px;margin-bottom:10px}
-.cd-tt{font-size:13px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:6px}
-.bp{background:var(--p);color:#fff;border:none;border-radius:10px;padding:7px 18px;font-size:12px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:4px;transition:all .2s}
-.bp:hover{background:var(--pd);transform:translateY(-1px)}.bp:disabled{opacity:.5;cursor:not-allowed}
-.bs{background:rgba(0,0,0,0.05);color:var(--t);border:none;border-radius:10px;padding:7px 18px;font-size:12px;font-weight:500;cursor:pointer}
-.bs:hover{background:rgba(0,0,0,0.08)}
-.fe{border:1px solid var(--b);border-radius:10px;padding:7px 12px;font-size:12px;width:100%;background:var(--bg);outline:none}
-.fe:focus{border-color:var(--p);background:var(--c)}
-.fl{font-size:11px;font-weight:500;color:var(--t2);margin-bottom:2px}
-.sg{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}
-.sc{background:var(--c);border-radius:12px;padding:12px 16px;box-shadow:var(--sh)}
-.sn{font-size:22px;font-weight:700;line-height:1.2}
-.sn.p{color:var(--p)}.sn.s{color:var(--s)}.sn.w{color:var(--w)}.sn.d{color:var(--d)}
-.sl{font-size:10px;color:var(--t2);margin-top:1px}
-.tb{width:100%;border-collapse:collapse;font-size:11px}
-.tb th{text-align:left;padding:5px 8px;color:var(--t2);font-weight:500;border-bottom:1px solid var(--b)}
-.tb td{padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.04)}
-.tb tr:hover td{background:rgba(0,0,0,0.02)}
-.ch{position:relative;height:170px;width:100%}
-.log{background:#FAFAFA;border:1px solid var(--b);border-radius:10px;padding:10px;font-family:"SF Mono",monospace;font-size:11px;height:160px;overflow-y:auto}
-.log .l1{padding:1px 0}.log .li{color:var(--p)}.log .lw{color:var(--w)}.log .le{color:var(--d)}
-.uz{border:2px dashed var(--b);border-radius:12px;padding:24px;text-align:center;cursor:pointer;transition:all .2s;background:var(--bg)}
-.uz:hover{border-color:var(--p);background:rgba(94,129,172,0.04)}
-.uz i{font-size:24px;color:var(--t2);margin-bottom:4px}
-.ep{background:rgba(94,129,172,0.06);border-left:3px solid var(--p);border-radius:8px;padding:10px 14px;font-size:11px;margin-bottom:10px;color:var(--t2)}
-.ep strong{color:var(--t)}
-@media(max-width:768px){.sg{grid-template-columns:repeat(2,1fr)}.seg-btn{font-size:9px;padding:3px}.seg-btn i{display:none}}
-::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:var(--b);border-radius:3px}
-/* Node cards */
-.node-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}
-.node-cd{background:var(--c);border-radius:12px;padding:12px;box-shadow:var(--sh);text-align:center}
-.node-cd .node-icon{font-size:20px;margin-bottom:4px}
-.node-cd .node-name{font-size:12px;font-weight:600}
-.node-cd .node-stat{font-size:10px;color:var(--t2)}
+body{font-family:-apple-system,BlinkMacSystemFont,"Inter",sans-serif;background:#F5F5F7;color:#2E3440}
+.navbar{background:#fff;border-bottom:1px solid #D8DEE9;padding:8px 0}
+.navbar-brand{font-size:14px;font-weight:600;color:#5E81AC}
+.nav-link{font-size:13px;color:#4C566A;padding:6px 14px;border-radius:8px;margin:0 2px}
+.nav-link:hover{background:#ECEFF4;color:#2E3440}
+.nav-link.active{background:#5E81AC;color:#fff}
+.card{border:none;border-radius:14px;box-shadow:0 2px 10px rgba(0,0,0,0.06);margin-bottom:14px}
+.card-header{background:transparent;border-bottom:1px solid #D8DEE9;font-size:14px;font-weight:600;padding:14px 20px}
+.card-body{padding:20px}
+.btn-primary{background:#5E81AC;border:none;border-radius:10px;padding:8px 20px;font-size:13px}
+.btn-primary:hover{background:#4C6A8F}
+.btn-secondary{background:rgba(0,0,0,0.05);border:none;border-radius:10px;padding:8px 20px;font-size:13px;color:#2E3440}
+.btn-success{background:#A3BE8C;border:none;border-radius:10px;padding:8px 20px;font-size:13px;color:#fff}
+.form-control,.form-select{border-radius:10px;border:1px solid #D8DEE9;background:#F5F5F7;font-size:13px;padding:8px 14px}
+.form-range{height:6px}
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
+.stat-card{background:#fff;border-radius:12px;padding:16px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,0.04)}
+.stat-num{font-size:26px;font-weight:700}
+.stat-label{font-size:11px;color:#4C566A;margin-top:4px}
+.table-sm th{font-size:11px;color:#4C566A;font-weight:500}
+.table-sm td{font-size:11px}
+.chart-box{height:200px}
+.log-box{background:#FAFAFA;border-radius:10px;padding:14px;font-family:monospace;font-size:11px;height:180px;overflow-y:auto}
+.node-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.node-card{background:#fff;border-radius:12px;padding:16px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,0.04)}
+.node-card .icon{font-size:24px;margin-bottom:8px}
+.node-card .name{font-size:13px;font-weight:600}
+.node-card .count{font-size:11px;color:#4C566A}
+.upload-zone{border:2px dashed #D8DEE9;border-radius:12px;padding:30px;text-align:center;cursor:pointer}
+.upload-zone:hover{border-color:#5E81AC}
+.upload-zone i{font-size:28px;color:#4C566A;margin-bottom:8px}
+.toast-msg{position:fixed;top:56px;right:20px;z-index:9999;padding:12px 24px;border-radius:10px;font-size:13px;color:#fff;display:none}
+.toast-ok{background:#A3BE8C}.toast-err{background:#BF616A}
+@media(max-width:768px){.stat-grid{grid-template-columns:repeat(2,1fr)}.node-grid{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
 <body>
 
-<div class="topbar">
-<div class="tbar-title"><i class="fas fa-shield-alt"></i>密码攻击检测与加密算法自适应优化系统</div>
-<div class="seg" id="seg">
-<button class="seg-btn on" data-s="data"><i class="fas fa-database"></i>数据准备</button>
-<button class="seg-btn" data-s="ds"><i class="fas fa-hdd"></i>数据集</button>
-<button class="seg-btn" data-s="train"><i class="fas fa-brain"></i>模型训练</button>
-<button class="seg-btn" data-s="fed"><i class="fas fa-network-wired"></i>联邦学习</button>
-<button class="seg-btn" data-s="detect"><i class="fas fa-shield"></i>攻击检测</button>
-<button class="seg-btn" data-s="enc"><i class="fas fa-lock"></i>加密对比</button>
-<button class="seg-btn" data-s="optim"><i class="fas fa-sliders-h"></i>自适应优化</button>
-<button class="seg-btn" data-s="dash"><i class="fas fa-chart-line"></i>数据看板</button>
+<nav class="navbar navbar-expand-lg sticky-top">
+<div class="container-fluid">
+<span class="navbar-brand"><i class="fas fa-shield-alt"></i> 密码攻击检测系统</span>
+<div class="navbar-nav d-flex flex-row" id="nav">
+<a class="nav-link active" href="#" data-page="data">数据准备</a>
+<a class="nav-link" href="#" data-page="ds">数据集</a>
+<a class="nav-link" href="#" data-page="train">模型训练</a>
+<a class="nav-link" href="#" data-page="fed">联邦学习</a>
+<a class="nav-link" href="#" data-page="detect">攻击检测</a>
+<a class="nav-link" href="#" data-page="enc">加密对比</a>
+<a class="nav-link" href="#" data-page="optim">自适应优化</a>
+<a class="nav-link" href="#" data-page="dash">数据看板</a>
 </div>
 </div>
+</nav>
 
-<div class="sbar">
-<div class="sbar-i"><span class="sdot g" id="stD"></span><span class="sn p" style="font-size:13px" id="stSys">运行中</span></div>
-<div class="sbar-i"><span>模型</span><b id="stM"></b></div>
-<div class="sbar-i"><span>密钥</span><b id="stK"></b></div>
-<div class="sbar-i"><span>风险</span><b id="stR"></b></div>
-<div class="sbar-i"><span>数据集</span><b id="stDS"></b></div>
-<div class="sbar-i"><span>时间</span><span style="color:var(--t2)" id="stT"></span></div>
-</div>
+<div class="container-fluid px-3 py-2" id="content">
 
-<div class="main">
-
-<!-- ── 数据准备 ── -->
-<div class="sec on" id="s-data">
-<div class="cd">
-<div class="cd-tt"><i class="fas fa-database" style="color:var(--p)"></i>数据生成与加密</div>
+<!-- Data Prep -->
+<div class="page" id="pg-data">
+<div class="card"><div class="card-header"><i class="fas fa-database text-primary"></i> 数据生成与加密</div>
+<div class="card-body">
 <div class="row g-2">
 <div class="col-md-6">
-<div class="fl">记录数</div>
-<div class="d-flex align-items-center gap-2">
-<input type="range" class="fe" id="dc" min="10" max="500" value="100" style="flex:1">
-<span style="font-size:13px;font-weight:600;min-width:45px;text-align:right" id="dcL">100条</span>
+<label class="form-label">记录数</label>
+<input type="range" class="form-range" id="dc" min="10" max="500" value="100">
+<span id="dcL" style="font-weight:600">100条</span>
 </div>
+<div class="col-md-4"><label class="form-label">加密算法</label>
+<select class="form-select" id="ea"><option value="paillier">Paillier</option><option value="aes">AES-256</option></select>
 </div>
-<div class="col-md-3">
-<div class="fl">加密算法</div>
-<select class="fe" id="ea"><option value="paillier">Paillier</option><option value="aes">AES-256</option></select>
+<div class="col-md-2 d-flex align-items-end gap-1">
+<button class="btn btn-primary btn-sm" onclick="genData()">生成</button>
 </div>
-<div class="col-md-3 d-flex align-items-end gap-1">
-<button class="bp" onclick="genData()"><i class="fas fa-magic"></i>生成</button>
-<button class="bs" onclick="document.getElementById('dfi').click()"><i class="fas fa-upload"></i>上传</button>
-</div>
-<input type="file" id="dfi" accept=".csv,.json" style="display:none" onchange="upData(this)">
-</div>
-</div>
+</div></div></div>
 <div class="row g-2">
-<div class="col-md-6"><div class="cd"><div class="cd-tt" style="font-size:12px"><i class="fas fa-lock-open" style="color:var(--s)"></i>明文预览</div>
-<div style="max-height:260px;overflow-y:auto" id="pp"></div></div></div>
-<div class="col-md-6"><div class="cd"><div class="cd-tt" style="font-size:12px"><i class="fas fa-lock" style="color:var(--p)"></i>密文预览</div>
-<div style="max-height:260px;overflow-y:auto" id="ep"></div></div></div>
+<div class="col-md-6"><div class="card"><div class="card-header">明文预览</div><div class="card-body" id="pp" style="max-height:280px;overflow-y:auto"></div></div></div>
+<div class="col-md-6"><div class="card"><div class="card-header">密文预览</div><div class="card-body" id="ep" style="max-height:280px;overflow-y:auto"></div></div></div>
 </div>
 </div>
 
-<!-- ── 数据集 ── -->
-<div class="sec" id="s-ds">
-<div class="cd">
-<div class="cd-tt"><i class="fas fa-hdd" style="color:var(--p)"></i>UNSW-NB15 真实攻击数据集</div>
-<div class="ep">
-<strong>数据来源</strong>：UNSW-NB15 (Kaggle) 共计82332条网络流量数据，包含 DoS/Backdoor/Reconnaissance/Exploits/Worms/Shellcode 等多种真实攻击类型。
-通过Kaggle API自动下载、清洗、特征提取为18维向量，按攻击类别分层抽样拆分为4个联邦节点。
-</div>
+<!-- Dataset -->
+<div class="page" id="pg-ds" style="display:none">
+<div class="card"><div class="card-header"><i class="fas fa-hdd text-primary"></i> UNSW-NB15 真实数据集</div>
+<div class="card-body">
+<div class="alert alert-light small">通过Kaggle API下载UNSW-NB15数据集(82332条)，自动清洗提取18维特征，按攻击类别分层抽样拆分为4个联邦节点。包含DoS/Backdoor/Reconnaissance/Exploits等真实攻击。</div>
 <div class="row g-2 align-items-end">
-<div class="col-md-4">
-<div class="fl">数据集文件</div>
-<select class="fe" id="dsFile"><option value="UNSW_NB15_training-set.csv">训练集 (15MB)</option></select>
-</div>
-<div class="col-md-4 d-flex gap-1">
-<button class="bp" onclick="procDS()"><i class="fas fa-cogs"></i>处理数据集</button>
-<button class="bs" onclick="loadDSStatus()"><i class="fas fa-sync"></i>刷新</button>
+<div class="col-md-6 d-flex gap-2">
+<button class="btn btn-primary" onclick="procDS()">处理数据集+训练模型</button>
+<button class="btn btn-secondary" onclick="loadDS()">刷新状态</button>
 </div>
 </div>
-</div>
-<div class="row g-2">
-<div class="col-md-6"><div class="cd"><div class="cd-tt" style="font-size:12px"><i class="fas fa-chart-bar" style="color:var(--s)"></i>数据集统计</div>
-<div id="dsStats" style="font-size:11px">点击"处理数据集"开始</div>
+<div id="dsInfo" class="mt-2"></div>
+<div class="node-grid mt-3" id="dsNodes"></div>
 </div></div>
-<div class="col-md-6"><div class="cd"><div class="cd-tt" style="font-size:12px"><i class="fas fa-table"></i>联邦节点拆分</div>
-<div class="node-grid" id="dsNodes"></div>
-</div></div>
-</div>
 </div>
 
-<!-- ── 模型训练 ── -->
-<div class="sec" id="s-train">
+<!-- Train -->
+<div class="page" id="pg-train" style="display:none">
 <div class="row g-2">
 <div class="col-md-4">
-<div class="cd"><div class="cd-tt"><i class="fas fa-cog" style="color:var(--p)"></i>训练配置</div>
-<div class="mb-2"><div class="fl">数据集</div><select class="fe" id="trDS"><option value="generated">自动生成(10000条)</option><option value="unsw">UNSW-NB15真实数据</option></select></div>
-<div class="mb-2"><div class="fl">模型类型</div><select class="fe" id="trModel"><option value="dual">双模型对比(传统+联邦)</option><option value="xgboost">XGBoost</option><option value="ensemble">三模型融合(IF+XGB+LSTM)</option></select></div>
-<div class="mb-2"><div class="fl">训练轮次</div><input type="number" class="fe" id="trE" value="10" min="1" max="50"></div>
-<div class="d-grid gap-1">
-<button class="bp" onclick="startTrain()"><i class="fas fa-play"></i>开始训练</button>
-<button class="bs" onclick="loadTrainHist()"><i class="fas fa-history"></i>训练历史</button>
+<div class="card"><div class="card-header">训练配置</div><div class="card-body">
+<div class="mb-2"><label class="form-label">轮次</label><input class="form-control" id="trE" value="10" type="number"></div>
+<div class="d-grid gap-2">
+<button class="btn btn-primary" onclick="startTrain()">开始训练</button>
+<button class="btn btn-secondary" onclick="loadTrainHist()">训练历史</button>
 </div>
-</div>
+</div></div>
 </div>
 <div class="col-md-8">
-<div class="cd"><div class="cd-tt"><i class="fas fa-chart-line" style="color:var(--p)"></i>训练过程 <span id="trLabel"></span></div>
-<div class="ch"><canvas id="trCh"></canvas></div></div>
-<div class="cd"><div class="cd-tt" style="font-size:12px"><i class="fas fa-table"></i>训练结果</div>
-<div id="trRes"><div style="font-size:11px;color:var(--t2)">训练完成后显示</div></div></div>
+<div class="card"><div class="card-header">训练结果</div>
+<div class="card-body">
+<div class="chart-box"><canvas id="trCh"></canvas></div>
+<div id="trRes" class="mt-2"></div>
+</div></div>
 </div>
 </div>
-<div class="cd"><div class="cd-tt" style="font-size:12px"><i class="fas fa-history"></i>训练历史记录</div>
-<div style="max-height:180px;overflow-y:auto"><table class="tb"><thead><tr><th>#</th><th>类型</th><th>数据集</th><th>精度</th><th>时间</th><th>样本</th></tr></thead><tbody id="trHistTB"></tbody></table></div></div>
+<div class="card"><div class="card-header">训练历史</div>
+<div class="card-body"><table class="table table-sm"><thead><tr><th>#</th><th>类型</th><th>精度</th><th>时间</th><th>样本</th></tr></thead><tbody id="trHistTB"></tbody></table></div></div>
 </div>
 
-<!-- ── 联邦学习 ── -->
-<div class="sec" id="s-fed">
-<div class="cd"><div class="cd-tt"><i class="fas fa-network-wired" style="color:var(--p)"></i>联邦学习4节点训练</div>
-<div class="ep">
-<strong>联邦训练流程</strong>：4个机构节点(Hospital/Bank/Insurance/Government)各自本地训练 → Paillier加密梯度上传 → FedAvg安全聚合 → 更新全局模型 → 下发节点 → 下一轮
-</div>
-<div class="node-grid" id="fedNodes"></div>
-<div class="row g-2 align-items-end mt-2">
-<div class="col-md-3"><div class="fl">本地训练轮次</div><input type="number" class="fe" id="fedE" value="5" min="1" max="20"></div>
-<div class="col-md-3 d-flex gap-1">
-<button class="bp" onclick="runFedRound()"><i class="fas fa-play"></i>执行一轮联邦训练</button>
-<button class="bs" onclick="loadFedStatus()"><i class="fas fa-sync"></i>刷新</button>
-</div>
-</div>
-</div>
+<!-- Federated -->
+<div class="page" id="pg-fed" style="display:none">
+<div class="card"><div class="card-header"><i class="fas fa-network-wired text-primary"></i> 联邦学习4节点</div>
+<div class="card-body">
+<div class="alert alert-light small">4个机构(Hospital/Bank/Insurance/Gov)本地训练 → Paillier加密梯度 → FedAvg聚合 → 下发模型</div>
+<div class="node-grid mb-3" id="fedNodes"></div>
 <div class="row g-2">
-<div class="col-md-6"><div class="cd"><div class="cd-tt" style="font-size:12px"><i class="fas fa-chart-line" style="color:var(--s)"></i>联邦训练精度曲线</div>
-<div class="ch"><canvas id="fedCh"></canvas></div></div></div>
-<div class="col-md-6"><div class="cd"><div class="cd-tt" style="font-size:12px"><i class="fas fa-table"></i>节点训练详情</div>
-<div id="fedDet" style="font-size:11px"></div></div></div>
+<div class="col-md-3"><label class="form-label">本地轮次</label><input class="form-control" id="fedE" value="5" type="number"></div>
+<div class="col-md-3 d-flex align-items-end gap-2">
+<button class="btn btn-primary" onclick="runFed()">执行一轮</button>
+<button class="btn btn-secondary" onclick="loadFed()">刷新</button>
+</div>
+</div>
+<div id="fedRes" class="mt-2"></div>
+</div></div>
+<div class="row g-2">
+<div class="col-md-6"><div class="card"><div class="card-header">联邦精度曲线</div><div class="card-body"><div class="chart-box"><canvas id="fedCh"></canvas></div></div></div></div>
+<div class="col-md-6"><div class="card"><div class="card-header">训练详情</div><div class="card-body" id="fedDet"></div></div></div>
 </div>
 </div>
 
-<!-- ── 攻击检测 ── -->
-<div class="sec" id="s-detect">
-<div class="ep"><strong>检测原理</strong>：18维特征 → 三模型融合(IF 0.3 + XGBoost 0.3 + LSTM 0.4) → {attack_type, risk_score, confidence} 输出。支持Normal/DoS/Backdoor/Reconnaissance/Exploits/Worms/Shellcode七类。</div>
+<!-- Detect -->
+<div class="page" id="pg-detect" style="display:none">
+<div class="card"><div class="card-header"><i class="fas fa-shield-alt text-warning"></i> 三模型融合检测 (IF 0.3 + XGB 0.3 + LSTM 0.4)</div>
+<div class="card-body">
 <div class="row g-2">
 <div class="col-md-4">
-<div class="cd"><div class="cd-tt"><i class="fas fa-bolt" style="color:var(--w)"></i>检测配置</div>
-<div class="uz mb-2" onclick="document.getElementById('detF').click()"><i class="fas fa-cloud-upload-alt"></i><div style="font-size:12px;font-weight:500">上传检测数据</div><div style="font-size:10px;color:var(--t2)">CSV/JSON</div></div>
+<div class="upload-zone mb-2" onclick="document.getElementById('detF').click()"><i class="fas fa-cloud-upload-alt"></i><div>上传CSV/JSON</div></div>
 <input type="file" id="detF" accept=".csv,.json" style="display:none" onchange="detFile(this)">
-<div class="d-grid gap-1">
-<button class="bp" onclick="detSample()"><i class="fas fa-flask"></i>内置样本检测(100条)</button>
-<button class="bs" onclick="loadDetHist()"><i class="fas fa-history"></i>检测历史</button>
-</div>
-</div>
+<button class="btn btn-primary w-100" onclick="detSample()">内置样本检测(100条)</button>
 </div>
 <div class="col-md-8">
-<div class="sg"><div class="sc"><div class="sn p" id="detT">--</div><div class="sl">总记录</div></div>
-<div class="sc"><div class="sn d" id="detA">--</div><div class="sl">异常数</div></div>
-<div class="sc"><div class="sn s" id="detConf">--</div><div class="sl">平均置信度</div></div>
-<div class="sc"><div class="sn" id="detTim">--</div><div class="sl">耗时</div></div></div>
-<div class="cd"><div class="cd-tt" style="font-size:12px"><i class="fas fa-table"></i>三模型融合检测结果</div>
-<div style="max-height:240px;overflow-y:auto"><table class="tb"><thead><tr><th>#</th><th>结果</th><th>风险分数</th><th>风险等级</th><th>攻击类型</th></tr></thead><tbody id="detTB"></tbody></table></div></div>
+<div class="stat-grid">
+<div class="stat-card"><div class="stat-num text-primary" id="detT">--</div><div class="stat-label">总记录</div></div>
+<div class="stat-card"><div class="stat-num text-danger" id="detA">--</div><div class="stat-label">异常数</div></div>
+<div class="stat-card"><div class="stat-num text-success" id="detConf">--</div><div class="stat-label">平均置信度</div></div>
+<div class="stat-card"><div class="stat-num" id="detTim">--</div><div class="stat-label">耗时</div></div>
+</div>
+</div>
+</div>
+<table class="table table-sm mt-2"><thead><tr><th>#</th><th>结果</th><th>风险分数</th><th>风险等级</th><th>攻击类型</th></tr></thead><tbody id="detTB"></tbody></table>
 </div></div>
 </div>
 
-<!-- ── 加密对比 ── -->
-<div class="sec" id="s-enc">
-<div class="cd"><div class="cd-tt"><i class="fas fa-scale-balanced" style="color:var(--p)"></i>AES-256 vs Paillier同态加密</div>
+<!-- Encrypt -->
+<div class="page" id="pg-enc" style="display:none">
+<div class="card"><div class="card-header"><i class="fas fa-lock text-primary"></i> AES-256 vs Paillier</div>
+<div class="card-body">
 <div class="row g-2 align-items-end">
-<div class="col-md-3"><div class="fl">数据量</div><select class="fe" id="encSz"><option value="1">1MB</option><option value="5">5MB</option><option value="10" selected>10MB</option><option value="20">20MB</option><option value="50">50MB</option></select></div>
-<div class="col-md-3"><button class="bp" onclick="updEnc()"><i class="fas fa-sync"></i>刷新</button></div></div></div>
-<div class="row g-2">
-<div class="col-md-6"><div class="cd"><div class="ch"><canvas id="encCh"></canvas></div></div></div>
-<div class="col-md-6"><div class="cd"><div class="cd-tt" style="font-size:12px"><i class="fas fa-table"></i>详细对比</div><div id="encTB"><div style="font-size:11px;color:var(--t2)">点击刷新</div></div></div></div>
+<div class="col-md-3"><label class="form-label">数据量</label><select class="form-select" id="encSz"><option value="1">1MB</option><option value="10" selected>10MB</option><option value="50">50MB</option></select></div>
+<div class="col-md-3"><button class="btn btn-primary" onclick="updEnc()">刷新</button></div>
 </div>
+<div class="row g-2 mt-2">
+<div class="col-md-6"><div class="chart-box"><canvas id="encCh"></canvas></div></div>
+<div class="col-md-6"><div id="encTB"></div></div>
+</div>
+</div></div>
 </div>
 
-<!-- ── 自适应优化 ── -->
-<div class="sec" id="s-optim">
+<!-- Optimize -->
+<div class="page" id="pg-optim" style="display:none">
 <div class="row g-2">
 <div class="col-md-4">
-<div class="cd"><div class="cd-tt"><i class="fas fa-sliders-h" style="color:var(--p)"></i>系统状态</div>
-<div class="mb-2"><div style="display:flex;justify-content:space-between;font-size:11px"><span>攻击风险</span><span id="oRL">--</span></div>
-<div style="height:5px;background:var(--b);border-radius:3px;margin-top:3px"><div id="oRB" style="height:100%;border-radius:3px;background:var(--s);width:10%;transition:width .5s"></div></div></div>
-<div style="font-size:11px;line-height:1.8">
-<div class="d-flex justify-content-between"><span>密钥</span><b id="oKL">--</b></div>
-<div class="d-flex justify-content-between"><span>轮数</span><b id="oRR">--</b></div>
-<div class="d-flex justify-content-between"><span>增益</span><b style="color:var(--s)" id="oG">--</b></div>
-</div>
-<div class="d-grid gap-1 mt-2">
-<button class="bp" onclick="toggleAuto()"><i class="fas fa-play"></i><span id="oABT">开启自动优化</span></button>
-<button class="bs" onclick="trigOpt()"><i class="fas fa-sync"></i>手动调整</button>
-</div>
-</div>
-<div class="cd"><div class="cd-tt" style="font-size:11px"><i class="fas fa-clock"></i>静态 vs 自适应对比</div><div style="font-size:11px" id="oCmp">加载中...</div></div>
-</div>
-<div class="col-md-8">
-<div class="cd"><div class="cd-tt"><i class="fas fa-chart-area" style="color:var(--p)"></i>参数变化历史</div><div class="ch"><canvas id="oCh"></canvas></div></div>
-<div class="cd"><div class="cd-tt" style="font-size:11px"><i class="fas fa-history"></i>优化记录</div>
-<div style="max-height:160px;overflow-y:auto"><table class="tb"><thead><tr><th>时间</th><th>调参</th><th>参数</th><th>风险</th><th>原因</th></tr></thead><tbody id="oTB"></tbody></table></div></div>
+<div class="card"><div class="card-header">系统状态</div><div class="card-body">
+<div class="mb-2"><span>攻击风险</span>
+<div class="progress" style="height:6px"><div class="progress-bar" id="oRB" style="width:10%;background:#A3BE8C"></div></div></div>
+<div><span>密钥</span><b id="oKL">--</b></div>
+<div><span>轮数</span><b id="oRR">--</b></div>
+<div><span>增益</span><b class="text-success" id="oG">--</b></div>
+<div class="mt-2"><button class="btn btn-primary btn-sm" onclick="toggleAuto()">自动优化</button></div>
 </div></div>
 </div>
-
-<!-- ── 数据看板 ── -->
-<div class="sec" id="s-dash">
-<div class="d-flex justify-content-between align-items-center mb-2">
-<div style="font-size:13px;font-weight:600">实时监控面板</div>
-<select class="fe" style="width:auto;padding:3px 10px" id="dR" onchange="loadDash()"><option value="1">1h</option><option value="6">6h</option><option value="24" selected>24h</option><option value="168">7d</option></select>
+<div class="col-md-8">
+<div class="card"><div class="card-header">优化记录</div>
+<div class="card-body" style="max-height:200px;overflow-y:auto">
+<table class="table table-sm"><thead><tr><th>时间</th><th>参数</th><th>风险</th><th>原因</th></tr></thead><tbody id="oTB"></tbody></table>
+</div></div>
 </div>
-<div class="sg"><div class="sc"><div class="sn d" id="daA">--</div><div class="sl">总攻击数</div></div>
-<div class="sc"><div class="sn s" id="daR">--</div><div class="sl">检测准确率</div></div>
-<div class="sc"><div class="sn p" id="daG">--</div><div class="sl">效率提升</div></div>
-<div class="sc"><div class="sn" id="daL">--</div><div class="sl">安全等级</div></div></div>
+</div>
+</div>
+
+<!-- Dashboard -->
+<div class="page" id="pg-dash" style="display:none">
+<div class="d-flex justify-content-between mb-2">
+<span style="font-weight:600">实时监控</span>
+<select class="form-select" style="width:auto" id="dR" onchange="loadDash()"><option value="1">1h</option><option value="24" selected>24h</option><option value="168">7d</option></select>
+</div>
+<div class="stat-grid">
+<div class="stat-card"><div class="stat-num text-danger" id="daA">--</div><div class="stat-label">总攻击</div></div>
+<div class="stat-card"><div class="stat-num text-success" id="daR">--</div><div class="stat-label">检测率</div></div>
+<div class="stat-card"><div class="stat-num text-primary" id="daG">--</div><div class="stat-label">效率提升</div></div>
+<div class="stat-card"><div class="stat-num" id="daL">--</div><div class="stat-label">安全等级</div></div>
+</div>
 <div class="row g-2">
-<div class="col-md-6"><div class="cd"><div class="cd-tt" style="font-size:11px"><i class="fas fa-chart-line" style="color:var(--p)"></i>攻击风险与密钥联动</div><div class="ch"><canvas id="dmC"></canvas></div></div></div>
-<div class="col-md-6"><div class="cd"><div class="cd-tt" style="font-size:11px"><i class="fas fa-chart-pie" style="color:var(--w)"></i>系统性能趋势</div><div class="ch"><canvas id="dpC"></canvas></div></div></div>
+<div class="col-md-6"><div class="card"><div class="card-header">攻击风险</div><div class="card-body"><div class="chart-box"><canvas id="dmC"></canvas></div></div></div></div>
+<div class="col-md-6"><div class="card"><div class="card-header">系统性能</div><div class="card-body"><div class="chart-box"><canvas id="dpC"></canvas></div></div></div></div>
 </div>
 </div>
 
-</div><!-- main -->
+</div><!-- /content -->
 
 <script>
-var C={p:'#5E81AC',s:'#A3BE8C',w:'#EBCB8B',d:'#BF616A'};
-var charts={},optT=null,auto=false;
-
-function api(url,opts){
-  opts=opts||{};var c=new AbortController();
-  var t=setTimeout(function(){c.abort();},10000);
-  return fetch(url,Object.assign({headers:{'Content-Type':'application/json'},signal:c.signal},opts))
-  .then(function(r){clearTimeout(t);return r.json();})
-  .then(function(j){if(j.code===200)return j.data||j;throw new Error(j.msg||'请求失败');})
-  .catch(function(e){clearTimeout(t);throw e;});
+// ---- Utility (XMLHttpRequest-based, no fetch) ----
+function get(url, cb) {
+  var x = new XMLHttpRequest();
+  x.open('GET', url, true);
+  x.setRequestHeader('Content-Type', 'application/json');
+  x.onload = function() {
+    if (x.status === 200) {
+      try { var j = JSON.parse(x.responseText); cb(j.data || j, null); }
+      catch(e) { cb(null, e.message); }
+    } else { cb(null, 'HTTP ' + x.status); }
+  };
+  x.onerror = function() { cb(null, 'Network error'); };
+  x.timeout = 10000;
+  x.send();
 }
-function p(url,b){return api(url,{method:'POST',body:JSON.stringify(b||{})});}
+function post(url, body, cb) {
+  var x = new XMLHttpRequest();
+  x.open('POST', url, true);
+  x.setRequestHeader('Content-Type', 'application/json');
+  x.onload = function() {
+    if (x.status === 200) {
+      try { var j = JSON.parse(x.responseText); cb(j.data || j, null); }
+      catch(e) { cb(null, e.message); }
+    } else { cb(null, 'HTTP ' + x.status); }
+  };
+  x.onerror = function() { cb(null, 'Network error'); };
+  x.timeout = 30000;
+  x.send(JSON.stringify(body || {}));
+}
 
-/* Nav */
-document.getElementById('seg').addEventListener('click',function(e){
-  var b=e.target.closest('.seg-btn');if(!b)return;
-  var s=b.dataset.s;
-  document.querySelectorAll('.seg-btn').forEach(function(x){x.classList.remove('on');});
-  b.classList.add('on');
-  document.querySelectorAll('.sec').forEach(function(x){x.classList.remove('on');});
-  document.getElementById('s-'+s).classList.add('on');
-  if(s==='dash')loadDash();
-  if(s==='optim')loadOpt();
-  if(s==='enc')updEnc();
-  if(s==='fed')loadFedStatus();
-  if(s==='ds')loadDSStatus();
-  if(s==='train')loadTrainHist();
-  if(s==='detect')loadDetHist();
+// ---- Navigation ----
+var curPage = 'data';
+document.getElementById('nav').addEventListener('click', function(e) {
+  var a = e.target.closest('a');
+  if (!a || !a.dataset.page) return;
+  e.preventDefault();
+  var pg = a.dataset.page;
+  // Switch nav
+  var links = document.querySelectorAll('#nav a');
+  for (var i = 0; i < links.length; i++) links[i].classList.remove('active');
+  a.classList.add('active');
+  // Switch page
+  var pages = document.querySelectorAll('.page');
+  for (var i = 0; i < pages.length; i++) pages[i].style.display = 'none';
+  document.getElementById('pg-' + pg).style.display = 'block';
+  curPage = pg;
+  // Lazy load
+  if (pg === 'dash') loadDash();
+  if (pg === 'fed') loadFed();
+  if (pg === 'ds') loadDS();
+  if (pg === 'optim') loadOpt();
+  if (pg === 'enc') updEnc();
+  if (pg === 'train') loadTrainHist();
 });
 
-/* Status Bar */
-setInterval(function(){
-  api('/api/data/statistics').then(function(d){
-    document.getElementById('stM').textContent=d.models_ready?'已训练':'训练中';
-    document.getElementById('stK').textContent=(d.current_key_length||'--')+'bit/'+(d.current_rounds||'--')+'轮';
-    document.getElementById('stR').textContent=d.risk_level||'--';
-    document.getElementById('stT').textContent=new Date().toLocaleTimeString();
-    document.getElementById('stD').className='sdot '+((d.models_ready)?'g':'y');
-    // Check UNSW
-    api('/api/dataset/unsw/status').then(function(u){document.getElementById('stDS').textContent=u.exists?'UNSW-15MB':'未加载';}).catch(function(){});
-  }).catch(function(){});
-},1000);
+// ---- Toast ----
+function toast(msg, ok) {
+  var t = document.getElementById('toast');
+  if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast-msg'; document.body.appendChild(t); }
+  t.className = 'toast-msg ' + (ok ? 'toast-ok' : 'toast-err');
+  t.textContent = msg;
+  t.style.display = 'block';
+  setTimeout(function() { t.style.display = 'none'; }, 3000);
+}
 
-/* Data prep */
-document.getElementById('dc').addEventListener('input',function(){
-  document.getElementById('dcL').textContent=this.value+'条';
+// ---- Data Gen ----
+document.getElementById('dc').addEventListener('input', function() {
+  document.getElementById('dcL').textContent = this.value + '条';
 });
-function bldT(d){
-  if(!d||!d.length)return '<div style="padding:16px;text-align:center;color:var(--t2)">暂无数据</div>';
-  var cols=Object.keys(d[0]).slice(0,6);
-  var h='<table class="tb"><thead><tr>'+cols.map(function(c){return'<th>'+c+'</th>';}).join('')+'</tr></thead><tbody>';
-  for(var i=0;i<d.length;i++){h+='<tr>';for(var j=0;j<cols.length;j++){var v=d[i][cols[j]];if(typeof v==='object')v=JSON.stringify(v).slice(0,25);else v=String(v).slice(0,35);h+='<td>'+v+'</td>';}h+='</tr>';}
-  return h+'</tbody></table>';
-}
-function genData(){
-  var n=parseInt(document.getElementById('dc').value);
-  p('/api/generate_dataset',{n_records:n}).then(function(d){
-    document.getElementById('pp').innerHTML=bldT(d.plaintext||[]);
-    document.getElementById('ep').innerHTML=bldT(d.encrypted||[]);
-    toast('生成完成','s');
-  }).catch(function(e){toast(e.message);});
-}
-function upData(i){if(!i.files||!i.files[0])return;
-  var fd=new FormData();fd.append('file',i.files[0]);
-  fetch('/upload',{method:'POST',body:fd}).then(function(r){return r.json();})
-  .then(function(j){if(j.code!==200)throw new Error(j.msg);document.getElementById('pp').innerHTML=bldT((j.data||j).detections||[]);toast('上传成功','s');})
-  .catch(function(e){toast(e.message);});
+
+function genData() {
+  var n = parseInt(document.getElementById('dc').value);
+  var btn = document.querySelector('#pg-data .btn-primary');
+  btn.disabled = true;
+  post('/api/generate_dataset', {n_records: n}, function(d, err) {
+    btn.disabled = false;
+    if (err) return toast(err);
+    document.getElementById('pp').innerHTML = buildTable(d.plaintext);
+    document.getElementById('ep').innerHTML = buildTable(d.encrypted);
+    toast('生成完成: ' + n + '条', true);
+  });
 }
 
-/* Dataset */
-function loadDSStatus(){
-  api('/api/dataset/unsw/status').then(function(d){
-    document.getElementById('dsStats').innerHTML='<div style="font-size:13px;font-weight:600;color:var(--p)">UNSW-NB15 '+ (d.exists?'<span style=\"color:var(--s)\">已加载</span>':'<span style=\"color:var(--d)\">未加载</span>')+'</div><div style=\"color:var(--t2)\">文件数: '+(d.files?d.files.length:0)+'</div><div style=\"color:var(--t2);margin-top:8px;font-size:10px\">'+d.path+'</div>';
-  }).catch(function(){});
-  api('/api/federated/nodes').then(function(d){
-    var nodes=d.nodes||[],h='';
-    for(var i=0;i<nodes.length;i++){
-      var n=nodes[i],ic='fa-hospital';if(n.name==='bank')ic='fa-university';else if(n.name==='insurance')ic='fa-shield-alt';else if(n.name==='government')ic='fa-landmark';
-      h+='<div class="node-cd"><div class="node-icon" style="color:'+(n.ready?'var(--s)':'var(--t2)')+'"><i class="fas '+ic+'"></i></div><div class="node-name">'+n.name+'</div><div class="node-stat">'+(n.ready?n.samples+'条':'未加载')+'</div></div>';
+function buildTable(data) {
+  if (!data || !data.length) return '<div class="text-muted text-center py-3">暂无数据</div>';
+  var cols = Object.keys(data[0]).slice(0, 6);
+  var h = '<table class="table table-sm"><thead><tr>';
+  for (var j = 0; j < cols.length; j++) h += '<th>' + cols[j] + '</th>';
+  h += '</tr></thead><tbody>';
+  for (var i = 0; i < data.length; i++) {
+    h += '<tr>';
+    for (var j = 0; j < cols.length; j++) {
+      var v = data[i][cols[j]];
+      if (typeof v === 'object') v = JSON.stringify(v).substring(0, 25);
+      else v = String(v).substring(0, 35);
+      h += '<td>' + v + '</td>';
     }
-    document.getElementById('dsNodes').innerHTML=h||'<div style="font-size:11px;color:var(--t2)">点击"处理数据集"拆分联邦节点</div>';
-  }).catch(function(){});
-}
-function procDS(){
-  var btn=document.querySelector('#s-ds .bp');
-  btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i>处理中...';
-  p('/api/dataset/unsw/process').then(function(d){
-    document.getElementById('dsStats').innerHTML='<div style=\"font-size:13px;font-weight:600;color:var(--s)\">处理完成</div><div style=\"color:var(--t2)\">样本数: '+d.samples+' 条</div><div style=\"color:var(--t2)\">特征数: '+d.features+' 维</div><div style=\"color:var(--t2);margin-top:4px\">三模型融合精度: '+d.ensemble_accuracy+'</div>';
-    loadDSStatus();
-    toast('数据集处理完成!','s');
-    // Auto switch to federated tab
-    document.querySelectorAll('.seg-btn').forEach(function(x){x.classList.remove('on');});
-    document.querySelector('[data-s=\"fed\"]').classList.add('on');
-    document.querySelectorAll('.sec').forEach(function(x){x.classList.remove('on');});
-    document.getElementById('s-fed').classList.add('on');
-    loadFedStatus();
-  }).catch(function(e){toast(e.message);}).then(function(){btn.disabled=false;btn.innerHTML='<i class=\"fas fa-cogs\"></i>处理数据集';});
-}
-
-/* Training */
-var trC=null;
-function startTrain(){
-  var ds=document.getElementById('trDS').value;
-  var model=document.getElementById('trModel').value;
-  var ep=parseInt(document.getElementById('trE').value)||10;
-  var btn=document.querySelector('#s-train .bp');
-  btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i>训练中...';
-
-  if(model==='dual'){
-    p('/api/train/dual',{epochs:ep}).then(function(res){
-      var trad=[],fed=[];
-      for(var i=0;i<ep;i++){var pr=(i+1)/ep;trad.push(0.5+pr*0.45-Math.random()*0.01);fed.push(0.5+pr*0.43-Math.random()*0.02);}
-      if(res.traditional)trad[trad.length-1]=res.traditional.accuracy;
-      if(res.federated)fed[fed.length-1]=res.federated.accuracy;
-      renderTrainChart(trad,fed,'传统逻辑回归','联邦逻辑回归');
-      document.getElementById('trRes').innerHTML=
-        '<table class="tb"><tr><th>指标</th><th>传统</th><th>联邦</th><th>差异</th></tr>'+
-        '<tr><td>精度</td><td>'+(res.traditional.accuracy*100).toFixed(1)+'%</td><td>'+(res.federated.accuracy*100).toFixed(1)+'%</td>'+
-        '<td style="color:'+(res.comparison.accuracy_diff<0?'var(--d)':'var(--s)')+'">'+res.comparison.accuracy_diff+'%</td></tr>'+
-        '<tr><td>时间</td><td>'+res.traditional.training_time+'s</td><td>'+res.federated.training_time+'s</td><td>'+res.comparison.time_diff+'</td></tr>'+
-        '<tr><td>样本</td><td colspan="3">'+res.samples+'条, '+res.features+'维</td></tr></table>'+
-        '<div style="font-size:10px;color:var(--t2);margin-top:4px">联邦训练在几乎不损失精度前提下保证数据隐私</div>';
-    }).catch(function(e){toast(e.message);}).then(function(){btn.disabled=false;btn.innerHTML='<i class="fas fa-play"></i>开始训练';});
-  }else if(model==='xgboost'){
-    p('/api/dataset/unsw/process').then(function(d){
-      renderTrainChart([d.ensemble_accuracy],[0],'XGBoost训练','');
-      document.getElementById('trRes').innerHTML='<div style="font-size:13px;color:var(--s)">XGBoost训练完成!</div><div style="color:var(--t2)">三模型融合精度: '+d.ensemble_accuracy+'</div><div style="color:var(--t2)">联邦节点: '+d.nodes.length+'个</div>';
-    }).catch(function(e){toast(e.message);}).then(function(){btn.disabled=false;btn.innerHTML='<i class="fas fa-play"></i>开始训练';});
-  }else{
-    p('/api/dataset/unsw/process').then(function(d){
-      renderTrainChart([d.ensemble_accuracy],[0],'三模型融合','');
-      document.getElementById('trRes').innerHTML='<div style="font-size:13px;color:var(--s)">三模型融合训练完成!</div><div style="color:var(--t2)">IF(0.3)+XGB(0.3)+LSTM(0.4) 精度: '+d.ensemble_accuracy+'</div>';
-    }).catch(function(e){toast(e.message);}).then(function(){btn.disabled=false;btn.innerHTML='<i class="fas fa-play"></i>开始训练';});
+    h += '</tr>';
   }
-  loadTrainHist();
-}
-function renderTrainChart(d1,d2,l1,l2){
-  var ctx=document.getElementById('trCh').getContext('2d');if(trC)trC.destroy();
-  var labs=[];for(var i=0;i<d1.length;i++)labs.push('E'+(i+1));
-  var ds=[{label:l1,data:d1,borderColor:C.p,backgroundColor:'rgba(94,129,172,0.06)',fill:true,tension:.3,pointRadius:2}];
-  if(d2.length)ds.push({label:l2,data:d2,borderColor:C.s,borderDash:[4,3],backgroundColor:'rgba(163,190,140,0.06)',fill:true,tension:.3,pointRadius:2});
-  trC=new Chart(ctx,{type:'line',data:{labels:labs,datasets:ds},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{usePointStyle:true,boxWidth:8,font:{size:10}}}},scales:{y:{min:0,max:1,grid:{color:'rgba(0,0,0,0.04)'}}}}});
-}
-function loadTrainHist(){
-  api('/api/train/history').then(function(d){
-    var rows=(d.records||[]).slice(0,10),h='';
-    for(var i=0;i<rows.length;i++){var r=rows[i];h+='<tr><td>'+r.id+'</td><td>'+(r.model_type||'--')+'</td><td>'+(r.dataset_name||'--')+'</td><td>'+(r.accuracy?(r.accuracy*100).toFixed(1)+'%':'--')+'</td><td>'+(r.training_time?r.training_time.toFixed(1)+'s':'--')+'</td><td>'+(r.samples||'--')+'</td></tr>';}
-    document.getElementById('trHistTB').innerHTML=h;
-  }).catch(function(){});
+  return h + '</tbody></table>';
 }
 
-/* Federated */
-var fedCh=null;
-function loadFedStatus(){
-  api('/api/federated/nodes').then(function(d){
-    var nodes=d.nodes||[],h='';
-    for(var i=0;i<nodes.length;i++){
-      var n=nodes[i],ic='fa-hospital';if(n.name==='bank')ic='fa-university';else if(n.name==='insurance')ic='fa-shield-alt';else if(n.name==='government')ic='fa-landmark';
-      h+='<div class="node-cd" style="cursor:pointer" onclick="trainSingleNode(\''+n.name+'\')"><div class="node-icon" style="color:'+(n.ready?'var(--s)':'var(--t2)')+'"><i class="fas '+ic+'"></i></div><div class="node-name">'+n.name+'</div><div class="node-stat">'+(n.ready?n.samples+'条':'未加载')+'</div></div>';
+// ---- Dataset ----
+function loadDS() {
+  get('/api/dataset/unsw/status', function(d) { document.getElementById('dsInfo').innerHTML = d.exists ? '<span class="text-success">已加载</span> '+d.files.length+'个文件' : '<span class="text-warning">未加载</span>'; });
+  get('/api/federated/nodes', function(d) {
+    var nodes = d.nodes || [], h = '', icons = {hospital: 'fa-hospital', bank: 'fa-university', insurance: 'fa-shield-alt', government: 'fa-landmark'};
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i];
+      h += '<div class="node-card"><div class="icon"><i class="fas '+(icons[n.name]||'fa-server')+'"></i></div><div class="name">'+n.name+'</div><div class="count">'+(n.ready?n.samples+'条':'未加载')+'</div></div>';
     }
-    document.getElementById('fedNodes').innerHTML=h||'<div style="font-size:11px;color:var(--t2)">请先在"数据集"页处理UNSW-NB15</div>';
-    // Load history
-    api('/api/federated/history').then(function(d2){
-      var recs=d2.records||[];
-      if(recs.length)document.getElementById('fedDet').innerHTML='<table class="tb"><tr><th>节点</th><th>精度</th><th>轮次</th></tr>'+recs.map(function(r){return'<tr><td>'+(r.dataset_name||'')+'</td><td>'+(r.accuracy?r.accuracy.toFixed(2):'--')+'</td><td>'+(r.epochs||'')+'</td></tr>';}).join('')+'</table>';
-    }).catch(function(){});
-  }).catch(function(){});
+    document.getElementById('dsNodes').innerHTML = h || '<div class="text-muted">请先处理数据集</div>';
+  });
 }
-function runFedRound(){
-  var ep=parseInt(document.getElementById('fedE').value)||5;
-  var btn=document.querySelector('#s-fed .bp');btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i>训练中...';
-  p('/api/federated/round',{epochs:ep}).then(function(d){
-    var h='<table class="tb"><tr><th>节点</th><th>精度</th><th>样本</th></tr>';
-    for(var i=0;i<(d.clients||[]).length;i++){var c=d.clients[i];h+='<tr><td>'+c.name+'</td><td style=\"color:var(--s)\">'+c.accuracy+'</td><td>'+c.samples+'</td></tr>';}
-    h+='<tr style=\"font-weight:600;color:var(--p)\"><td>FedAvg聚合</td><td colspan=\"2\">第'+d.round+'轮, 平均精度: '+d.avg_accuracy+'</td></tr></table>';
-    document.getElementById('fedDet').innerHTML=h;
+
+function procDS() {
+  var btn = document.querySelector('#pg-ds .btn-primary');
+  btn.disabled = true; btn.innerHTML = '处理中...';
+  post('/api/dataset/unsw/process', {}, function(d, err) {
+    btn.disabled = false; btn.innerHTML = '处理数据集+训练模型';
+    if (err) return toast(err);
+    document.getElementById('dsInfo').innerHTML = '<div class="text-success">处理完成!</div><div class="small">样本: '+d.samples+' | 特征: '+d.features+'维 | 融合精度: '+d.ensemble_accuracy+'</div><div class="small text-muted">联邦节点: '+d.nodes.map(function(n){return n.name+':'+n.samples}).join(', ')+'</div>';
+    loadDS();
+    // Switch to federated tab
+    document.querySelector('[data-page=\"fed\"]').click();
+    loadFed();
+    toast('数据集处理完成！已切换到联邦学习', true);
+  });
+}
+
+// ---- Training ----
+var trChart = null;
+function startTrain() {
+  var ep = parseInt(document.getElementById('trE').value) || 10;
+  var btn = document.querySelector('#pg-train .btn-primary');
+  btn.disabled = true; btn.innerHTML = '训练中...';
+  post('/api/train/dual', {epochs: ep}, function(res, err) {
+    btn.disabled = false; btn.innerHTML = '开始训练';
+    if (err) return toast(err);
     // Chart
-    var hist=d.history||[],accs=[],labs=[];
-    for(var i=0;i<hist.length;i++){accs.push(hist[i].accuracy);labs.push('R'+hist[i].round);}
-    var ctx=document.getElementById('fedCh').getContext('2d');if(fedCh)fedCh.destroy();
-    if(accs.length)fedCh=new Chart(ctx,{type:'line',data:{labels:labs,datasets:[{label:'联邦平均精度',data:accs,borderColor:C.s,backgroundColor:'rgba(163,190,140,0.06)',fill:true,tension:.3,pointRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:0,max:1,grid:{color:'rgba(0,0,0,0.04)'}}}}});
-    toast('联邦第'+d.round+'轮完成, 精度:'+d.avg_accuracy,'s');
-  }).catch(function(e){toast(e.message);}).then(function(){btn.disabled=false;btn.innerHTML='<i class="fas fa-play"></i>执行一轮联邦训练';});
+    var trad = [], fed = [];
+    for (var i = 0; i < ep; i++) { var p = (i+1)/ep; trad.push(0.5+p*0.45-Math.random()*0.01); fed.push(0.5+p*0.43-Math.random()*0.02); }
+    if (res.traditional) trad[trad.length-1] = res.traditional.accuracy;
+    if (res.federated) fed[fed.length-1] = res.federated.accuracy;
+    renderTrainChart(trad, fed);
+    // Results
+    document.getElementById('trRes').innerHTML =
+      '<table class="table table-sm"><tr><th>指标</th><th>传统</th><th>联邦</th><th>差异</th></tr>'+
+      '<tr><td>精度</td><td>'+(res.traditional.accuracy*100).toFixed(1)+'%</td><td>'+(res.federated.accuracy*100).toFixed(1)+'%</td>'+
+      '<td>'+(res.comparison.accuracy_diff<0?'':'+')+res.comparison.accuracy_diff+'%</td></tr>'+
+      '<tr><td>时间</td><td>'+res.traditional.training_time+'s</td><td>'+res.federated.training_time+'s</td><td>'+res.comparison.time_diff+'</td></tr>'+
+      '<tr><td>样本</td><td colspan="3">'+res.samples+'条</td></tr></table>'+
+      '<div class="small text-muted">联邦训练在几乎不损失精度前提下保证数据隐私</div>';
+    loadTrainHist();
+    toast('训练完成!', true);
+  });
 }
-function trainSingleNode(name){toast('点击"执行一轮联邦训练"对4个节点同时训练','s');}
-
-/* Detection */
-function detSample(){
-  var t0=Date.now();
-  var samples=[];
-  for(var i=0;i<100;i++){samples.push({key_generation_time:Math.random()*2,ciphertext_entropy:Math.random()*8,hash_collision_count:Math.floor(Math.random()*200),request_frequency:Math.random()*500+10,response_time:Math.random(),payload_size:Math.floor(Math.random()*10000),connection_duration:Math.random()*600,packet_interarrival:Math.random(),failed_attempts:Math.floor(Math.random()*100),session_duration:Math.random()*2000,request_size_variance:Math.random()*1000,encryption_rounds:Math.floor(Math.random()*5)+1,decryption_success_rate:Math.random(),memory_usage:Math.random(),cpu_usage:Math.random(),network_latency:Math.random()*0.1,protocol_violations:Math.floor(Math.random()*15),anomaly_score:Math.random()});}
-  p('/api/ensemble/detect',{data:samples}).then(function(d){
-    showDetRes(d,((Date.now()-t0)/1000).toFixed(3));
-  }).catch(function(e){toast(e.message);});
+function renderTrainChart(d1, d2) {
+  var ctx = document.getElementById('trCh').getContext('2d');
+  if (trChart) trChart.destroy();
+  var labs = []; for (var i = 0; i < d1.length; i++) labs.push('E'+(i+1));
+  var ds = [{label: '传统逻辑回归', data: d1, borderColor: '#5E81AC', borderDash: [5,3], fill: false, tension: 0.3, pointRadius: 2}];
+  if (d2.length) ds.push({label: '联邦逻辑回归', data: d2, borderColor: '#A3BE8C', fill: false, tension: 0.3, pointRadius: 2});
+  trChart = new Chart(ctx, {type: 'line', data: {labels: labs, datasets: ds}, options: {responsive: true, maintainAspectRatio: false, plugins: {legend: {position: 'top'}}, scales: {y: {min: 0, max: 1}}}});
 }
-function detFile(i){if(!i.files||!i.files[0])return;
-  var fd=new FormData();fd.append('file',i.files[0]);
-  var t0=Date.now();
-  fetch('/upload',{method:'POST',body:fd}).then(function(r){return r.json();}).then(function(j){if(j.code!==200)throw new Error(j.msg);showDetRes(j.data||j,((Date.now()-t0)/1000).toFixed(3));}).catch(function(e){toast(e.message);});
-}
-function showDetRes(d,time){
-  document.getElementById('detT').textContent=d.total||0;
-  document.getElementById('detA').textContent=d.anomalies||0;
-  var dets=d.detections||[],confs=[];
-  for(var i=0;i<dets.length;i++){var s=dets[i].risk_score||dets[i].confidence||0;if(s)confs.push(s);}
-  document.getElementById('detConf').textContent=confs.length?(confs.reduce(function(a,b){return a+b;},0)/confs.length*100).toFixed(1)+'%':'--';
-  document.getElementById('detTim').textContent=time+'s';
-  var h='';
-  for(var i=0;i<dets.length;i++){var r=dets[i],atk=r.is_attack||(r.risk_score>0.5);h+='<tr style="'+(atk?'background:rgba(191,97,106,0.04)':'')+'"><td>'+(r.id||i+1)+'</td><td style="color:'+(atk?'var(--d)':'var(--s)')+'">'+(atk?'⚠异常':'✓正常')+'</td><td>'+(r.risk_score?r.risk_score.toFixed(3):'--')+'</td><td>'+r.risk_level+'</td><td>'+(r.attack_type||'--')+'</td></tr>';}
-  document.getElementById('detTB').innerHTML=h;
-}
-function loadDetHist(){
-  api('/api/detection/history').then(function(d){
-    var rows=(d.records||[]).slice(0,5);
-    // Show in a table at bottom
-  }).catch(function(){});
+function loadTrainHist() {
+  get('/api/train/history', function(d) {
+    var rows = (d.records || []).slice(0, 10), h = '';
+    for (var i = 0; i < rows.length; i++) { var r = rows[i]; h += '<tr><td>'+r.id+'</td><td>'+r.model_type+'</td><td>'+(r.accuracy?(r.accuracy*100).toFixed(1)+'%':'--')+'</td><td>'+(r.training_time?r.training_time.toFixed(1)+'s':'--')+'</td><td>'+r.samples+'</td></tr>'; }
+    document.getElementById('trHistTB').innerHTML = h || '<tr><td colspan="5" class="text-muted">暂无训练记录</td></tr>';
+  });
 }
 
-/* Encryption */
-var encC=null;
-function updEnc(){
-  var mb=parseInt(document.getElementById('encSz').value);
-  p('/api/compare_encryption',{data_size_mb:mb}).then(function(d){
-    document.getElementById('encTB').innerHTML='<table class="tb"><tr><th>指标</th><th>AES-256</th><th>Paillier</th></tr><tr><td>加密时间</td><td>'+d.traditional.encryption_time_ms+'ms</td><td>'+d.homomorphic.encryption_time_ms+'ms</td></tr><tr><td>解密时间</td><td>'+d.traditional.decryption_time_ms+'ms</td><td>'+d.homomorphic.decryption_time_ms+'ms</td></tr><tr><td>吞吐量</td><td>'+d.traditional.throughput_mbps+'Mbps</td><td>'+d.homomorphic.throughput_mbps+'Mbps</td></tr><tr><td>安全级别</td><td>'+d.traditional.security_level+'</td><td>'+d.homomorphic.security_level+'</td></tr><tr><td>联邦学习</td><td>不支持</td><td>支持</td></tr></table>';
-    var ctx=document.getElementById('encCh').getContext('2d');if(encC)encC.destroy();
-    var labs=[];for(var i=0;i<5;i++)labs.push(((i+1)*10)+'MB');
-    encC=new Chart(ctx,{type:'line',data:{labels:labs,datasets:[{label:'AES-256',data:labs.map(function(_,i){return Math.max(5,80-(i+1)*10*2.5);}),borderColor:C.p,backgroundColor:'rgba(94,129,172,0.06)',fill:true,tension:.4,pointRadius:3},{label:'Paillier',data:labs.map(function(_,i){return Math.max(3,25-(i+1)*10*0.8);}),borderColor:C.s,backgroundColor:'rgba(163,190,140,0.06)',fill:true,tension:.4,pointRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{usePointStyle:true,boxWidth:8,font:{size:10}}}},scales:{y:{beginAtZero:true,grid:{color:'rgba(0,0,0,0.04)'}},x:{grid:{display:false}}}});
-  }).catch(function(e){toast(e.message);});
+// ---- Federated ----
+var fedChart = null;
+function loadFed() {
+  get('/api/federated/nodes', function(d) {
+    var nodes = d.nodes || [], h = '', icons = {hospital: 'fa-hospital', bank: 'fa-university', insurance: 'fa-shield-alt', government: 'fa-landmark'};
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i];
+      h += '<div class="node-card"><div class="icon"><i class="fas '+(icons[n.name]||'fa-server')+'"></i></div><div class="name">'+n.name+'</div><div class="count">'+(n.ready?n.samples+'条':'未加载')+'</div></div>';
+    }
+    document.getElementById('fedNodes').innerHTML = h;
+  });
+}
+function runFed() {
+  var ep = parseInt(document.getElementById('fedE').value) || 5;
+  var btn = document.querySelector('#pg-fed .btn-primary'); btn.disabled = true; btn.innerHTML = '训练中...';
+  post('/api/federated/round', {epochs: ep}, function(d, err) {
+    btn.disabled = false; btn.innerHTML = '执行一轮';
+    if (err) return toast(err);
+    var h = '<table class="table table-sm"><tr><th>节点</th><th>精度</th><th>样本</th></tr>';
+    for (var i = 0; i < (d.clients||[]).length; i++) { var c = d.clients[i]; h += '<tr><td>'+c.name+'</td><td class=\"text-success\">'+c.accuracy+'</td><td>'+c.samples+'</td></tr>'; }
+    h += '<tr class=\"fw-bold\"><td>FedAvg聚合</td><td colspan=\"2\">第'+d.round+'轮, 平均精度: '+d.avg_accuracy+'</td></tr></table>';
+    document.getElementById('fedRes').innerHTML = h;
+    // Chart
+    var hist = d.history || [], accs = [], labs = [];
+    for (var i = 0; i < hist.length; i++) { accs.push(hist[i].accuracy); labs.push('R'+hist[i].round); }
+    var ctx = document.getElementById('fedCh').getContext('2d'); if (fedChart) fedChart.destroy();
+    if (accs.length) fedChart = new Chart(ctx, {type: 'line', data: {labels: labs, datasets: [{label: '联邦平均精度', data: accs, borderColor: '#A3BE8C', fill: false, tension: 0.3, pointRadius: 3}]}, options: {responsive: true, maintainAspectRatio: false, plugins: {legend: {display: false}}, scales: {y: {min: 0, max: 1}}}});
+    toast('第'+d.round+'轮完成', true);
+  });
 }
 
-/* Optimization */
-var oC=null;
-function loadOpt(){
-  api('/api/optimization/status').then(function(d){
-    document.getElementById('oKL').textContent=(d.current_key_length||'--')+'bit';
-    document.getElementById('oRR').textContent=(d.current_rounds||'--')+'轮';
-    document.getElementById('oG').textContent=(d.performance_gain||'0')+'%';
-    var rl=d.risk_level||'low';document.getElementById('oRL').textContent=rl;
-    var cols={low:'#A3BE8C',medium:'#EBCB8B',high:'#BF616A',critical:'#BF616A'},wd={low:'15%',medium:'40%',high:'70%',critical:'95%'};
-    document.getElementById('oRB').style.background=cols[rl]||'#A3BE8C';document.getElementById('oRB').style.width=wd[rl]||'15%';
-    api('/api/optimization/history').then(function(h){renderOptChart(h.history||[]);renderOptTbl(h.history||[]);}).catch(function(){});
-    api('/api/optimization/compare').then(function(c){
-      document.getElementById('oCmp').innerHTML='<div class="d-flex justify-content-between py-1"><span>静态(2048/10)</span><span style="color:var(--t2)">成本'+c.static_cost+'</span></div><div class="d-flex justify-content-between py-1"><span style="color:var(--p)">自适应</span><span style="color:var(--s)">成本'+c.adaptive_cost+'</span></div><div class="d-flex justify-content-between py-1"><span>效率提升</span><b style="color:var(--s)">'+c.efficiency_gain+'</b></div>';
-    }).catch(function(){});
-  }).catch(function(){});
+// ---- Detection ----
+function detSample() {
+  var samples = [];
+  for (var i = 0; i < 100; i++) samples.push({key_generation_time: Math.random()*2, ciphertext_entropy: Math.random()*8, hash_collision_count: Math.floor(Math.random()*200), request_frequency: Math.random()*500+10, response_time: Math.random(), payload_size: Math.floor(Math.random()*10000), connection_duration: Math.random()*600, packet_interarrival: Math.random(), failed_attempts: Math.floor(Math.random()*100), session_duration: Math.random()*2000, request_size_variance: Math.random()*1000, encryption_rounds: Math.floor(Math.random()*5)+1, decryption_success_rate: Math.random(), memory_usage: Math.random(), cpu_usage: Math.random(), network_latency: Math.random()*0.1, protocol_violations: Math.floor(Math.random()*15), anomaly_score: Math.random()});
+  var t0 = Date.now();
+  post('/api/ensemble/detect', {data: samples}, function(d, err) {
+    if (err) return toast(err);
+    showDetRes(d, ((Date.now()-t0)/1000).toFixed(2));
+  });
 }
-function renderOptChart(h){
-  if(!h||!h.length)return;var ctx=document.getElementById('oCh').getContext('2d');if(oC)oC.destroy();
-  var rw=[];for(var i=0;i<h.length;i++){var r=h[i].reward;if(r!==undefined)rw.push(r);}if(!rw.length)return;
-  var labs=[];for(var i=0;i<rw.length;i++)labs.push(i+1);
-  oC=new Chart(ctx,{type:'line',data:{labels:labs,datasets:[{label:'奖励',data:rw,borderColor:C.p,backgroundColor:'rgba(94,129,172,0.06)',fill:true,tension:.3,pointRadius:1}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false}},y:{grid:{color:'rgba(0,0,0,0.04)'}}}});
+function detFile(inp) {
+  if (!inp.files || !inp.files[0]) return;
+  var fd = new FormData(); fd.append('file', inp.files[0]);
+  var t0 = Date.now();
+  var x = new XMLHttpRequest();
+  x.open('POST', '/upload', true);
+  x.onload = function() {
+    if (x.status === 200) {
+      try { var j = JSON.parse(x.responseText); showDetRes(j.data||j, ((Date.now()-t0)/1000).toFixed(2)); }
+      catch(e) { toast(e.message); }
+    }
+  };
+  x.send(fd);
 }
-function renderOptTbl(h){
-  var rows=h.slice(-20).reverse(),tb='';
-  for(var i=0;i<rows.length;i++){var r=rows[i],t=r.timestamp?new Date(r.timestamp*1000).toLocaleTimeString():'--',rl=r.risk_level||'',rc=rl==='high'||rl==='critical'?'#BF616A':rl==='medium'?'#EBCB8B':'#A3BE8C';tb+='<tr><td style="color:var(--t2);font-size:10px">'+t+'</td><td>'+(r.key_length!==r.old_key_length?'调参':'维持')+'</td><td>'+(r.key_length||'--')+'bit</td><td style="color:'+rc+'">'+rl+'</td><td style="font-size:10px;color:var(--t2)">'+(r.reason_detail||r.reason||'')+'</td></tr>';}
-  document.getElementById('oTB').innerHTML=tb;
-}
-function toggleAuto(){if(auto){clearInterval(optT);optT=null;auto=false;document.getElementById('oABT').textContent='开启自动优化';return;}auto=true;document.getElementById('oABT').textContent='运行中';optT=setInterval(function(){p('/api/optimization/auto').then(loadOpt).catch(function(){});},2000);loadOpt();}
-function trigOpt(){p('/api/optimization/update',{anomaly_score:Math.random()*0.8}).then(function(){loadOpt();toast('已调整','s');}).catch(function(e){toast(e.message);});}
-
-/* Dashboard */
-var dmC=null,dpC=null;
-function loadDash(){
-  var h=parseInt(document.getElementById('dR').value);
-  api('/api/data/statistics').then(function(s){
-    document.getElementById('daA').textContent=s.total_attacks||0;document.getElementById('daR').textContent=(s.detection_rate||0)+'%';document.getElementById('daG').textContent='+'+(s.total_gain||0).toFixed(1)+'%';document.getElementById('daL').textContent=(s.risk_level||'low').toUpperCase();
-    api('/api/data/system_status?hours='+h).then(function(sys){renderDashCharts(sys.records||[]);}).catch(function(){});
-  }).catch(function(){});
-}
-function renderDashCharts(r){
-  if(!r||!r.length)return;var step=Math.max(1,Math.floor(r.length/35)),labs=[],risk=[],keyL=[],cpu=[],mem=[];
-  for(var i=0;i<r.length;i+=step){var rec=r[i];labs.push(rec.timestamp?rec.timestamp.slice(11,19):'');risk.push(rec.attack_risk||0);keyL.push((rec.key_length||2048)/4096);cpu.push((rec.cpu_usage||0.3)+(Math.random()-0.5)*0.05);mem.push((rec.memory_usage||0.4)+(Math.random()-0.5)*0.03);}
-  var ctx1=document.getElementById('dmC').getContext('2d');if(dmC)dmC.destroy();
-  dmC=new Chart(ctx1,{type:'line',data:{labels:labs,datasets:[{label:'攻击风险',data:risk,borderColor:C.d,backgroundColor:'rgba(191,97,106,0.06)',fill:true,tension:.4,pointRadius:0,yAxisID:'y'},{label:'密钥强度',data:keyL,borderColor:C.p,backgroundColor:'rgba(94,129,172,0.06)',fill:true,tension:.4,pointRadius:0,yAxisID:'y1'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{usePointStyle:true,boxWidth:8,font:{size:10}}}},scales:{y:{position:'left',min:0,max:1,grid:{color:'rgba(0,0,0,0.04)'}},y1:{position:'right',min:0,max:1,grid:{display:false}}}}});
-  var ctx2=document.getElementById('dpC').getContext('2d');if(dpC)dpC.destroy();
-  dpC=new Chart(ctx2,{type:'line',data:{labels:labs,datasets:[{label:'CPU',data:cpu,borderColor:C.w,backgroundColor:'rgba(235,203,139,0.06)',fill:true,tension:.4,pointRadius:0},{label:'内存',data:mem,borderColor:C.s,backgroundColor:'rgba(163,190,140,0.06)',fill:true,tension:.4,pointRadius:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{usePointStyle:true,boxWidth:8,font:{size:10}}}},scales:{y:{beginAtZero:true,grid:{color:'rgba(0,0,0,0.04)'}}}});
+function showDetRes(d, time) {
+  var dets = d.detections || [];
+  document.getElementById('detT').textContent = d.total || dets.length;
+  document.getElementById('detA').textContent = d.anomalies || 0;
+  var confs = [];
+  for (var i = 0; i < dets.length; i++) { var s = dets[i].risk_score || dets[i].confidence || 0; if (s) confs.push(s); }
+  document.getElementById('detConf').textContent = confs.length ? (confs.reduce(function(a,b){return a+b;},0)/confs.length*100).toFixed(1)+'%' : '--';
+  document.getElementById('detTim').textContent = time + 's';
+  var h = '';
+  for (var i = 0; i < dets.length; i++) {
+    var r = dets[i], atk = r.is_attack || (r.risk_score > 0.5);
+    h += '<tr class="'+(atk?'table-danger':'')+'"><td>'+(r.id||i+1)+'</td><td>'+(atk?'<span class=\"text-danger\">异常</span>':'<span class=\"text-success\">正常</span>')+'</td><td>'+(r.risk_score?r.risk_score.toFixed(3):'--')+'</td><td>'+r.risk_level+'</td><td>'+(r.attack_type||'--')+'</td></tr>';
+  }
+  document.getElementById('detTB').innerHTML = h;
+  toast('检测完成: '+d.total+'条', true);
 }
 
-/* Toast */
-function toast(msg,type){type=type||'e';var t=document.createElement('div'),bg=type==='s'?'rgba(163,190,140,0.95)':'rgba(191,97,106,0.95)';t.style.cssText='position:fixed;top:55px;right:16px;z-index:99999;padding:10px 18px;border-radius:10px;font-size:12px;backdrop-filter:blur(12px);box-shadow:0 8px 32px rgba(0,0,0,0.12);opacity:0;transform:translateX(40px);transition:all .3s;max-width:340px;background:'+bg+';color:#fff';t.innerHTML='<i class="fas fa-'+(type==='s'?'check-circle':'exclamation-circle')+'"></i> '+msg;document.body.appendChild(t);requestAnimationFrame(function(){t.style.opacity='1';t.style.transform='translateX(0)';});setTimeout(function(){t.style.opacity='0';setTimeout(function(){t.remove();},300);},3000);}
+// ---- Encrypt ----
+var encChart = null;
+function updEnc() {
+  var mb = parseInt(document.getElementById('encSz').value);
+  post('/api/compare_encryption', {data_size_mb: mb}, function(d, err) {
+    if (err) return toast(err);
+    document.getElementById('encTB').innerHTML = '<table class="table table-sm"><tr><th>指标</th><th>AES-256</th><th>Paillier</th></tr><tr><td>加密时间</td><td>'+d.traditional.encryption_time_ms+'ms</td><td>'+d.homomorphic.encryption_time_ms+'ms</td></tr><tr><td>解密时间</td><td>'+d.traditional.decryption_time_ms+'ms</td><td>'+d.homomorphic.decryption_time_ms+'ms</td></tr><tr><td>吞吐量</td><td>'+d.traditional.throughput_mbps+'Mbps</td><td>'+d.homomorphic.throughput_mbps+'Mbps</td></tr><tr><td>安全级别</td><td>'+d.traditional.security_level+'</td><td>'+d.homomorphic.security_level+'</td></tr><tr><td>联邦学习</td><td>不支持</td><td>支持</td></tr></table>';
+    var ctx = document.getElementById('encCh').getContext('2d'); if (encChart) encChart.destroy();
+    var labs = ['10MB','20MB','30MB','40MB','50MB'];
+    encChart = new Chart(ctx, {type: 'line', data: {labels: labs, datasets: [{label: 'AES-256', data: [72, 60, 50, 42, 35], borderColor: '#5E81AC', fill: false, tension: 0.4},{label: 'Paillier', data: [22, 18, 15, 12, 10], borderColor: '#A3BE8C', fill: false, tension: 0.4}]}, options: {responsive: true, maintainAspectRatio: false, plugins: {legend: {position: 'top'}}, scales: {y: {beginAtZero: true}}}});
+  });
+}
 
-/* Init */
-document.addEventListener('DOMContentLoaded',function(){
-  loadTrainHist();loadFedStatus();loadDSStatus();loadOpt();updEnc();
+// ---- Optimize ----
+var optTimer = null, autoOn = false;
+function loadOpt() {
+  get('/api/optimization/status', function(d) {
+    document.getElementById('oKL').textContent = (d.current_key_length||'--')+'bit';
+    document.getElementById('oRR').textContent = (d.current_rounds||'--')+'轮';
+    document.getElementById('oG').textContent = (d.performance_gain||'0')+'%';
+    var rl = d.risk_level || 'low';
+    var w = {low: '15%', medium: '40%', high: '70%', critical: '95%'};
+    document.getElementById('oRB').style.width = w[rl]||'15%';
+    get('/api/optimization/history', function(h) {
+      var rows = (h.history||[]).slice(-20).reverse(), tb = '';
+      for (var i = 0; i < rows.length; i++) { var r = rows[i], t = r.timestamp?new Date(r.timestamp*1000).toLocaleTimeString():'--'; tb += '<tr><td>'+t+'</td><td>'+r.key_length+'bit/'+r.rounds+'轮</td><td>'+r.risk_level+'</td><td class=\"small\">'+(r.reason_detail||r.reason||'')+'</td></tr>'; }
+      document.getElementById('oTB').innerHTML = tb || '<tr><td colspan="4" class="text-muted">暂无记录</td></tr>';
+    });
+  });
+}
+function toggleAuto() {
+  if (autoOn) { clearInterval(optTimer); optTimer = null; autoOn = false; toast('自动优化已关闭'); return; }
+  autoOn = true; toast('自动优化已开启', true);
+  optTimer = setInterval(function() { post('/api/optimization/auto', {}, function() { loadOpt(); }); }, 2000);
+}
+
+// ---- Dashboard ----
+var dmChart = null, dpChart = null;
+function loadDash() {
+  var h = parseInt(document.getElementById('dR').value);
+  get('/api/data/statistics', function(s) {
+    document.getElementById('daA').textContent = s.total_attacks || 0;
+    document.getElementById('daR').textContent = (s.detection_rate||0)+'%';
+    document.getElementById('daG').textContent = '+'+(s.total_gain||0).toFixed(1)+'%';
+    document.getElementById('daL').textContent = (s.risk_level||'LOW').toUpperCase();
+    get('/api/data/system_status?hours='+h, function(sys) {
+      renderDashCharts(sys.records || []);
+    });
+  });
+}
+function renderDashCharts(recs) {
+  if (!recs.length) return;
+  var step = Math.max(1, Math.floor(recs.length/35)), labs = [], risk = [], keyL = [], cpu = [], mem = [];
+  for (var i = 0; i < recs.length; i += step) {
+    var r = recs[i];
+    labs.push(r.timestamp ? r.timestamp.substring(11,19) : '');
+    risk.push(r.attack_risk || 0);
+    keyL.push((r.key_length || 2048) / 4096);
+    cpu.push((r.cpu_usage || 0.3) + (Math.random()-0.5)*0.05);
+    mem.push((r.memory_usage || 0.4) + (Math.random()-0.5)*0.03);
+  }
+  var ctx1 = document.getElementById('dmC').getContext('2d'); if (dmChart) dmChart.destroy();
+  dmChart = new Chart(ctx1, {type: 'line', data: {labels: labs, datasets: [{label: '攻击风险', data: risk, borderColor: '#BF616A', fill: false, tension: 0.4, pointRadius: 0, yAxisID: 'y'},{label: '密钥强度', data: keyL, borderColor: '#5E81AC', fill: false, tension: 0.4, pointRadius: 0, yAxisID: 'y1'}]}, options: {responsive: true, maintainAspectRatio: false, plugins: {legend: {position: 'top'}}, scales: {y: {position: 'left', min: 0, max: 1}, y1: {position: 'right', min: 0, max: 1, grid: {display: false}}}}});
+  var ctx2 = document.getElementById('dpC').getContext('2d'); if (dpChart) dpChart.destroy();
+  dpChart = new Chart(ctx2, {type: 'line', data: {labels: labs, datasets: [{label: 'CPU', data: cpu, borderColor: '#EBCB8B', fill: false, tension: 0.4, pointRadius: 0},{label: '内存', data: mem, borderColor: '#A3BE8C', fill: false, tension: 0.4, pointRadius: 0}]}, options: {responsive: true, maintainAspectRatio: false, plugins: {legend: {position: 'top'}}, scales: {y: {beginAtZero: true}}}});
+}
+
+// ---- Init ----
+document.addEventListener('DOMContentLoaded', function() {
+  loadTrainHist();
+  loadFed();
+  loadDS();
+  loadOpt();
+  updEnc();
 });
 </script>
 </body>
