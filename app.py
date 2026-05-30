@@ -1331,6 +1331,172 @@ def data_statistics():
     }))
 
 
+# ─── API: UNSW数据集 ───
+
+@app.route("/api/dataset/unsw/status", methods=["GET"])
+def dataset_unsw_status():
+    """检查UNSW-NB15数据集状态"""
+    path = "data/datasets/UNSW-NB15"
+    files = []
+    if os.path.exists(path):
+        files = [f for f in os.listdir(path) if f.endswith('.csv')]
+    return jsonify(api_response(data={"exists": len(files) > 0, "files": files, "path": path}))
+
+
+@app.route("/api/dataset/unsw/process", methods=["POST"])
+def dataset_unsw_process():
+    """处理UNSW-NB15数据集并拆分为联邦4节点"""
+    try:
+        from src.preprocess.feature_engineering import load_unsw_nb15, minmax_normalize
+        from src.preprocess.federated_splitter import save_federated_data
+        from src.detection.ensemble_detector import ensemble_detector
+
+        path = "data/datasets/UNSW-NB15"
+        csv_files = [f for f in os.listdir(path) if f.endswith('.csv')]
+        if not csv_files:
+            return jsonify(api_response(code=400, msg="未找到UNSW-NB15数据文件"))
+
+        filepath = os.path.join(path, csv_files[0])
+        logger.info("加载UNSW-NB15: %s", filepath)
+        X, y = load_unsw_nb15(filepath)
+        X = minmax_normalize(X)
+
+        # 保存处理后的数据
+        np.save(os.path.join(path, "X_processed.npy"), X)
+        np.save(os.path.join(path, "y_processed.npy"), y)
+
+        # 拆分为联邦4节点
+        nodes = save_federated_data(X, y)
+
+        # 创建序列数据用于LSTM
+        X_seq = np.array([X[i:i+10] for i in range(min(len(X)-10, 2000))])
+        y_seq = np.array([1.0 if np.mean(y[i:i+10]) > 0.3 else 0.0 for i in range(min(len(X)-10, 2000))])
+
+        # 训练三模型融合检测器
+        result = ensemble_detector.fit(X[:min(len(X), 5000)], y[:min(len(y), 5000)], X_seq[:min(len(X_seq), 500)])
+        logger.info("三模型融合检测器训练完成: %s", result)
+
+        return jsonify(api_response(data={
+            "samples": len(X),
+            "features": X.shape[1],
+            "nodes": [{"name": n[0], "samples": n[1]} for n in nodes],
+            "ensemble_accuracy": result.get("accuracy", 0),
+        }))
+    except Exception as e:
+        logger.error("数据集处理失败: %s", e)
+        return jsonify(api_response(code=500, msg="处理失败: %s" % e))
+
+
+# ─── API: 联邦学习4节点 ───
+
+@app.route("/api/federated/nodes", methods=["GET"])
+def federated_nodes():
+    """获取联邦节点状态"""
+    from src.preprocess.federated_splitter import NODE_NAMES, FEDERATED_DIR
+    nodes = []
+    for name in NODE_NAMES:
+        node_dir = os.path.join(FEDERATED_DIR, name)
+        X_path = os.path.join(node_dir, "X.npy")
+        y_path = os.path.join(node_dir, "y.npy")
+        if os.path.exists(X_path) and os.path.exists(y_path):
+            X = np.load(X_path)
+            nodes.append({"name": name, "samples": len(X), "ready": True})
+        else:
+            nodes.append({"name": name, "samples": 0, "ready": False})
+    return jsonify(api_response(data={"nodes": nodes, "total": len(nodes)}))
+
+
+@app.route("/api/federated/round", methods=["POST"])
+def federated_round():
+    """执行一轮联邦训练"""
+    req = request.get_json() or {}
+    epochs = req.get("epochs", 5)
+    from src.preprocess.federated_splitter import NODE_NAMES, FEDERATED_DIR
+    from src.federated.client import FederatedClient
+    from src.federated.aggregator import fedavg_server
+
+    results = []
+    for name in NODE_NAMES:
+        client = FederatedClient(name, os.path.join(FEDERATED_DIR, name))
+        if client.load_data():
+            result = client.train_local(epochs=epochs)
+            results.append(result)
+
+    global_weights = fedavg_server.aggregate(results)
+
+    return jsonify(api_response(data={
+        "round": fedavg_server.round,
+        "clients": [{"name": r["name"], "accuracy": r["accuracy"], "samples": r["samples"]} for r in results],
+        "avg_accuracy": round(np.mean([r["accuracy"] for r in results]), 4) if results else 0,
+        "history": fedavg_server.get_history(),
+    }))
+
+
+@app.route("/api/federated/history", methods=["GET"])
+def federated_history():
+    """获取联邦训练历史"""
+    from src.experiments.experiment_manager import exp_manager
+    return jsonify(api_response(data={"records": exp_manager.get_federated_history()}))
+
+
+# ─── API: 三模型融合检测 ───
+
+@app.route("/api/ensemble/detect", methods=["POST"])
+def ensemble_detect():
+    """三模型融合检测"""
+    from src.detection.ensemble_detector import ensemble_detector
+    if not ensemble_detector.is_ready():
+        ensemble_detector.load_or_init()
+
+    req = request.get_json() or {}
+    records = req.get("data", [])
+    if not records:
+        return jsonify(api_response(code=400, msg="请提供检测数据"))
+
+    import numpy as np
+    from src.preprocess.feature_engineering import extract_features_structured
+    X_list = []
+    for rec in records:
+        X_list.append(extract_features_structured(rec))
+    X = np.array(X_list, dtype=np.float64)
+
+    preds, scores, risk_levels = ensemble_detector.predict(X)
+    risk_names = {0: "低", 1: "中", 2: "高", 3: "危险"}
+
+    results = []
+    for i in range(len(X)):
+        results.append({
+            "id": records[i].get("id", i+1),
+            "is_attack": bool(preds[i]),
+            "risk_score": round(float(scores[i]), 4),
+            "risk_level": risk_names.get(int(risk_levels[i]), "低"),
+            "attack_type": ensemble_detector.ATTACK_TYPES[int(preds[i] * 6) % 7] if preds[i] else "正常",
+        })
+
+    return jsonify(api_response(data={
+        "total": len(results),
+        "anomalies": int(np.sum(preds)),
+        "detections": results,
+        "model": "IF+XGBoost+LSTM融合(0.3/0.3/0.4)",
+    }))
+
+
+@app.route("/api/ensemble/status", methods=["GET"])
+def ensemble_status():
+    """融合检测器状态"""
+    from src.detection.ensemble_detector import ensemble_detector
+    return jsonify(api_response(data={"ready": ensemble_detector.is_ready()}))
+
+
+# ─── API: 实验管理 ───
+
+@app.route("/api/experiment/list", methods=["GET"])
+def experiment_list():
+    """获取实验列表"""
+    from src.experiments.experiment_manager import exp_manager
+    return jsonify(api_response(data={"experiments": exp_manager.get_experiments()}))
+
+
 # ─── 启动 ───
 
 def _pretrain_on_startup():
@@ -1345,7 +1511,34 @@ def _pretrain_on_startup():
     except Exception as e:
         logger.warning("模型初始化失败: %s", e)
 
-    # 2. 训练优化智能体
+    # 2. 尝试处理UNSW-NB15数据集并训练三模型融合检测器
+    try:
+        path = "data/datasets/UNSW-NB15"
+        csv_files = [f for f in os.listdir(path) if f.endswith('.csv')] if os.path.exists(path) else []
+        if csv_files:
+            logger.info("检测到UNSW-NB15数据集，开始处理...")
+            from src.preprocess.feature_engineering import load_unsw_nb15, minmax_normalize
+            from src.preprocess.federated_splitter import save_federated_data
+            from src.detection.ensemble_detector import ensemble_detector
+
+            filepath = os.path.join(path, csv_files[0])
+            X, y = load_unsw_nb15(filepath)
+            X = minmax_normalize(X)
+            np.save(os.path.join(path, "X_processed.npy"), X)
+            np.save(os.path.join(path, "y_processed.npy"), y)
+            nodes = save_federated_data(X, y)
+
+            X_seq = np.array([X[i:i+10] for i in range(min(len(X)-10, 2000))])
+            result = ensemble_detector.fit(X[:min(len(X), 5000)], y[:min(len(y), 5000)], X_seq[:min(len(X_seq), 500)])
+            logger.info("三模型融合训练完成: accuracy=%.4f", result.get("accuracy", 0))
+        else:
+            logger.info("UNSW-NB15数据集不存在，跳过 (可下载: kaggle datasets download -d mrwellsdavid/unsw-nb15)")
+            from src.detection.ensemble_detector import ensemble_detector
+            ensemble_detector.load_or_init()
+    except Exception as e:
+        logger.warning("UNSW数据处理失败: %s", e)
+
+    # 3. 训练优化智能体
     try:
         if model_manager.is_ready and model_manager.q_agent and model_manager.q_agent.is_trained:
             logger.info("复用ModelManager的Q-learning智能体")
