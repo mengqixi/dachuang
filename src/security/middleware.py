@@ -149,7 +149,9 @@ class SecurityMiddleware:
                 })
                 if jsonify is None:
                     return None
-                return jsonify({"code": 403, "msg": reason or "request blocked", "data": {}}), 403
+                # Rate-limit violations get 429; all others get 403
+                status_code = 429 if "rate_limit_exceeded" in (reason or "") else 403
+                return jsonify({"code": status_code, "msg": reason or "request blocked", "data": {}}), status_code
         return None
 
     def after_request(self, response):
