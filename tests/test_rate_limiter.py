@@ -11,21 +11,35 @@ import os
 import sys
 import time
 import unittest
+import json
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from src.security.rate_limiter import RateLimiter
 
+LOG_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "logs")
+LOG_PATH = os.path.join(LOG_DIR, "rate_limit_test.log")
+
 
 class MockRequest:
     """Minimal Flask request stand-in for test purposes."""
-    def __init__(self, ip="127.0.0.1"):
+    def __init__(self, ip="127.0.0.1", path="/api/test", method="GET"):
         self.remote_addr = ip
-        self.headers = {}
+        self.path = path
+        self.method = method
+        self.headers = {"User-Agent": "unittest"}
+
+
+def _clean_log():
+    if os.path.exists(LOG_PATH):
+        os.remove(LOG_PATH)
 
 
 class TestRateLimiterUnit(unittest.TestCase):
     """Unit tests for RateLimiter logic."""
+
+    def tearDown(self):
+        _clean_log()
 
     def test_disabled_by_default(self):
         rl = RateLimiter({"enabled": False})
@@ -45,7 +59,9 @@ class TestRateLimiterUnit(unittest.TestCase):
             rl.check(MockRequest("10.0.0.2"))
         ok, reason = rl.check(MockRequest("10.0.0.2"))
         self.assertFalse(ok)
-        self.assertIn("rate_limit_exceeded", reason)
+        self.assertEqual(reason["reason"], "rate_limit_exceeded")
+        self.assertEqual(reason["path"], "/api/test")
+        self.assertEqual(reason["limit_per_minute"], 3)
 
     def test_different_ips_independent(self):
         rl = RateLimiter({"enabled": True, "default_limit_per_minute": 2})
@@ -68,7 +84,7 @@ class TestRateLimiterUnit(unittest.TestCase):
         # Manually age the timestamps
         cutoff = time.time() - 61
         with rl._lock:
-            rl._buckets["10.0.0.5"] = [cutoff]
+            rl._buckets["10.0.0.5:/api/test"] = [cutoff]
         ok, _ = rl.check(MockRequest("10.0.0.5"))
         self.assertTrue(ok, "should allow after window expires")
 
@@ -77,8 +93,50 @@ class TestRateLimiterUnit(unittest.TestCase):
         rl.check(MockRequest("10.0.0.6"))
         ok, reason = rl.check(MockRequest("10.0.0.6"))
         self.assertFalse(ok)
-        self.assertIn("rate_limit_exceeded", reason)
-        self.assertIn("retry after", reason)
+        self.assertEqual(reason["reason"], "rate_limit_exceeded")
+        self.assertIn("retry_after", reason)
+
+    def test_different_paths_independent(self):
+        rl = RateLimiter({"enabled": True, "default_limit_per_minute": 1})
+        rl.check(MockRequest("10.0.0.7", path="/api/a"))
+        ok, _ = rl.check(MockRequest("10.0.0.7", path="/api/b"))
+        self.assertTrue(ok)
+
+    def test_include_and_exclude_paths(self):
+        rl = RateLimiter({
+            "enabled": True,
+            "default_limit_per_minute": 1,
+            "include_paths": ["/api/"],
+            "exclude_paths": ["/", "/static/", "/favicon.ico"],
+        })
+        rl.check(MockRequest("10.0.0.8", path="/api/health"))
+        ok, _ = rl.check(MockRequest("10.0.0.8", path="/api/health"))
+        self.assertFalse(ok)
+
+        for path in ["/", "/static/app.js", "/favicon.ico", "/assets/app.js"]:
+            ok, _ = rl.check(MockRequest("10.0.0.8", path=path))
+            self.assertTrue(ok)
+
+    def test_rate_limit_log_jsonl(self):
+        _clean_log()
+        rl = RateLimiter({
+            "enabled": True,
+            "default_limit_per_minute": 1,
+            "log_path": LOG_PATH,
+        })
+        rl.check(MockRequest("10.0.0.9", path="/api/log"))
+        ok, info = rl.check(MockRequest("10.0.0.9", path="/api/log"))
+        self.assertFalse(ok)
+        rl.log_triggered("trace-rate-unit", MockRequest("10.0.0.9", path="/api/log"), info)
+
+        with open(LOG_PATH, "r", encoding="utf-8") as f:
+            entry = json.loads(f.readline())
+        self.assertEqual(entry["trace_id"], "trace-rate-unit")
+        self.assertEqual(entry["path"], "/api/log")
+        self.assertEqual(entry["method"], "GET")
+        self.assertEqual(entry["limit_per_minute"], 1)
+        self.assertEqual(entry["current_count"], 2)
+        self.assertIn("timestamp", entry)
 
 
 @unittest.skipIf("FLASK_TEST" not in os.environ,
@@ -93,16 +151,21 @@ class TestRateLimiterFlask(unittest.TestCase):
 
     def _enable_rate_limit(self):
         """Dynamically enable rate limit with low threshold for testing."""
-        from src.security.middleware import security_middleware
+        from app import security_middleware
         if security_middleware:
+            security_middleware.config.setdefault("rate_limit", {})["enabled"] = True
             security_middleware._enabled = True
             security_middleware.rate_limiter = RateLimiter({
-                "enabled": True, "default_limit_per_minute": 3,
+                "enabled": True,
+                "default_limit_per_minute": 3,
+                "include_paths": ["/api/"],
+                "exclude_paths": ["/", "/static/", "/favicon.ico"],
             })
 
     def _disable_rate_limit(self):
-        from src.security.middleware import security_middleware
+        from app import security_middleware
         if security_middleware:
+            security_middleware.config.setdefault("rate_limit", {})["enabled"] = False
             security_middleware._enabled = False
 
     def test_health_still_200(self):
@@ -122,7 +185,13 @@ class TestRateLimiterFlask(unittest.TestCase):
             resp = self.app.get("/api/test-ratelimit", headers={"X-Forwarded-For": "99.99.99.99"})
             self.assertEqual(resp.status_code, 429)
             self.assertIn("X-Trace-Id", resp.headers)
-            self.assertIn("rate_limit_exceeded", resp.get_json().get("msg", ""))
+            self.assertIn("X-Response-Time-Ms", resp.headers)
+            body = resp.get_json()
+            self.assertEqual(body["code"], 429)
+            self.assertEqual(body["msg"], "请求过于频繁，请稍后再试")
+            self.assertEqual(body["data"]["risk_event"], "rate_limit_triggered")
+            self.assertEqual(body["data"]["path"], "/api/test-ratelimit")
+            self.assertIn("trace_id", body["data"])
         finally:
             self._disable_rate_limit()
 

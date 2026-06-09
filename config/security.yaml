@@ -7,6 +7,14 @@ security:
   rate_limit:
     enabled: false
     default_limit_per_minute: 60
+    window_seconds: 60
+    include_paths:
+      - /api/
+    exclude_paths:
+      - /
+      - /static/
+      - /favicon.ico
+    log_path: data/logs/rate_limit.log
   anti_replay:
     enabled: false
     max_age_seconds: 60

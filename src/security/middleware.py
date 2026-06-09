@@ -1,7 +1,7 @@
 """Non-blocking security middleware for Flask.
 
-Default safe mode: create/propagate TraceId, collect timing metadata,
-log request start/end to security log, but do NOT reject any requests.
+Default safe mode: create/propagate TraceId, collect timing metadata, log
+request start/end, and run only explicitly enabled modules.
 """
 
 import os
@@ -68,14 +68,7 @@ except Exception:
 
 
 class SecurityMiddleware:
-    """Flask security extension point.
-
-    Default config is safe mode: propagate TraceId, collect timing metadata,
-    log request start/end events, but do NOT reject requests.
-
-    Phase 2 operators (rate_limit, anti_replay, sign, ip_filter, api_switch)
-    are imported and registered but remain disabled in safe mode.
-    """
+    """Flask security extension point."""
 
     def __init__(self, config_path=None):
         self.config_path = config_path or os.path.join("config", "security.yaml")
@@ -85,7 +78,6 @@ class SecurityMiddleware:
         )
         self._enabled = self.config.get("enabled", False)
 
-        # Sub-components (placeholders for Phase 2)
         self.rate_limiter = RateLimiter(self.config.get("rate_limit", {}))
         self.anti_replay = AntiReplayChecker(self.config.get("anti_replay", {}))
         self.sign_verifier = SignVerifier(self.config.get("sign_verify", {}))
@@ -110,14 +102,11 @@ class SecurityMiddleware:
         if g is None:
             return None
 
-        # Start timer
         g.security_started_at = time.time()
 
-        # Get or create trace_id (core functionality for this task)
         trace_id = get_or_create_trace_id(self.trace_header)
         g.trace_id = trace_id
 
-        # Log request start
         try:
             self.security_logger.log_request_start(
                 trace_id=trace_id,
@@ -128,7 +117,11 @@ class SecurityMiddleware:
         except Exception:
             pass
 
-        # Blocking checks — all disabled in safe mode
+        if self.config.get("rate_limit", {}).get("enabled", False):
+            allowed, reason = self.rate_limiter.check(request)
+            if not allowed:
+                return self._build_rate_limit_response(trace_id, reason)
+
         if not self._enabled:
             return None
 
@@ -137,40 +130,72 @@ class SecurityMiddleware:
             self.ip_filter.check,
             self.anti_replay.check,
             self.sign_verifier.verify,
-            self.rate_limiter.check,
         ]
         for check in checks:
             allowed, reason = check(request)
             if not allowed:
-                self.security_logger.log_event({
-                    "type": "blocked_request",
-                    "reason": reason,
-                    "trace_id": trace_id,
-                })
+                try:
+                    self.security_logger.log_event({
+                        "type": "blocked_request",
+                        "reason": reason,
+                        "trace_id": trace_id,
+                    })
+                except Exception:
+                    pass
                 if jsonify is None:
                     return None
-                # Rate-limit violations get 429; all others get 403
-                status_code = 429 if "rate_limit_exceeded" in (reason or "") else 403
-                return jsonify({"code": status_code, "msg": reason or "request blocked", "data": {}}), status_code
+                return jsonify({
+                    "code": 403,
+                    "msg": reason or "request blocked",
+                    "data": {},
+                }), 403
         return None
+
+    def _build_rate_limit_response(self, trace_id, reason):
+        if jsonify is None:
+            return None
+        reason = reason or {}
+        try:
+            self.rate_limiter.log_triggered(trace_id, request, reason)
+        except Exception:
+            pass
+        try:
+            self.security_logger.log_security_event(
+                trace_id=trace_id,
+                event_type="rate_limit_triggered",
+                message="请求过于频繁，请稍后再试",
+                extra={
+                    "path": reason.get("path", request.path if request else ""),
+                    "limit_per_minute": reason.get("limit_per_minute", 60),
+                    "current_count": reason.get("current_count", 0),
+                },
+            )
+        except Exception:
+            pass
+        return jsonify({
+            "code": 429,
+            "msg": "请求过于频繁，请稍后再试",
+            "data": {
+                "risk_event": "rate_limit_triggered",
+                "trace_id": trace_id,
+                "path": reason.get("path", request.path if request else ""),
+                "limit_per_minute": reason.get("limit_per_minute", 60),
+            },
+        }), 429
 
     def after_request(self, response):
         if g is None:
             return response
 
         trace_id = get_or_create_trace_id(self.trace_header)
-
-        # Set response headers
         response.headers[self.trace_header] = trace_id
 
         elapsed_ms = 0.0
         started_at = getattr(g, "security_started_at", None)
         if started_at:
             elapsed_ms = (time.time() - started_at) * 1000.0
-
         response.headers["X-Response-Time-Ms"] = "%.2f" % elapsed_ms
 
-        # Log request end
         try:
             self.security_logger.log_request_end(
                 trace_id=trace_id,
@@ -182,7 +207,6 @@ class SecurityMiddleware:
         except Exception:
             pass
 
-        # Slow API detection — write to slow_api.log when threshold is exceeded
         try:
             self.slow_api.report_if_slow(
                 trace_id=trace_id,
