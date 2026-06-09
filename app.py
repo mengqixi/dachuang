@@ -24,6 +24,7 @@ from src.dataset_manager import dataset_manager, save_training_record, get_train
 from src.data_generator import generate_and_prepare, ensure_data_generated, FEATURE_NAMES as GEN_FEATURES
 from src.utils.data_storage import db
 from src.utils.model_manager import model_manager
+from src.security.events_api import read_events
 
 # ─── 日志配置 ───
 logger.remove()
@@ -273,6 +274,44 @@ def get_visitors():
         return jsonify(api_response(data={
             "total": len(_visitor_log),
             "visitors": list(reversed(_visitor_log[-50:])),
+        }))
+
+
+# ─── API: 安全事件查询 ───
+
+@app.route("/api/security/events/recent", methods=["GET"])
+def security_events_recent():
+    """只读安全事件查询接口"""
+    try:
+        from src.security.security_logger import SECURITY_EVENTS_LOG_PATH
+
+        limit = request.args.get("limit", 50, type=int)
+        event_type = request.args.get("event_type", None)
+        risk_level = request.args.get("risk_level", None)
+
+        events = read_events(
+            log_path=SECURITY_EVENTS_LOG_PATH,
+            limit=limit,
+            event_type=event_type,
+            risk_level=risk_level,
+        )
+
+        return jsonify(api_response(data={
+            "events": events,
+            "total": len(events),
+            "limit": min(max(1, int(request.args.get("limit", 50))), 200) if request.args.get("limit") else 50,
+            "filters": {
+                "event_type": event_type,
+                "risk_level": risk_level,
+            },
+        }))
+    except Exception as e:
+        logger.warning("Security events query failed: %s", e)
+        return jsonify(api_response(data={
+            "events": [],
+            "total": 0,
+            "limit": 50,
+            "warning": "security_events.log unavailable",
         }))
 
 
