@@ -180,18 +180,19 @@ class SecurityMiddleware:
         except Exception:
             pass
 
-        # Slow API detection (reserved for later)
-        slow_config = self.config.get("slow_api", {})
-        if slow_config.get("enabled", True) and elapsed_ms >= slow_config.get("threshold_ms", 1000):
-            try:
-                self.security_logger.log_security_event(
-                    trace_id=trace_id,
-                    event_type="slow_api",
-                    message="Request exceeded threshold",
-                    extra={"path": request.path if request else "", "elapsed_ms": round(elapsed_ms, 2)},
-                )
-            except Exception:
-                pass
+        # Slow API detection — write to slow_api.log when threshold is exceeded
+        try:
+            self.slow_api.report_if_slow(
+                trace_id=trace_id,
+                path=request.path if request else "",
+                method=request.method if request else "",
+                status_code=response.status_code,
+                duration_ms=elapsed_ms,
+                ip=request.remote_addr or request.headers.get("X-Forwarded-For", "unknown") if request else "unknown",
+                user_agent=request.headers.get("User-Agent", "") if request else "",
+            )
+        except Exception:
+            pass
 
         return response
 
