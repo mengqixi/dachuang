@@ -95,7 +95,7 @@ class SlowAPIDetector:
         """
         if not self._enabled:
             return
-        if duration_ms < self._threshold_ms:
+        if not self.was_slow(duration_ms):
             return
 
         self._slow_logger.log(
@@ -107,3 +107,9 @@ class SlowAPIDetector:
             ip=ip,
             user_agent=user_agent,
         )
+
+    def was_slow(self, duration_ms: float) -> bool:
+        """Return True when a request duration crosses the configured threshold."""
+        if not self._enabled:
+            return False
+        return duration_ms >= self._threshold_ms

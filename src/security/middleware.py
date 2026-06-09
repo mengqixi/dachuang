@@ -1,8 +1,4 @@
-"""Non-blocking security middleware for Flask.
-
-Default safe mode: create/propagate TraceId, collect timing metadata, log
-request start/end, and run only explicitly enabled modules.
-"""
+"""Non-blocking security middleware for Flask."""
 
 import os
 import time
@@ -85,7 +81,7 @@ class SecurityMiddleware:
         self.api_switch = APISwitch(self.config.get("api_switch", {}))
         self.slow_api = SlowAPIDetector(self.config.get("slow_api", {}))
         self.security_logger = SecurityEventLogger(
-            self.config.get("security_logger", {})
+            self.config.get("security_events", self.config.get("security_logger", {}))
         )
 
     def _load_config(self):
@@ -139,6 +135,8 @@ class SecurityMiddleware:
                         "type": "blocked_request",
                         "reason": reason,
                         "trace_id": trace_id,
+                        "path": request.path if request else "",
+                        "method": request.method if request else "",
                     })
                 except Exception:
                     pass
@@ -164,9 +162,14 @@ class SecurityMiddleware:
                 trace_id=trace_id,
                 event_type="rate_limit_triggered",
                 message="请求过于频繁，请稍后再试",
+                risk_level="medium",
+                path=reason.get("path", request.path if request else ""),
+                method=request.method if request else "",
+                ip=reason.get("ip", request.remote_addr if request else "unknown"),
+                user_agent=request.headers.get("User-Agent", "") if request else "",
                 extra={
-                    "path": reason.get("path", request.path if request else ""),
                     "limit_per_minute": reason.get("limit_per_minute", 60),
+                    "window_seconds": reason.get("window_seconds", 60),
                     "current_count": reason.get("current_count", 0),
                 },
             )
@@ -217,6 +220,22 @@ class SecurityMiddleware:
                 ip=request.remote_addr or request.headers.get("X-Forwarded-For", "unknown") if request else "unknown",
                 user_agent=request.headers.get("User-Agent", "") if request else "",
             )
+            if self.slow_api.was_slow(elapsed_ms):
+                self.security_logger.log_security_event(
+                    trace_id=trace_id,
+                    event_type="slow_api_detected",
+                    message="Request exceeded slow API threshold",
+                    risk_level="low",
+                    path=request.path if request else "",
+                    method=request.method if request else "",
+                    ip=request.remote_addr or request.headers.get("X-Forwarded-For", "unknown") if request else "unknown",
+                    user_agent=request.headers.get("User-Agent", "") if request else "",
+                    extra={
+                        "status_code": response.status_code,
+                        "duration_ms": round(elapsed_ms, 2),
+                        "threshold_ms": getattr(self.slow_api, "_threshold_ms", 1000),
+                    },
+                )
         except Exception:
             pass
 

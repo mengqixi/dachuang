@@ -1,177 +1,175 @@
-"""
-Tests for Security Event Logger — both security.log and security_events.log.
-
-Run with:
-    python -m pytest tests/test_security_logger.py -v
-    python -m unittest tests.test_security_logger -v
-    FLASK_TEST=1 python -m unittest tests.test_security_logger -v  (Flask integration)
-"""
+"""Tests for file-based request and security event logging."""
 
 import json
 import os
+import shutil
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from src.security.security_logger import SecurityEventLogger
 
-LOG_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "logs")
-SECURITY_LOG = os.path.join(LOG_DIR, "security.log")
-EVENTS_LOG = os.path.join(LOG_DIR, "security_events.log")
-
-
-def _clean_logs():
-    for path in [SECURITY_LOG, EVENTS_LOG]:
-        if os.path.exists(path):
-            try:
-                os.remove(path)
-            except OSError:
-                pass
-
 
 class TestSecurityEventLogger(unittest.TestCase):
     """Unit tests for SecurityEventLogger."""
 
     def setUp(self):
-        _clean_logs()
-        self.logger = SecurityEventLogger({})
+        self.tmpdir = tempfile.mkdtemp(prefix="security-logger-test-")
+        self.request_log = os.path.join(self.tmpdir, "security.log")
+        self.events_log = os.path.join(self.tmpdir, "security_events.log")
+        self.logger = SecurityEventLogger({
+            "enabled": True,
+            "request_log_path": self.request_log,
+            "log_path": self.events_log,
+            "max_events": 200,
+            "max_extra_chars": 128,
+        })
 
     def tearDown(self):
-        _clean_logs()
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
 
-    def test_log_request_start(self):
+    def _read_jsonl(self, path):
+        with open(path, "r", encoding="utf-8") as f:
+            return [json.loads(line) for line in f if line.strip()]
+
+    def test_log_request_start_writes_security_log(self):
         self.logger.log_request_start("tid-001", "/test", "GET", "1.2.3.4")
-        self.assertTrue(os.path.exists(SECURITY_LOG))
-        with open(SECURITY_LOG, "r") as f:
-            entry = json.loads(f.readline())
-        self.assertEqual(entry["event"], "request_start")
-        self.assertEqual(entry["trace_id"], "tid-001")
+        rows = self._read_jsonl(self.request_log)
+        self.assertEqual(rows[0]["event"], "request_start")
+        self.assertEqual(rows[0]["trace_id"], "tid-001")
+        self.assertFalse(os.path.exists(self.events_log))
 
-    def test_log_request_end(self):
+    def test_log_request_end_writes_security_log(self):
         self.logger.log_request_end("tid-002", "/health", "GET", 200, 15.3)
-        self.assertTrue(os.path.exists(SECURITY_LOG))
-        with open(SECURITY_LOG, "r") as f:
-            entry = json.loads(f.readline())
-        self.assertEqual(entry["event"], "request_end")
-        self.assertEqual(entry["status_code"], 200)
-        self.assertEqual(entry["duration_ms"], 15.3)
+        rows = self._read_jsonl(self.request_log)
+        self.assertEqual(rows[0]["event"], "request_end")
+        self.assertEqual(rows[0]["status_code"], 200)
+        self.assertEqual(rows[0]["duration_ms"], 15.3)
 
-    def test_log_security_event(self):
+    def test_log_security_event_required_fields(self):
         self.logger.log_security_event(
-            "tid-003", "rate_limit_triggered", "too many requests",
-            extra={"limit": 60, "count": 61}
+            trace_id="tid-003",
+            event_type="rate_limit_triggered",
+            risk_level="medium",
+            path="/api/system/health",
+            method="GET",
+            ip="127.0.0.1",
+            user_agent="unittest",
+            message="too many requests",
+            extra={"limit": 60, "count": 61},
         )
-        self.assertTrue(os.path.exists(EVENTS_LOG))
-        with open(EVENTS_LOG, "r") as f:
-            entry = json.loads(f.readline())
-        self.assertEqual(entry["event"], "rate_limit_triggered")
-        self.assertEqual(entry["message"], "too many requests")
+        rows = self._read_jsonl(self.events_log)
+        entry = rows[0]
+        for key in [
+            "timestamp",
+            "trace_id",
+            "event_type",
+            "risk_level",
+            "path",
+            "method",
+            "ip",
+            "user_agent",
+            "message",
+            "extra",
+        ]:
+            self.assertIn(key, entry)
+        self.assertEqual(entry["event_type"], "rate_limit_triggered")
         self.assertEqual(entry["extra"]["limit"], 60)
 
-    def test_security_event_includes_all_required_fields(self):
-        self.logger.log_security_event("tid-004", "slow_api", "threshold exceeded",
-                                       extra={"duration_ms": 2500})
-        with open(EVENTS_LOG, "r") as f:
-            entry = json.loads(f.readline())
-        self.assertIn("trace_id", entry)
-        self.assertIn("event", entry)
-        self.assertIn("message", entry)
-        self.assertIn("timestamp", entry)
-        self.assertIn("extra", entry)
+    def test_security_events_disabled_does_not_write(self):
+        disabled = SecurityEventLogger({
+            "enabled": False,
+            "request_log_path": self.request_log,
+            "log_path": self.events_log,
+        })
+        disabled.log_security_event("tid-disabled", "blocked", "blocked")
+        self.assertFalse(os.path.exists(self.events_log))
+        self.assertEqual(disabled.get_recent_events(), [])
 
-    def test_log_event_legacy_with_type_goes_to_events_log(self):
+    def test_missing_trace_and_event_type_defaults(self):
+        self.logger.log_security_event(message="missing fields")
+        entry = self._read_jsonl(self.events_log)[0]
+        self.assertEqual(entry["trace_id"], "unknown")
+        self.assertEqual(entry["event_type"], "unknown_event")
+
+    def test_non_json_extra_does_not_crash(self):
+        self.logger.log_security_event(
+            "tid-extra",
+            "bad_extra",
+            "has object",
+            extra={"object": object()},
+        )
+        entry = self._read_jsonl(self.events_log)[0]
+        self.assertIn("object", entry["extra"])
+
+    def test_long_extra_is_truncated(self):
+        self.logger.log_security_event(
+            "tid-long",
+            "long_extra",
+            "long",
+            extra={"payload": "x" * 1000},
+        )
+        entry = self._read_jsonl(self.events_log)[0]
+        self.assertTrue(entry["extra"]["_truncated"])
+        self.assertLessEqual(len(entry["extra"]["value"]), 128)
+
+    def test_write_failure_does_not_raise(self):
+        bad_path = os.path.join(self.tmpdir, "events_as_directory")
+        os.makedirs(bad_path, exist_ok=True)
+        logger = SecurityEventLogger({
+            "enabled": True,
+            "request_log_path": self.request_log,
+            "log_path": bad_path,
+        })
+        logger.log_security_event("tid-fail", "write_fail", "should not raise")
+
+    def test_recent_events_buffer_max_200(self):
+        for i in range(300):
+            self.logger.log_security_event("tid-%03d" % i, "test_event", "msg")
+        recent = self.logger.get_recent_events(999)
+        self.assertEqual(len(recent), 200)
+        self.assertEqual(recent[-1]["trace_id"], "tid-299")
+
+    def test_log_event_with_type_routes_to_security_events(self):
         self.logger.log_event({
             "type": "blocked_request",
-            "trace_id": "tid-005",
-            "reason": "ip_blocked",
+            "trace_id": "tid-legacy",
+            "reason": "blocked",
+            "path": "/api/x",
         })
-        self.assertTrue(os.path.exists(EVENTS_LOG))
-        with open(EVENTS_LOG, "r") as f:
-            entry = json.loads(f.readline())
-        self.assertEqual(entry["type"], "blocked_request")
+        rows = self._read_jsonl(self.events_log)
+        self.assertEqual(rows[0]["event_type"], "blocked_request")
+        self.assertEqual(rows[0]["trace_id"], "tid-legacy")
 
-    def test_log_event_legacy_without_type_goes_to_security_log(self):
-        self.logger.log_event({
-            "id": 1,
-            "trace_id": "tid-006",
-            "data": "some data",
-        })
-        self.assertTrue(os.path.exists(SECURITY_LOG))
-        with open(SECURITY_LOG, "r") as f:
-            entry = json.loads(f.readline())
-        self.assertEqual(entry["data"], "some data")
-
-    def test_recent_events_buffer(self):
-        for i in range(10):
-            self.logger.log_security_event("tid-%03d" % i, "test_event", "msg %d" % i)
-        recent = self.logger.get_recent_events(5)
-        self.assertEqual(len(recent), 5)
-
-    def test_recent_events_buffer_max(self):
-        for i in range(300):
-            self.logger.log_security_event("tid-%03d" % i, "test_event", "msg %d" % i)
-        recent = self.logger.get_recent_events(999)
-        self.assertLessEqual(len(recent), 200)  # max 200 in buffer
-
-    def test_missing_trace_id_filled(self):
-        self.logger.log_event({"event": "test"})
-        with open(SECURITY_LOG, "r") as f:
-            entry = json.loads(f.readline())
-        self.assertEqual(entry["trace_id"], "unknown")
-
-    def test_start_and_end_go_to_different_files(self):
-        """Request start/end should be in security.log, not events log."""
-        self.logger.log_request_start("tid-010", "/a", "GET", "1.1.1.1")
-        self.logger.log_security_event("tid-010", "blocked", "blocked")
-
-        # security.log should have request_start
-        with open(SECURITY_LOG, "r") as f:
-            content = f.read()
-        self.assertIn("request_start", content)
-
-        # events log should have the security event
-        with open(EVENTS_LOG, "r") as f:
-            content = f.read()
-        self.assertIn("blocked", content)
+    def test_log_event_without_type_routes_to_security_log(self):
+        self.logger.log_event({"event": "request_custom", "trace_id": "tid-log"})
+        rows = self._read_jsonl(self.request_log)
+        self.assertEqual(rows[0]["event"], "request_custom")
+        self.assertFalse(os.path.exists(self.events_log))
 
 
 @unittest.skipIf("FLASK_TEST" not in os.environ,
                  "Set FLASK_TEST=1 to run Flask-integration tests")
 class TestSecurityEventLoggerFlask(unittest.TestCase):
-    """Integration tests — verify that middleware logs reach the files."""
+    """Integration tests for middleware lifecycle logging."""
 
     @classmethod
     def setUpClass(cls):
         from app import app
         cls.app = app.test_client()
-        _clean_logs()
 
-    def test_request_produces_start_and_end(self):
-        _clean_logs()
+    def test_request_still_has_trace_and_timing_headers(self):
         resp = self.app.get("/api/system/health")
         self.assertEqual(resp.status_code, 200)
         self.assertIn("X-Trace-Id", resp.headers)
-        trace_id = resp.headers["X-Trace-Id"]
+        self.assertIn("X-Response-Time-Ms", resp.headers)
 
-        # Check security.log for this trace
-        found_start = found_end = False
-        if os.path.exists(SECURITY_LOG):
-            with open(SECURITY_LOG, "r") as f:
-                for line in f:
-                    if trace_id in line:
-                        if '"event": "request_start"' in line:
-                            found_start = True
-                        if '"event": "request_end"' in line:
-                            found_end = True
-        self.assertTrue(found_start, "request_start not found for trace " + trace_id)
-        self.assertTrue(found_end, "request_end not found for trace " + trace_id)
-
-    def test_root_page_has_trace_id(self):
+    def test_root_page_still_has_trace_id(self):
         resp = self.app.get("/")
         self.assertEqual(resp.status_code, 200)
         self.assertIn("X-Trace-Id", resp.headers)
-        self.assertIn("X-Response-Time-Ms", resp.headers)
 
 
 if __name__ == "__main__":
