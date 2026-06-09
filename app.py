@@ -41,6 +41,22 @@ app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 os.makedirs(app.config["DATA_FOLDER"], exist_ok=True)
 
+# Phase 2 security scaffold: default safe mode, no request blocking.
+try:
+    from src.security.middleware import SecurityMiddleware
+    security_middleware = SecurityMiddleware()
+
+    @app.before_request
+    def security_before_request():
+        return security_middleware.before_request()
+
+    @app.after_request
+    def security_after_request(response):
+        return security_middleware.after_request(response)
+except Exception as e:
+    security_middleware = None
+    logger.warning("Security middleware disabled: %s" % e)
+
 # ─── IP访问记录 ───
 _visitor_log = []  # list of dicts
 _visitor_lock = threading.Lock()

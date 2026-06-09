@@ -6,7 +6,6 @@ Run with:
     python -m unittest tests.test_trace_id -v
 """
 
-import json
 import os
 import sys
 import unittest
@@ -18,7 +17,7 @@ from src.security.trace_id import get_or_create_trace_id, _generate_trace_id, _v
 
 @unittest.skipIf("FLASK_TEST" not in os.environ,
                  "Set FLASK_TEST=1 to run Flask-integration tests "
-                 "(these start a live server on port 15555)")
+                 "(these use Flask test_client)")
 class TestTraceIdFlask(unittest.TestCase):
     """Flask-integration tests that verify TraceId in request/response cycle."""
 
@@ -75,17 +74,18 @@ class TestTraceIdFlask(unittest.TestCase):
             os.path.dirname(os.path.dirname(__file__)),
             "data", "logs", "security.log",
         )
-        if not os.path.exists(log_path):
-            self.skipTest("security.log not found")
         # Make a request to trigger logging
         self.app.get("/api/system/health", headers={"X-Trace-Id": "trace-test-unit-log"})
-        found = False
+        self.assertTrue(os.path.exists(log_path), "security.log should be created")
+        found_start = False
+        found_end = False
         with open(log_path, "r", encoding="utf-8") as f:
             for line in f:
                 if "trace-test-unit-log" in line:
-                    found = True
-                    break
-        self.assertTrue(found, "Expected trace-test-unit-log in security.log")
+                    found_start = found_start or '"event": "request_start"' in line
+                    found_end = found_end or '"event": "request_end"' in line
+        self.assertTrue(found_start, "Expected request_start in security.log")
+        self.assertTrue(found_end, "Expected request_end in security.log")
 
 
 class TestTraceIdUnit(unittest.TestCase):

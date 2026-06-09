@@ -1,0 +1,34 @@
+security:
+  enabled: false
+  mode: safe
+  trace_id:
+    enabled: true
+    header_name: X-Trace-Id
+  rate_limit:
+    enabled: false
+    default_limit_per_minute: 60
+  anti_replay:
+    enabled: false
+    max_age_seconds: 60
+    nonce_header: X-Nonce
+    timestamp_header: X-Timestamp
+  sign_verify:
+    enabled: false
+    signature_header: X-Sign
+    timestamp_header: X-Sign-Timestamp
+  ip_filter:
+    enabled: false
+    allowlist: []
+    blocklist: []
+  slow_api:
+    enabled: true
+    threshold_ms: 1000
+  api_switch:
+    enabled: false
+    disabled_paths: []
+  security_logger:
+    enabled: false
+    sqlite_table: security_events
+  request_crypto:
+    enabled: false
+    mode: placeholder
