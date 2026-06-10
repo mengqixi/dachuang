@@ -8,8 +8,6 @@ small server.  If the download fails, it creates the project's generated CSV
 dataset instead so the data pipeline still has real local CSV files to use.
 """
 
-from __future__ import annotations
-
 import argparse
 import csv
 import os

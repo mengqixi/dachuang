@@ -6,8 +6,6 @@ UNSW-NB15 style CSV files, the project's generated CSV files, and simple
 numeric CSV files with a label column.
 """
 
-from __future__ import annotations
-
 import csv
 import os
 from typing import Dict, Iterable, List, Optional, Tuple
