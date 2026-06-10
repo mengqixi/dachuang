@@ -85,6 +85,10 @@ body{margin:0;background:#F5F6F8;color:#263238;font-family:-apple-system,BlinkMa
         <div class="notice mt-3">
           <b>推荐操作顺序：</b>检测数据源 → 处理数据集 → 查看四节点划分 → 执行联邦训练 → 从数据集抽样检测 → 查看优化与安全防护。
         </div>
+        <div class="notice mt-3">
+          <b>演示流程：</b>数据处理 → 联邦训练 → 攻击检测 → 自适应优化 → 安全防护 → 实验报告。
+          当前系统为大创实验原型，联邦训练、加密优化等能力以演示流程和当前接口返回为准。
+        </div>
       </div>
     </div>
   </section>
@@ -98,7 +102,7 @@ body{margin:0;background:#F5F6F8;color:#263238;font-family:-apple-system,BlinkMa
             <h6>当前数据源 <span id="dsStatus2" class="status-pill warn">检测中</span></h6>
             <p id="dsInfo" class="muted small-text">正在读取服务器数据集状态。</p>
             <div class="d-flex flex-wrap gap-2">
-              <button class="btn-main" onclick="procDS()"><i class="fas fa-cogs"></i> 处理数据集 + 训练模型</button>
+              <button class="btn-main" onclick="procDS()"><i class="fas fa-cogs"></i> 处理数据集并更新节点状态</button>
               <button class="btn-lightx" onclick="showDatasetDownloadHelp()"><i class="fas fa-download"></i> 下载公开数据集说明</button>
               <button class="btn-lightx" onclick="loadDS()"><i class="fas fa-sync"></i> 刷新状态</button>
             </div>
@@ -149,9 +153,10 @@ body{margin:0;background:#F5F6F8;color:#263238;font-family:-apple-system,BlinkMa
       </div>
       <div class="col-lg-7">
         <div class="panel">
-          <div class="panel-head"><i class="fas fa-network-wired text-primary"></i> 联邦训练</div>
+          <div class="panel-head"><i class="fas fa-network-wired text-primary"></i> 四节点联邦训练</div>
           <div class="panel-body">
             <p class="muted small-text">当前系统在本地运行四节点联邦训练流程，节点数据来自数据处理页面生成的划分结果。</p>
+            <p class="muted small-text">本地训练用于形成单节点基线，联邦训练用于演示四个模拟节点的聚合流程。</p>
             <div class="node-grid mb-3" id="fedNodes"></div>
             <div class="row g-2 align-items-end">
               <div class="col-md-3"><label class="form-label small-text">本地轮次</label><input class="form-control form-control-sm" id="fedE" value="3" type="number" min="1" max="20"></div>
@@ -192,6 +197,7 @@ body{margin:0;background:#F5F6F8;color:#263238;font-family:-apple-system,BlinkMa
           </div>
         </div>
         <div id="detSource" class="muted small-text mt-2"></div>
+        <div class="notice mt-2">下方仅展示部分检测样本，完整结果由后端接口返回。</div>
         <div class="table-responsive mt-2">
           <table class="table table-sm"><thead><tr><th>#</th><th>检测结果</th><th>风险分数</th><th>风险等级</th><th>攻击类型</th><th>真实标签</th></tr></thead><tbody id="detTB"></tbody></table>
         </div>
@@ -265,6 +271,20 @@ body{margin:0;background:#F5F6F8;color:#263238;font-family:-apple-system,BlinkMa
         <p class="small-text">公开数据集 → 特征提取 → 四节点划分 → 联邦训练 → 攻击检测 → 参数优化 → 安全事件追踪。</p>
         <h6>当前边界</h6>
         <p class="small-text">当前为 Flask + SQLite 的原型系统；联邦训练在本地运行四节点流程；安全防护模块展示已接入的请求追踪、慢接口、限流和事件查询能力。</p>
+        <h6>模块能力表</h6>
+        <div class="table-responsive">
+          <table class="table table-sm">
+            <thead><tr><th>模块</th><th>当前能力</th><th>展示方式</th></tr></thead>
+            <tbody>
+              <tr><td>数据处理</td><td>公开数据集检测、处理与四节点划分</td><td>查看数据源状态、处理数据集并刷新节点状态</td></tr>
+              <tr><td>联邦训练</td><td>本地训练基线与四节点聚合流程</td><td>查看节点样本数、执行一轮联邦训练</td></tr>
+              <tr><td>攻击检测</td><td>从已处理数据或上传文件调用检测接口</td><td>展示风险分数、风险等级和攻击类型</td></tr>
+              <tr><td>自适应优化</td><td>根据接口返回展示加密参数调整流程</td><td>查看当前参数、优化历史和加密对比指标</td></tr>
+              <tr><td>安全防护</td><td>TraceId、慢接口、限流和安全事件查询</td><td>查看安全事件统计和最近事件列表</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="small-text muted">边界说明：本系统为实验原型，部分能力为模拟或演示，展示结论以当前接口返回和页面流程为准。</p>
       </div>
     </div>
   </section>
@@ -424,7 +444,7 @@ function showDetRes(d,time){
   document.getElementById('detConf').textContent=rows.length?(avg*100).toFixed(1)+'%':'--';
   document.getElementById('detTim').textContent=time||'--';
   document.getElementById('detSource').textContent=d.source?'数据来源: '+d.source+'；类型: '+(d.source_type||'-'):'';
-  document.getElementById('detTB').innerHTML=rows.length?rows.slice(0,80).map(function(r){r=safeObject(r);var atk=!!r.is_attack;return '<tr><td>'+escapeHtml(r.id||'')+'</td><td>'+(atk?'<span class="text-danger">异常</span>':'<span class="text-success">正常</span>')+'</td><td>'+escapeHtml(r.risk_score??'--')+'</td><td>'+escapeHtml(r.risk_level||'--')+'</td><td>'+escapeHtml(r.attack_type||'--')+'</td><td>'+escapeHtml(r.actual_label??'--')+'</td></tr>'}).join(''):'<tr><td colspan="6" class="muted">暂无检测结果</td></tr>';
+  document.getElementById('detTB').innerHTML=rows.length?rows.slice(0,20).map(function(r){r=safeObject(r);var atk=!!r.is_attack;return '<tr><td>'+escapeHtml(r.id||'')+'</td><td>'+(atk?'<span class="text-danger">异常</span>':'<span class="text-success">正常</span>')+'</td><td>'+escapeHtml(r.risk_score??'--')+'</td><td>'+escapeHtml(r.risk_level||'--')+'</td><td>'+escapeHtml(r.attack_type||'--')+'</td><td>'+escapeHtml(r.actual_label??'--')+'</td></tr>'}).join(''):'<tr><td colspan="6" class="muted">暂无检测结果</td></tr>';
 }
 
 function loadOpt(){
