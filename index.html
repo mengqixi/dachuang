@@ -59,6 +59,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Inter",sans-serif;background:
 <a class="nav-link" href="#" data-page="enc">加密对比</a>
 <a class="nav-link" href="#" data-page="optim">自适应优化</a>
 <a class="nav-link" href="#" data-page="dash">数据看板</a>
+<a class="nav-link" href="#" data-page="sec"><i class="fas fa-shield-alt"></i> 安全</a>
 </div>
 </div>
 </nav>
@@ -227,6 +228,29 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Inter",sans-serif;background:
 </div>
 </div>
 
+<!-- Security Dashboard -->
+<div class="page" id="pg-sec" style="display:none">
+<div class="card"><div class="card-header"><i class="fas fa-shield-alt text-primary"></i> 安全事件看板</div>
+<div class="card-body">
+<div class="stat-grid" id="secStats">
+<div class="stat-card"><div class="stat-num text-primary" id="secTotal">--</div><div class="stat-label">事件总数</div></div>
+<div class="stat-card"><div class="stat-num text-danger" id="secHigh">0</div><div class="stat-label">高风险</div></div>
+<div class="stat-card"><div class="stat-num text-warning" id="secMed">0</div><div class="stat-label">中风险</div></div>
+<div class="stat-card"><div class="stat-num text-success" id="secLow">0</div><div class="stat-label">低风险</div></div>
+</div>
+<div class="d-flex justify-content-between align-items-center mb-2">
+<span style="font-size:13px;font-weight:600">最近事件 <span id="secLastTime" style="font-weight:400;color:#4C566A;font-size:11px"></span></span>
+<div>
+<span style="font-size:11px;color:#4C566A;margin-right:8px" id="secEventBreakdown"></span>
+<button class="btn btn-primary btn-sm" onclick="loadSec()"><i class="fas fa-sync"></i> 刷新</button>
+</div>
+</div>
+<table class="table table-sm" id="secTable" style="display:none"><thead><tr><th>时间</th><th>风险</th><th>事件类型</th><th>路径</th><th>方法</th><th>TraceId</th><th>消息</th></tr></thead><tbody id="secBody"></tbody></table>
+<div id="secEmpty" style="padding:40px;text-align:center;color:#4C566A">暂无安全事件</div>
+<div id="secError" style="padding:20px;text-align:center;color:#BF616A;display:none">安全事件加载失败，请稍后重试</div>
+</div></div>
+</div>
+
 </div><!-- /content -->
 
 <script>
@@ -278,11 +302,13 @@ document.getElementById('nav').addEventListener('click', function(e) {
   curPage = pg;
   // Lazy load
   if (pg === 'dash') loadDash();
+  if (pg === 'sec') loadSec();
   if (pg === 'fed') loadFed();
   if (pg === 'ds') loadDS();
   if (pg === 'optim') loadOpt();
   if (pg === 'enc') updEnc();
   if (pg === 'train') loadTrainHist();
+  if (pg === 'sec') loadSec();
 });
 
 // ---- Toast ----
@@ -540,6 +566,70 @@ function renderDashCharts(recs) {
   dmChart = new Chart(ctx1, {type: 'line', data: {labels: labs, datasets: [{label: '攻击风险', data: risk, borderColor: '#BF616A', fill: false, tension: 0.4, pointRadius: 0, yAxisID: 'y'},{label: '密钥强度', data: keyL, borderColor: '#5E81AC', fill: false, tension: 0.4, pointRadius: 0, yAxisID: 'y1'}]}, options: {responsive: true, maintainAspectRatio: false, plugins: {legend: {position: 'top'}}, scales: {y: {position: 'left', min: 0, max: 1}, y1: {position: 'right', min: 0, max: 1, grid: {display: false}}}}});
   var ctx2 = document.getElementById('dpC').getContext('2d'); if (dpChart) dpChart.destroy();
   dpChart = new Chart(ctx2, {type: 'line', data: {labels: labs, datasets: [{label: 'CPU', data: cpu, borderColor: '#EBCB8B', fill: false, tension: 0.4, pointRadius: 0},{label: '内存', data: mem, borderColor: '#A3BE8C', fill: false, tension: 0.4, pointRadius: 0}]}, options: {responsive: true, maintainAspectRatio: false, plugins: {legend: {position: 'top'}}, scales: {y: {beginAtZero: true}}}});
+}
+
+// ---- Security Dashboard ----
+function loadSec() {
+  get('/api/security/events/recent?limit=50', function(d) {
+    if (!d) { document.getElementById('secError').style.display='block'; return; }
+    document.getElementById('secError').style.display='none';
+    var events = d.events || [];
+    var total = events.length;
+    document.getElementById('secTotal').textContent = total;
+    if (total === 0) {
+      document.getElementById('secEmpty').style.display='block';
+      document.getElementById('secTable').style.display='none';
+      document.getElementById('secEventBreakdown').textContent = '';
+      return;
+    }
+    document.getElementById('secEmpty').style.display='none';
+    document.getElementById('secTable').style.display='';
+    // Last event time
+    if (events[0] && events[0].timestamp) {
+      document.getElementById('secLastTime').textContent = '| 最近: ' + events[0].timestamp;
+    }
+    // Risk counts
+    var high=0, med=0, low=0;
+    var typeCounts = {};
+    for (var i = 0; i < events.length; i++) {
+      var rl = events[i].risk_level || '';
+      if (rl === 'high' || rl === 'critical') high++;
+      else if (rl === 'medium') med++;
+      else low++;
+      var et = events[i].event_type || 'unknown';
+      typeCounts[et] = (typeCounts[et] || 0) + 1;
+    }
+    document.getElementById('secHigh').textContent = high;
+    document.getElementById('secMed').textContent = med;
+    document.getElementById('secLow').textContent = low;
+    // Type breakdown
+    var parts = [];
+    for (var t in typeCounts) {
+      parts.push(t + ': ' + typeCounts[t]);
+    }
+    document.getElementById('secEventBreakdown').textContent = parts.join(' | ');
+    // Event table
+    var h = '';
+    for (var i = 0; i < events.length; i++) {
+      var ev = events[i];
+      var ts = ev.timestamp || '-';
+      if (ts.length > 19) ts = ts.substring(0, 19).replace('T', ' ');
+      var rl = ev.risk_level || '-';
+      var rlColor = (rl === 'high' || rl === 'critical') ? '#BF616A' : (rl === 'medium' ? '#EBCB8B' : '#A3BE8C');
+      var et = ev.event_type || '-';
+      var p = ev.path || '-';
+      var m = ev.method || '-';
+      var tid = ev.trace_id || '-';
+      if (tid.length > 20) tid = tid.substring(0, 20) + '…';
+      var msg = ev.message || '';
+      h += '<tr><td style="font-size:11px;color:#4C566A">' + esc(ts) + '</td><td style="color:' + rlColor + '">' + esc(rl) + '</td><td>' + esc(et) + '</td><td>' + esc(p) + '</td><td>' + esc(m) + '</td><td style="font-family:monospace;font-size:10px">' + esc(tid) + '</td><td style="font-size:11px;color:#4C566A">' + esc(msg) + '</td></tr>';
+    }
+    document.getElementById('secBody').innerHTML = h;
+  });
+}
+function esc(s) {
+  if (typeof s !== 'string') return s === null || s === undefined ? '' : String(s);
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 // ---- Init ----
