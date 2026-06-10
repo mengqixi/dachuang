@@ -261,7 +261,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Inter",sans-serif;background:
 function safeArray(v){return Array.isArray(v)?v:[]}
 function safeObject(v){return v&&typeof v==='object'&&!Array.isArray(v)?v:{}}
 function escapeHtml(s){s=(s===null||s===undefined)?'':String(s);return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
-function getData(p){return p&&p.code!==undefined?(p.code===200?(p.data||p):null):p}
+function getData(p){return p&&p.code!==undefined?(p.code===200?(p.data!==undefined?p.data:p):null):p}
 function showToast(msg,ok){var t=document.getElementById('toast');if(!t){t=document.createElement('div');t.id='toast';t.className='toast';document.body.appendChild(t)}t.textContent=msg;t.style.cssText='position:fixed;top:54px;right:16px;z-index:9999;padding:10px 18px;border-radius:8px;font-size:12px;color:#fff;background:'+(ok?'#A3BE8C':'#BF616A')+';opacity:1;transition:opacity .3s';setTimeout(function(){t.style.opacity='0';setTimeout(function(){t.remove()},300)},3000)}
 
 // ---- HTTP ----
@@ -275,11 +275,12 @@ var pageList=['overview','data','federated','detect','optimize','security','repo
 function showPage(pg){
   // hide all pages
   var all=document.querySelectorAll('.page');
-  for(var i=0;i<all.length;i++)all[i].classList.remove('active');
+  for(var i=0;i<all.length;i++){all[i].classList.remove('active');all[i].style.display='none'}
   // show target
   var target=document.getElementById('pg-'+pg);
   if(!target){pg='overview';target=document.getElementById('pg-overview')}
   target.classList.add('active');
+  target.style.display='block';
   // nav active
   var links=document.querySelectorAll('#nav a');
   for(var i=0;i<links.length;i++)links[i].classList.remove('active');
@@ -312,7 +313,8 @@ function genData(){
 }
 function buildTable(data){
   if(!Array.isArray(data)||!data.length)return '<div class="text-muted small text-center py-2">暂无数据</div>';
-  var cols=Object.keys(data[0]).slice(0,6);if(!cols.length)return '<div class="text-muted small text-center py-2">暂无数据</div>';
+  var first=safeObject(data[0]);
+  var cols=Object.keys(first).slice(0,6);if(!cols.length)return '<div class="text-muted small text-center py-2">暂无数据</div>';
   var h='<table class="table table-sm"><thead><tr>';
   for(var j=0;j<cols.length;j++)h+='<th>'+escapeHtml(cols[j])+'</th>';
   h+='</tr></thead><tbody>';
