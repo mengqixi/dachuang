@@ -1,0 +1,13 @@
+federated:
+  mode: simulated
+  secure_aggregation:
+    enabled: false
+    method: paillier_placeholder
+  clients:
+    - hospital
+    - bank
+    - insurance
+    - government
+  transport:
+    enabled: false
+    type: grpc_placeholder

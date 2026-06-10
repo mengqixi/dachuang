@@ -1,0 +1,13 @@
+{
+  "source": "UNSW_NB15_training-set.csv",
+  "source_type": "UNSW-NB15",
+  "source_path": "data\\datasets\\UNSW-NB15\\UNSW_NB15_training-set.csv",
+  "samples": 2000,
+  "features": 18,
+  "label_column": "label",
+  "label_counts": {
+    "0": 652,
+    "1": 1348
+  },
+  "processed_at": "2026-06-10 17:59:07"
+}

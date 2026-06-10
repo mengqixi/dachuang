@@ -1,0 +1,12 @@
+report:
+  enabled: false
+  mode: json_first
+  exports:
+    pdf:
+      enabled: false
+    markdown:
+      enabled: false
+    json:
+      enabled: true
+  storage:
+    directory: data/reports

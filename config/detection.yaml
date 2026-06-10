@@ -1,0 +1,28 @@
+detection:
+  pipeline_enabled: false
+  output_contract:
+    - risk_score
+    - risk_level
+    - attack_type
+    - confidence
+    - evidence
+  weights:
+    rule: 0.25
+    isolation_forest: 0.25
+    logistic_regression: 0.20
+    behavior: 0.15
+    kitsune_lite: 0.10
+    lucid_lite: 0.05
+  detectors:
+    rule:
+      enabled: true
+    isolation_forest:
+      enabled: true
+    logistic_regression:
+      enabled: true
+    behavior:
+      enabled: false
+    kitsune_lite:
+      enabled: false
+    lucid_lite:
+      enabled: false
