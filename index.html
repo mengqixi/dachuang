@@ -188,8 +188,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Inter",sans-serif;background:
 
 <!-- Encrypt -->
 <div class="page" id="pg-enc" style="display:none">
-<div class="card"><div class="card-header"><i class="fas fa-lock text-primary"></i> 加密对比 — AES-256 vs Paillier 同态加密</div>
-<div class="card-body"><div class="small text-muted mb-3">展示当前后端返回的 AES 与 Paillier 对比指标，用于说明加密性能与联邦学习支持之间的取舍。</div>
+<div class="card"><div class="card-header"><i class="fas fa-lock text-primary"></i> 加密对比 — AES / Paillier 性能指标展示</div>
+<div class="card-body"><div class="small text-muted mb-2">本模块用于展示当前后端接口返回的 AES 与 Paillier 对比指标，包括加密/解密耗时、吞吐量和适用场景说明。当前页面用于答辩演示不同加密方案的性能差异，不代表完整生产级密码学评测。</div>
+<div class="small text-muted mb-3"><i class="fas fa-arrow-right text-primary"></i> 流程：样本数据 → AES / Paillier 对比接口 → 性能指标展示 → 优化模块参考</div>
 <div class="row g-2 align-items-end">
 <div class="col-md-3"><label class="form-label">数据量</label><select class="form-select" id="encSz"><option value="1">1MB</option><option value="10" selected>10MB</option><option value="50">50MB</option></select></div>
 <div class="col-md-3"><button class="btn btn-primary" onclick="updEnc()">刷新</button></div>
@@ -205,18 +206,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Inter",sans-serif;background:
 <div class="page" id="pg-optim" style="display:none">
 <div class="row g-2">
 <div class="col-md-4">
-<div class="card"><div class="card-header"><i class="fas fa-sliders-h text-primary"></i> 自适应优化 — Q-learning 加密参数调优</div>
-<div class="card-body"><div class="small text-muted mb-3">展示自适应优化模块根据攻击风险和系统开销调整密钥长度、加密轮数等参数的过程。</div>
+<div class="card"><div class="card-header"><i class="fas fa-sliders-h text-primary"></i> 自适应优化 — Q-learning 参数调整流程展示</div>
+<div class="card-body"><div class="small text-muted mb-3">本模块用于展示攻击风险、加密开销和系统状态驱动的参数调整流程。当前页面通过后端接口展示 Q-learning / 自适应优化相关状态、推荐参数和历史记录，用于答辩说明"检测结果影响加密策略"的闭环，不代表完整生产级自动化安全策略平台。</div>
+<div class="small text-muted mb-3"><i class="fas fa-arrow-right text-primary"></i> 流程：攻击风险输入 → 系统状态评估 → 参数调整策略 → 加密强度/性能开销平衡 → 优化历史记录</div>
+<div class="small text-muted mb-2"><i class="fas fa-info-circle"></i> 加密对比用于展示不同算法的指标差异，自适应优化用于演示系统如何根据风险和开销调整参数。</div>
 <div class="mb-2"><span>攻击风险</span>
 <div class="progress" style="height:6px"><div class="progress-bar" id="oRB" style="width:10%;background:#A3BE8C"></div></div></div>
 <div><span>密钥</span><b id="oKL">--</b></div>
 <div><span>轮数</span><b id="oRR">--</b></div>
 <div><span>增益</span><b class="text-success" id="oG">--</b></div>
-<div class="mt-2"><button class="btn btn-primary btn-sm" onclick="toggleAuto()">自动优化</button></div>
+<div class="mt-2"><button class="btn btn-primary btn-sm" onclick="toggleAuto()">自动优化演示</button></div>
 </div></div>
 </div>
 <div class="col-md-8">
-<div class="card"><div class="card-header">优化记录</div>
+<div class="card"><div class="card-header">参数调整历史</div>
 <div class="card-body" style="max-height:200px;overflow-y:auto">
 <table class="table table-sm"><thead><tr><th>时间</th><th>参数</th><th>风险</th><th>原因</th></tr></thead><tbody id="oTB"></tbody></table>
 </div></div>
