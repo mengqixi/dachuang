@@ -15,7 +15,7 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from src.security.events_api import read_events
+from src.security.events_api import normalize_limit, read_events
 
 
 SAMPLE_EVENTS = [
@@ -75,6 +75,12 @@ class TestReadEvents(unittest.TestCase):
     def test_limit_exceeds_max_is_clamped(self):
         result = read_events(self.log_path, limit=999, max_limit=200)
         self.assertEqual(len(result), 4)  # only 4 events total
+        self.assertEqual(normalize_limit(999), 200)
+
+    def test_limit_invalid_uses_default(self):
+        self.assertEqual(normalize_limit("bad"), 50)
+        result = read_events(self.log_path, limit="bad")
+        self.assertEqual(len(result), 4)
 
     def test_limit_zero_uses_default(self):
         result = read_events(self.log_path, limit=0)
@@ -186,6 +192,8 @@ class TestSecurityEventsApiFlask(unittest.TestCase):
     def test_events_api_format(self):
         resp = self.app.get("/api/security/events/recent")
         body = resp.get_json()
+        self.assertEqual(body["code"], 200)
+        self.assertEqual(body["msg"], "success")
         self.assertIn("code", body)
         self.assertIn("data", body)
         self.assertIn("events", body["data"])
