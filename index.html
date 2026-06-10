@@ -355,7 +355,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Inter",sans-serif;background:
 function safeArray(v) { return Array.isArray(v) ? v : []; }
 function safeObject(v) { return (v && typeof v === 'object' && !Array.isArray(v)) ? v : {}; }
 function safeGet(obj, key, def) { var o = safeObject(obj); return o[key] !== undefined ? o[key] : def; }
-function getData(payload) { return payload && payload.code !== undefined ? (payload.code === 200 ? (payload.data || payload) : null) : payload; }
+function getData(payload) { return payload && payload.code !== undefined ? (payload.code === 200 ? (payload.data !== undefined ? payload.data : payload) : null) : payload; }
 function showEmpty(el, msg) { if (!el) return; if (typeof msg === 'undefined') msg = '<div class="text-muted text-center py-4">暂无数据</div>'; el.innerHTML = msg; }
 
 // ---- Utility (XMLHttpRequest-based, no fetch) ----
@@ -445,7 +445,8 @@ function genData() {
 
 function buildTable(data) {
   if (!data || !Array.isArray(data) || !data.length) return '<div class="text-muted text-center py-3">暂无数据</div>';
-  var cols = Object.keys(data[0]).slice(0, 6);
+  var first = safeObject(data[0]);
+  var cols = Object.keys(first).slice(0, 6);
   if (!cols.length) return '<div class="text-muted text-center py-3">暂无数据</div>';
   var h = '<table class="table table-sm"><thead><tr>';
   for (var j = 0; j < cols.length; j++) h += '<th>' + cols[j] + '</th>';
