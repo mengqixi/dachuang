@@ -111,11 +111,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Inter",sans-serif;background:
 
 <!-- Train -->
 <div class="page" id="pg-train" style="display:none">
-<div class="card"><div class="card-header"><i class="fas fa-database text-primary"></i> 模型训练 — 攻击检测与对比训练</div>
-<div class="card-body"><div class="small text-muted mb-3">训练攻击检测模型（传统逻辑回归 vs 联邦逻辑回归），为后续异常识别和风险评分提供模型基础。</div>
+<div class="card"><div class="card-header"><i class="fas fa-database text-primary"></i> 模型训练 — 本地攻击检测模型训练演示</div>
+<div class="card-body"><div class="small text-muted mb-3">本模块用于演示攻击检测模型的本地训练流程，训练结果用于后续风险评分和联邦训练对比。当前页面展示的是系统接口返回的训练结果，不代表完整生产级模型训练平台。</div>
+<div class="small text-muted mb-3"><i class="fas fa-arrow-right text-primary"></i> 流程：训练数据 → 本地模型训练 → 精度记录 → 训练历史保存</div>
+<div class="small text-muted mb-2"><i class="fas fa-info-circle"></i> 本地模型训练用于单节点基线对比，联邦训练用于演示多节点协同训练流程。</div>
 <div class="row g-2">
 <div class="col-md-4">
-<div class="card"><div class="card-header">训练配置</div><div class="card-body">
+<div class="card"><div class="card-header">本地训练配置</div><div class="card-body">
 <div class="mb-2"><label class="form-label">轮次</label><input class="form-control" id="trE" value="10" type="number"></div>
 <div class="d-grid gap-2">
 <button class="btn btn-primary" onclick="startTrain()">开始训练</button>
@@ -124,22 +126,24 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Inter",sans-serif;background:
 </div></div>
 </div>
 <div class="col-md-8">
-<div class="card"><div class="card-header">训练结果</div>
+<div class="card"><div class="card-header">本地训练结果</div>
 <div class="card-body">
 <div class="chart-box"><canvas id="trCh"></canvas></div>
 <div id="trRes" class="mt-2"></div>
 </div></div>
 </div>
 </div>
-<div class="card"><div class="card-header">训练历史</div>
+<div class="card"><div class="card-header">本地训练历史</div>
 <div class="card-body"><table class="table table-sm"><thead><tr><th>#</th><th>类型</th><th>精度</th><th>时间</th><th>样本</th></tr></thead><tbody id="trHistTB"></tbody></table></div></div>
 </div>
 
 <!-- Federated -->
 <div class="page" id="pg-fed" style="display:none">
-<div class="card"><div class="card-header"><i class="fas fa-network-wired text-primary"></i> 联邦训练 — 四机构联合建模</div>
-<div class="card-body"><div class="small text-muted mb-3">模拟多机构数据不出本地的联合训练流程，展示 Paillier 和 FedAvg 在联邦训练链路中的位置。</div>
-<div class="alert alert-light small">4个机构(Hospital/Bank/Insurance/Gov)本地训练 → Paillier加密流程演示 → FedAvg聚合 → 下发模型</div>
+<div class="card"><div class="card-header"><i class="fas fa-network-wired text-primary"></i> 联邦训练 — 四节点联合训练演示</div>
+<div class="card-body"><div class="small text-muted mb-3">本模块模拟 Hospital、Bank、Insurance、Government 四个机构节点的数据不出本地训练流程，通过当前后端接口演示模型参数聚合和全局训练结果。当前为单机模拟联邦训练流程，不代表真实生产级跨机构部署。</div>
+<div class="small text-muted mb-3"><i class="fas fa-arrow-right text-primary"></i> 流程：四个模拟机构节点 → 本地训练 → 参数上传演示 → FedAvg 聚合演示 → 全局模型结果</div>
+<div class="small text-muted mb-2"><i class="fas fa-info-circle"></i> 本地模型训练用于单节点基线对比，联邦训练用于演示多节点协同训练流程。</div>
+<div class="alert alert-light small">四节点(Hospital/Bank/Insurance/Government)模拟本地训练 → Paillier/密态聚合演示 → FedAvg聚合演示 → 下发全局模型。<strong>说明</strong>：当前通过后端接口单机模拟联邦训练流程，非真实跨机构生产部署，Paillier 密态聚合为演示/预留能力。</div>
 <div class="node-grid mb-3" id="fedNodes"></div>
 <div class="row g-2">
 <div class="col-md-3"><label class="form-label">本地轮次</label><input class="form-control" id="fedE" value="5" type="number"></div>
@@ -151,8 +155,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Inter",sans-serif;background:
 <div id="fedRes" class="mt-2"></div>
 </div></div>
 <div class="row g-2">
-<div class="col-md-6"><div class="card"><div class="card-header">联邦精度曲线</div><div class="card-body"><div class="chart-box"><canvas id="fedCh"></canvas></div></div></div></div>
-<div class="col-md-6"><div class="card"><div class="card-header">训练详情</div><div class="card-body" id="fedDet"></div></div></div>
+<div class="col-md-6"><div class="card"><div class="card-header">联邦训练精度曲线</div><div class="card-body"><div class="chart-box"><canvas id="fedCh"></canvas></div></div></div></div>
+<div class="col-md-6"><div class="card"><div class="card-header">联邦训练详情</div><div class="card-body" id="fedDet"></div></div></div>
 </div>
 </div>
 
