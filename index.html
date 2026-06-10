@@ -68,8 +68,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Inter",sans-serif;background:
 
 <!-- Data Prep -->
 <div class="page" id="pg-data">
-<div class="card"><div class="card-header"><i class="fas fa-database text-primary"></i> 数据处理 — 数据生成与密态加密</div>
-<div class="card-body"><div class="small text-muted mb-3">完成数据生成、数据集加载、密态处理和联邦节点划分，为后续训练提供输入。</div>
+<div class="card"><div class="card-header"><i class="fas fa-database text-primary"></i> 数据处理 — 数据生成与密态处理演示</div>
+<div class="card-body">
+<div class="small text-muted mb-3">本模块用于演示样本数据生成、Paillier 密态处理和明文/密文对照，为后续联邦训练和攻击检测提供输入。当前页面为演示流程，不代表完整生产级加密流水线。</div>
+<div class="small text-muted mb-3"><i class="fas fa-arrow-right text-primary"></i> 流程：数据生成/加载 → 密态处理 → 联邦节点划分 → 模型训练</div>
 <div class="row g-2">
 <div class="col-md-6">
 <label class="form-label">记录数</label>
@@ -84,15 +86,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Inter",sans-serif;background:
 </div>
 </div></div></div>
 <div class="row g-2">
-<div class="col-md-6"><div class="card"><div class="card-header">明文预览</div><div class="card-body" id="pp" style="max-height:280px;overflow-y:auto"></div></div></div>
-<div class="col-md-6"><div class="card"><div class="card-header">密文预览</div><div class="card-body" id="ep" style="max-height:280px;overflow-y:auto"></div></div></div>
+<div class="col-md-6"><div class="card"><div class="card-header">明文样本预览</div><div class="card-body" id="pp" style="max-height:280px;overflow-y:auto"></div></div></div>
+<div class="col-md-6"><div class="card"><div class="card-header">Paillier 密态样本预览</div><div class="card-body" id="ep" style="max-height:280px;overflow-y:auto"></div></div></div>
 </div>
 </div>
 
 <!-- Dataset -->
 <div class="page" id="pg-ds" style="display:none">
-<div class="card"><div class="card-header"><i class="fas fa-hdd text-primary"></i> 数据集处理 — UNSW-NB15 真实攻击数据集</div>
-<div class="card-body"><div class="small text-muted mb-3">展示 UNSW-NB15 数据集加载、预处理结果和四个联邦节点的数据划分情况。</div>
+<div class="card"><div class="card-header"><i class="fas fa-hdd text-primary"></i> 数据集处理 — UNSW-NB15 与联邦节点划分</div>
+<div class="card-body">
+<div class="small text-muted mb-3">本模块展示 UNSW-NB15 数据集加载状态、预处理流程和四个模拟机构节点的数据划分结果，用于支撑后续联邦训练演示。</div>
+<div class="small text-muted mb-3"><i class="fas fa-arrow-right text-primary"></i> 流程说明：原始数据 → 特征提取(18维) → 按类别分层抽样 → 拆分为四个模拟机构节点 → 各自本地训练</div>
 <div class="alert alert-light small">通过Kaggle API下载UNSW-NB15数据集(82332条)，自动清洗提取18维特征，按攻击类别分层抽样拆分为4个联邦节点。包含DoS/Backdoor/Reconnaissance/Exploits等真实攻击。</div>
 <div class="row g-2 align-items-end">
 <div class="col-md-6 d-flex gap-2">
