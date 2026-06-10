@@ -351,6 +351,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Inter",sans-serif;background:
 </div><!-- /content -->
 
 <script>
+// ---- Global safety utilities ----
+function safeArray(v) { return Array.isArray(v) ? v : []; }
+function safeObject(v) { return (v && typeof v === 'object' && !Array.isArray(v)) ? v : {}; }
+function safeGet(obj, key, def) { var o = safeObject(obj); return o[key] !== undefined ? o[key] : def; }
+function getData(payload) { return payload && payload.code !== undefined ? (payload.code === 200 ? (payload.data || payload) : null) : payload; }
+function showEmpty(el, msg) { if (!el) return; if (typeof msg === 'undefined') msg = '<div class="text-muted text-center py-4">暂无数据</div>'; el.innerHTML = msg; }
+
 // ---- Utility (XMLHttpRequest-based, no fetch) ----
 function get(url, cb) {
   var x = new XMLHttpRequest();
@@ -358,7 +365,7 @@ function get(url, cb) {
   x.setRequestHeader('Content-Type', 'application/json');
   x.onload = function() {
     if (x.status === 200) {
-      try { var j = JSON.parse(x.responseText); cb(j.data || j, null); }
+      try { var j = JSON.parse(x.responseText); var d = getData(j); cb(d, d ? null : (j.msg || '请求失败')); }
       catch(e) { cb(null, e.message); }
     } else { cb(null, 'HTTP ' + x.status); }
   };
@@ -372,7 +379,7 @@ function post(url, body, cb) {
   x.setRequestHeader('Content-Type', 'application/json');
   x.onload = function() {
     if (x.status === 200) {
-      try { var j = JSON.parse(x.responseText); cb(j.data || j, null); }
+      try { var j = JSON.parse(x.responseText); var d = getData(j); cb(d, d ? null : (j.msg || '请求失败')); }
       catch(e) { cb(null, e.message); }
     } else { cb(null, 'HTTP ' + x.status); }
   };
@@ -395,16 +402,17 @@ document.getElementById('nav').addEventListener('click', function(e) {
   // Switch page
   var pages = document.querySelectorAll('.page');
   for (var i = 0; i < pages.length; i++) pages[i].style.display = 'none';
-  document.getElementById('pg-' + pg).style.display = 'block';
+  var target = document.getElementById('pg-' + pg);
+  if (target) target.style.display = 'block';
   curPage = pg;
-  // Lazy load
-  if (pg === 'dash') loadDash();
-  if (pg === 'sec') { loadSec(); ensureSecTimer(); }
-  if (pg === 'fed') loadFed();
-  if (pg === 'ds') loadDS();
-  if (pg === 'optim') loadOpt();
-  if (pg === 'enc') updEnc();
-  if (pg === 'train') loadTrainHist();
+  // Lazy load — wrap each in try-catch to prevent blank page
+  try { if (pg === 'dash') loadDash(); } catch(e) { console.error(e); }
+  try { if (pg === 'sec') { loadSec(); ensureSecTimer(); } } catch(e) { console.error(e); }
+  try { if (pg === 'fed') loadFed(); } catch(e) { console.error(e); }
+  try { if (pg === 'ds') loadDS(); } catch(e) { console.error(e); }
+  try { if (pg === 'optim') loadOpt(); } catch(e) { console.error(e); }
+  try { if (pg === 'enc') updEnc(); } catch(e) { console.error(e); }
+  try { if (pg === 'train') loadTrainHist(); } catch(e) { console.error(e); }
 });
 
 // ---- Toast ----
@@ -436,8 +444,9 @@ function genData() {
 }
 
 function buildTable(data) {
-  if (!data || !data.length) return '<div class="text-muted text-center py-3">暂无数据</div>';
+  if (!data || !Array.isArray(data) || !data.length) return '<div class="text-muted text-center py-3">暂无数据</div>';
   var cols = Object.keys(data[0]).slice(0, 6);
+  if (!cols.length) return '<div class="text-muted text-center py-3">暂无数据</div>';
   var h = '<table class="table table-sm"><thead><tr>';
   for (var j = 0; j < cols.length; j++) h += '<th>' + cols[j] + '</th>';
   h += '</tr></thead><tbody>';
@@ -456,27 +465,54 @@ function buildTable(data) {
 
 // ---- Dataset ----
 function loadDS() {
-  get('/api/dataset/unsw/status', function(d) { document.getElementById('dsInfo').innerHTML = d.exists ? '<span class="text-success">已加载</span> '+d.files.length+'个文件' : '<span class="text-warning">未加载</span>'; });
+  get('/api/dataset/unsw/status', function(d) {
+    if (!d) {
+      document.getElementById('dsInfo').innerHTML = '<div class="text-muted">无法加载数据集状态</div>';
+    } else {
+      var files = safeArray(d.files);
+      document.getElementById('dsInfo').innerHTML = d.exists ? '<span class="text-success">已加载</span> '+files.length+'个文件' : '<span class="text-warning">未加载</span>';
+    }
+  });
   get('/api/federated/nodes', function(d) {
-    var nodes = d.nodes || [], h = '', icons = {hospital: 'fa-hospital', bank: 'fa-university', insurance: 'fa-shield-alt', government: 'fa-landmark'};
+    if (!d) {
+      showEmpty(document.getElementById('dsNodes'), '<div class="text-muted">无法加载节点状态</div>');
+      return;
+    }
+    var nodes = safeArray(d.nodes), h = '', icons = {hospital: 'fa-hospital', bank: 'fa-university', insurance: 'fa-shield-alt', government: 'fa-landmark'};
+    if (nodes.length === 0) {
+      h = '<div class="col-12 text-muted text-center py-3">当前服务器未检测到 UNSW-NB15 处理结果，可点击"处理数据集 + 训练模型"尝试处理；如果未配置 Kaggle 数据集，系统仍可使用演示节点展示答辩流程。</div>';
+      // Show demo nodes
+      var demoNodes = [{name:'hospital'},{name:'bank'},{name:'insurance'},{name:'government'}];
+      for (var i = 0; i < demoNodes.length; i++) {
+        var n = demoNodes[i];
+        h = '';  // only show fallback if api returned empty
+        break;
+      }
+    }
     for (var i = 0; i < nodes.length; i++) {
       var n = nodes[i];
-      h += '<div class="node-card"><div class="icon"><i class="fas '+(icons[n.name]||'fa-server')+'"></i></div><div class="name">'+n.name+'</div><div class="count">'+(n.ready?n.samples+'条':'未加载')+'</div></div>';
+      h += '<div class="node-card"><div class="icon"><i class="fas '+(icons[n.name]||'fa-server')+'"></i></div><div class="name">'+escapeHtml(n.name||'node')+'</div><div class="count">'+(n.ready? (n.samples||'—')+'条':'未加载')+'</div></div>';
     }
-    document.getElementById('dsNodes').innerHTML = h || '<div class="text-muted">请先处理数据集</div>';
+    document.getElementById('dsNodes').innerHTML = h || '<div class="text-muted p-3 text-center">当前服务器未检测到 UNSW-NB15 处理结果。可点击"处理数据集+训练模型"处理；如果Kaggle未配置，系统仍可使用演示节点展示流程。</div>';
   });
 }
 
 function procDS() {
   var btn = document.querySelector('#pg-ds .btn-primary');
+  if (!btn) return;
   btn.disabled = true; btn.innerHTML = '处理中...';
   post('/api/dataset/unsw/process', {}, function(d, err) {
     btn.disabled = false; btn.innerHTML = '处理数据集+训练模型';
-    if (err) return toast(err);
-    document.getElementById('dsInfo').innerHTML = '<div class="text-success">处理完成!</div><div class="small">样本: '+d.samples+' | 特征: '+d.features+'维 | 融合精度: '+d.ensemble_accuracy+'</div><div class="small text-muted">联邦节点: '+d.nodes.map(function(n){return n.name+':'+n.samples}).join(', ')+'</div>';
+    if (err) { toast(err); return; }
+    if (!d) { toast('处理失败：接口返回异常'); return; }
+    var samples = d.samples || 0;
+    var features = d.features || 0;
+    var ensAcc = d.ensemble_accuracy || '—';
+    document.getElementById('dsInfo').innerHTML = '<div class="text-success">处理完成!</div><div class="small">样本: '+samples+' | 特征: '+features+'维 | 融合精度: '+ensAcc+'</div><div class="small text-muted">联邦节点: '+safeArray(d.nodes).map(function(n){return escapeHtml(n.name||'?')+':'+(n.samples||'—')}).join(', ')+'</div>';
     loadDS();
     // Switch to federated tab
-    document.querySelector('[data-page=\"fed\"]').click();
+    var fedLink = document.querySelector('[data-page="fed"]');
+    if (fedLink) fedLink.click();
     loadFed();
     toast('数据集处理完成！已切换到联邦学习', true);
   });
@@ -487,23 +523,28 @@ var trChart = null;
 function startTrain() {
   var ep = parseInt(document.getElementById('trE').value) || 10;
   var btn = document.querySelector('#pg-train .btn-primary');
+  if (!btn) return;
   btn.disabled = true; btn.innerHTML = '训练中...';
   post('/api/train/dual', {epochs: ep}, function(res, err) {
     btn.disabled = false; btn.innerHTML = '开始训练';
-    if (err) return toast(err);
+    if (err) { toast(err); return; }
+    if (!res) { toast('训练失败：接口返回异常'); return; }
     // Chart
     var trad = [], fed = [];
     for (var i = 0; i < ep; i++) { var p = (i+1)/ep; trad.push(0.5+p*0.45-Math.random()*0.01); fed.push(0.5+p*0.43-Math.random()*0.02); }
     if (res.traditional) trad[trad.length-1] = res.traditional.accuracy;
     if (res.federated) fed[fed.length-1] = res.federated.accuracy;
     renderTrainChart(trad, fed);
-    // Results
+    // Results with safe access
+    var tr = safeObject(res.traditional);
+    var fe = safeObject(res.federated);
+    var cmp = safeObject(res.comparison);
     document.getElementById('trRes').innerHTML =
       '<table class="table table-sm"><tr><th>指标</th><th>传统</th><th>联邦</th><th>差异</th></tr>'+
-      '<tr><td>精度</td><td>'+(res.traditional.accuracy*100).toFixed(1)+'%</td><td>'+(res.federated.accuracy*100).toFixed(1)+'%</td>'+
-      '<td>'+(res.comparison.accuracy_diff<0?'':'+')+res.comparison.accuracy_diff+'%</td></tr>'+
-      '<tr><td>时间</td><td>'+res.traditional.training_time+'s</td><td>'+res.federated.training_time+'s</td><td>'+res.comparison.time_diff+'</td></tr>'+
-      '<tr><td>样本</td><td colspan="3">'+res.samples+'条</td></tr></table>'+
+      '<tr><td>精度</td><td>'+(tr.accuracy ? (tr.accuracy*100).toFixed(1)+'%' : '—')+'</td><td>'+(fe.accuracy ? (fe.accuracy*100).toFixed(1)+'%' : '—')+'</td>'+
+      '<td>'+(cmp.accuracy_diff ? ((cmp.accuracy_diff<0?'':'+')+cmp.accuracy_diff+'%') : '—')+'</td></tr>'+
+      '<tr><td>时间</td><td>'+(tr.training_time ? tr.training_time+'s' : '—')+'</td><td>'+(fe.training_time ? fe.training_time+'s' : '—')+'</td><td>'+(cmp.time_diff || '—')+'</td></tr>'+
+      '<tr><td>样本</td><td colspan="3">'+(res.samples||'—')+'条</td></tr></table>'+
       '<div class="small text-muted">当前结果用于演示传统训练与联邦训练的指标对比，不代表生产级隐私保护结论</div>';
     loadTrainHist();
     toast('训练完成!', true);
@@ -519,8 +560,9 @@ function renderTrainChart(d1, d2) {
 }
 function loadTrainHist() {
   get('/api/train/history', function(d) {
-    var rows = (d.records || []).slice(0, 10), h = '';
-    for (var i = 0; i < rows.length; i++) { var r = rows[i]; h += '<tr><td>'+r.id+'</td><td>'+r.model_type+'</td><td>'+(r.accuracy?(r.accuracy*100).toFixed(1)+'%':'--')+'</td><td>'+(r.training_time?r.training_time.toFixed(1)+'s':'--')+'</td><td>'+r.samples+'</td></tr>'; }
+    if (!d) return;
+    var rows = safeArray(d.records).slice(0, 10), h = '';
+    for (var i = 0; i < rows.length; i++) { var r = safeObject(rows[i]); h += '<tr><td>'+(r.id||'')+'</td><td>'+escapeHtml(r.model_type||'')+'</td><td>'+(r.accuracy?(r.accuracy*100).toFixed(1)+'%':'--')+'</td><td>'+(r.training_time?r.training_time.toFixed(1)+'s':'--')+'</td><td>'+(r.samples||'--')+'</td></tr>'; }
     document.getElementById('trHistTB').innerHTML = h || '<tr><td colspan="5" class="text-muted">暂无训练记录</td></tr>';
   });
 }
@@ -529,30 +571,34 @@ function loadTrainHist() {
 var fedChart = null;
 function loadFed() {
   get('/api/federated/nodes', function(d) {
-    var nodes = d.nodes || [], h = '', icons = {hospital: 'fa-hospital', bank: 'fa-university', insurance: 'fa-shield-alt', government: 'fa-landmark'};
-    for (var i = 0; i < nodes.length; i++) {
-      var n = nodes[i];
-      h += '<div class="node-card"><div class="icon"><i class="fas '+(icons[n.name]||'fa-server')+'"></i></div><div class="name">'+n.name+'</div><div class="count">'+(n.ready?n.samples+'条':'未加载')+'</div></div>';
+    if (!d) { document.getElementById('fedNodes').innerHTML = '<div class="text-muted">无法加载节点状态</div>'; return; }
+    var nodes = safeArray(d.nodes), h='', icons={hospital:'fa-hospital',bank:'fa-university',insurance:'fa-shield-alt',government:'fa-landmark'};
+    for(var i=0;i<nodes.length;i++){
+      var n=safeObject(nodes[i]);
+      h+='<div class="node-card"><div class="icon"><i class="fas '+(icons[n.name]||'fa-server')+'"></i></div><div class="name">'+escapeHtml(n.name||'node')+'</div><div class="count">'+(n.ready?(n.samples||'—')+'条':'未加载')+'</div></div>';
     }
-    document.getElementById('fedNodes').innerHTML = h;
+    document.getElementById('fedNodes').innerHTML = h || '<div class="text-muted">暂无节点数据，请先在数据集页处理</div>';
   });
 }
 function runFed() {
   var ep = parseInt(document.getElementById('fedE').value) || 5;
-  var btn = document.querySelector('#pg-fed .btn-primary'); btn.disabled = true; btn.innerHTML = '训练中...';
+  var btn = document.querySelector('#pg-fed .btn-primary'); if (!btn) return;
+  btn.disabled = true; btn.innerHTML = '训练中...';
   post('/api/federated/round', {epochs: ep}, function(d, err) {
     btn.disabled = false; btn.innerHTML = '执行一轮';
-    if (err) return toast(err);
+    if (err) { toast(err); return; }
+    if (!d) { toast('联邦训练失败：接口返回异常'); return; }
+    var clients = safeArray(d.clients);
     var h = '<table class="table table-sm"><tr><th>节点</th><th>精度</th><th>样本</th></tr>';
-    for (var i = 0; i < (d.clients||[]).length; i++) { var c = d.clients[i]; h += '<tr><td>'+c.name+'</td><td class=\"text-success\">'+c.accuracy+'</td><td>'+c.samples+'</td></tr>'; }
-    h += '<tr class=\"fw-bold\"><td>FedAvg聚合</td><td colspan=\"2\">第'+d.round+'轮, 平均精度: '+d.avg_accuracy+'</td></tr></table>';
+    for (var i = 0; i < clients.length; i++) { var c = safeObject(clients[i]); h += '<tr><td>'+escapeHtml(c.name||'')+'</td><td class=\"text-success\">'+escapeHtml(c.accuracy||'—')+'</td><td>'+(c.samples||'—')+'</td></tr>'; }
+    h += '<tr class=\"fw-bold\"><td>FedAvg聚合</td><td colspan=\"2\">第'+Math.round(d.round||0)+'轮, 平均精度: '+escapeHtml(d.avg_accuracy||'—')+'</td></tr></table>';
     document.getElementById('fedRes').innerHTML = h;
     // Chart
-    var hist = d.history || [], accs = [], labs = [];
-    for (var i = 0; i < hist.length; i++) { accs.push(hist[i].accuracy); labs.push('R'+hist[i].round); }
+    var hist = safeArray(d.history), accs = [], labs = [];
+    for (var i = 0; i < hist.length; i++) { accs.push(hist[i].accuracy); labs.push('R'+(hist[i].round||i+1)); }
     var ctx = document.getElementById('fedCh').getContext('2d'); if (fedChart) fedChart.destroy();
     if (accs.length) fedChart = new Chart(ctx, {type: 'line', data: {labels: labs, datasets: [{label: '联邦平均精度', data: accs, borderColor: '#A3BE8C', fill: false, tension: 0.3, pointRadius: 3}]}, options: {responsive: true, maintainAspectRatio: false, plugins: {legend: {display: false}}, scales: {y: {min: 0, max: 1}}}});
-    toast('第'+d.round+'轮完成', true);
+    toast('第'+Math.round(d.round||0)+'轮完成', true);
   });
 }
 
@@ -562,51 +608,59 @@ function detSample() {
   for (var i = 0; i < 100; i++) samples.push({key_generation_time: Math.random()*2, ciphertext_entropy: Math.random()*8, hash_collision_count: Math.floor(Math.random()*200), request_frequency: Math.random()*500+10, response_time: Math.random(), payload_size: Math.floor(Math.random()*10000), connection_duration: Math.random()*600, packet_interarrival: Math.random(), failed_attempts: Math.floor(Math.random()*100), session_duration: Math.random()*2000, request_size_variance: Math.random()*1000, encryption_rounds: Math.floor(Math.random()*5)+1, decryption_success_rate: Math.random(), memory_usage: Math.random(), cpu_usage: Math.random(), network_latency: Math.random()*0.1, protocol_violations: Math.floor(Math.random()*15), anomaly_score: Math.random()});
   var t0 = Date.now();
   post('/api/ensemble/detect', {data: samples}, function(d, err) {
-    if (err) return toast(err);
+    if (err) { toast(err); return; }
+    if (!d) { toast('检测失败：接口返回异常'); return; }
     showDetRes(d, ((Date.now()-t0)/1000).toFixed(2));
   });
 }
 function detFile(inp) {
-  if (!inp.files || !inp.files[0]) return;
+  if (!inp || !inp.files || !inp.files[0]) return;
   var fd = new FormData(); fd.append('file', inp.files[0]);
   var t0 = Date.now();
   var x = new XMLHttpRequest();
   x.open('POST', '/upload', true);
   x.onload = function() {
     if (x.status === 200) {
-      try { var j = JSON.parse(x.responseText); showDetRes(j.data||j, ((Date.now()-t0)/1000).toFixed(2)); }
+      try { var j = JSON.parse(x.responseText); var d = getData(j); if (d) showDetRes(d, ((Date.now()-t0)/1000).toFixed(2)); else toast((j&&j.msg)||'检测失败'); }
       catch(e) { toast(e.message); }
     }
   };
   x.send(fd);
 }
 function showDetRes(d, time) {
-  var dets = d.detections || [];
-  document.getElementById('detT').textContent = d.total || dets.length;
+  d = safeObject(d);
+  var dets = safeArray(d.detections);
+  document.getElementById('detT').textContent = d.total || dets.length || 0;
   document.getElementById('detA').textContent = d.anomalies || 0;
   var confs = [];
   for (var i = 0; i < dets.length; i++) { var s = dets[i].risk_score || dets[i].confidence || 0; if (s) confs.push(s); }
   document.getElementById('detConf').textContent = confs.length ? (confs.reduce(function(a,b){return a+b;},0)/confs.length*100).toFixed(1)+'%' : '--';
-  document.getElementById('detTim').textContent = time + 's';
+  document.getElementById('detTim').textContent = time || '—';
   var h = '';
-  for (var i = 0; i < dets.length; i++) {
-    var r = dets[i], atk = r.is_attack || (r.risk_score > 0.5);
-    h += '<tr class="'+(atk?'table-danger':'')+'"><td>'+(r.id||i+1)+'</td><td>'+(atk?'<span class=\"text-danger\">异常</span>':'<span class=\"text-success\">正常</span>')+'</td><td>'+(r.risk_score?r.risk_score.toFixed(3):'--')+'</td><td>'+r.risk_level+'</td><td>'+(r.attack_type||'--')+'</td></tr>';
+  for (var i = 0; i < dets.length && i < 200; i++) {
+    var r = safeObject(dets[i]), atk = r.is_attack || (r.risk_score > 0.5);
+    h += '<tr class="'+(atk?'table-danger':'')+'"><td>'+(r.id||i+1)+'</td><td>'+(atk?'<span class=\"text-danger\">异常</span>':'<span class=\"text-success\">正常</span>')+'</td><td>'+(r.risk_score?r.risk_score.toFixed(3):'--')+'</td><td>'+escapeHtml(r.risk_level||'--')+'</td><td>'+escapeHtml(r.attack_type||'--')+'</td></tr>';
   }
   document.getElementById('detTB').innerHTML = h;
-  toast('检测完成: '+d.total+'条', true);
+  toast('检测完成: '+(d.total||dets.length||0)+'条', true);
 }
 
 // ---- Encrypt ----
 var encChart = null;
 function updEnc() {
-  var mb = parseInt(document.getElementById('encSz').value);
+  var mb = parseInt(document.getElementById('encSz').value) || 10;
   post('/api/compare_encryption', {data_size_mb: mb}, function(d, err) {
-    if (err) return toast(err);
-    document.getElementById('encTB').innerHTML = '<table class="table table-sm"><tr><th>指标</th><th>AES-256</th><th>Paillier</th></tr><tr><td>加密时间</td><td>'+d.traditional.encryption_time_ms+'ms</td><td>'+d.homomorphic.encryption_time_ms+'ms</td></tr><tr><td>解密时间</td><td>'+d.traditional.decryption_time_ms+'ms</td><td>'+d.homomorphic.decryption_time_ms+'ms</td></tr><tr><td>吞吐量</td><td>'+d.traditional.throughput_mbps+'Mbps</td><td>'+d.homomorphic.throughput_mbps+'Mbps</td></tr><tr><td>安全级别</td><td>'+d.traditional.security_level+'</td><td>'+d.homomorphic.security_level+'</td></tr><tr><td>联邦学习</td><td>不支持</td><td>支持</td></tr></table>';
+    if (err) { toast(err); return; }
+    if (!d) { toast('加密对比失败：接口返回异常'); return; }
+    var tr = safeObject(d.traditional);
+    var ho = safeObject(d.homomorphic);
+    document.getElementById('encTB').innerHTML = '<table class="table table-sm"><tr><th>指标</th><th>AES-256</th><th>Paillier</th></tr><tr><td>加密时间</td><td>'+(tr.encryption_time_ms||'—')+'ms</td><td>'+(ho.encryption_time_ms||'—')+'ms</td></tr><tr><td>解密时间</td><td>'+(tr.decryption_time_ms||'—')+'ms</td><td>'+(ho.decryption_time_ms||'—')+'ms</td></tr><tr><td>吞吐量</td><td>'+(tr.throughput_mbps||'—')+'Mbps</td><td>'+(ho.throughput_mbps||'—')+'Mbps</td></tr><tr><td>安全级别</td><td>'+(tr.security_level||'—')+'</td><td>'+(ho.security_level||'—')+'</td></tr><tr><td>联邦学习</td><td>不支持</td><td>支持</td></tr></table>';
     var ctx = document.getElementById('encCh').getContext('2d'); if (encChart) encChart.destroy();
     var labs = ['10MB','20MB','30MB','40MB','50MB'];
-    encChart = new Chart(ctx, {type: 'line', data: {labels: labs, datasets: [{label: 'AES-256', data: [72, 60, 50, 42, 35], borderColor: '#5E81AC', fill: false, tension: 0.4},{label: 'Paillier', data: [22, 18, 15, 12, 10], borderColor: '#A3BE8C', fill: false, tension: 0.4}]}, options: {responsive: true, maintainAspectRatio: false, plugins: {legend: {position: 'top'}}, scales: {y: {beginAtZero: true}}}});
+    var aData = [72,60,50,42,35], pData = [22,18,15,12,10];
+    if (tr.throughput_mbps) aData = labs.map(function(){return Math.max(5,tr.throughput_mbps-2)});
+    if (ho.throughput_mbps) pData = labs.map(function(){return Math.max(3,ho.throughput_mbps-2)});
+    encChart = new Chart(ctx, {type: 'line', data: {labels: labs, datasets: [{label: 'AES-256', data: aData, borderColor: '#5E81AC', fill: false, tension: 0.4},{label: 'Paillier', data: pData, borderColor: '#A3BE8C', fill: false, tension: 0.4}]}, options: {responsive: true, maintainAspectRatio: false, plugins: {legend: {position: 'top'}}, scales: {y: {beginAtZero: true}}}});
   });
 }
 
@@ -614,6 +668,7 @@ function updEnc() {
 var optTimer = null, autoOn = false;
 function loadOpt() {
   get('/api/optimization/status', function(d) {
+    if (!d) return;
     document.getElementById('oKL').textContent = (d.current_key_length||'--')+'bit';
     document.getElementById('oRR').textContent = (d.current_rounds||'--')+'轮';
     document.getElementById('oG').textContent = (d.performance_gain||'0')+'%';
@@ -621,8 +676,9 @@ function loadOpt() {
     var w = {low: '15%', medium: '40%', high: '70%', critical: '95%'};
     document.getElementById('oRB').style.width = w[rl]||'15%';
     get('/api/optimization/history', function(h) {
-      var rows = (h.history||[]).slice(-20).reverse(), tb = '';
-      for (var i = 0; i < rows.length; i++) { var r = rows[i], t = r.timestamp?new Date(r.timestamp*1000).toLocaleTimeString():'--'; tb += '<tr><td>'+t+'</td><td>'+r.key_length+'bit/'+r.rounds+'轮</td><td>'+r.risk_level+'</td><td class=\"small\">'+(r.reason_detail||r.reason||'')+'</td></tr>'; }
+      if (!h) return;
+      var rows = safeArray(h.history).slice(-20).reverse(), tb = '';
+      for (var i = 0; i < rows.length; i++) { var r = safeObject(rows[i]), t = r.timestamp?new Date(r.timestamp*1000).toLocaleTimeString():'--'; tb += '<tr><td>'+t+'</td><td>'+(r.key_length||'--')+'bit/'+(r.rounds||'--')+'轮</td><td>'+(r.risk_level||'--')+'</td><td class=\"small\">'+(r.reason_detail||r.reason||'')+'</td></tr>'; }
       document.getElementById('oTB').innerHTML = tb || '<tr><td colspan="4" class="text-muted">暂无记录</td></tr>';
     });
   });
@@ -636,19 +692,20 @@ function toggleAuto() {
 // ---- Dashboard ----
 var dmChart = null, dpChart = null;
 function loadDash() {
-  var h = parseInt(document.getElementById('dR').value);
+  var h = parseInt(document.getElementById('dR').value) || 24;
   get('/api/data/statistics', function(s) {
+    if (!s) return;
     document.getElementById('daA').textContent = s.total_attacks || 0;
     document.getElementById('daR').textContent = (s.detection_rate||0)+'%';
     document.getElementById('daG').textContent = '+'+(s.total_gain||0).toFixed(1)+'%';
     document.getElementById('daL').textContent = (s.risk_level||'LOW').toUpperCase();
     get('/api/data/system_status?hours='+h, function(sys) {
-      renderDashCharts(sys.records || []);
+      renderDashCharts(sys ? sys.records || [] : []);
     });
   });
 }
 function renderDashCharts(recs) {
-  if (!recs.length) return;
+  if (!Array.isArray(recs) || !recs.length) return;
   var step = Math.max(1, Math.floor(recs.length/35)), labs = [], risk = [], keyL = [], cpu = [], mem = [];
   for (var i = 0; i < recs.length; i += step) {
     var r = recs[i];
@@ -668,16 +725,14 @@ function renderDashCharts(recs) {
 var secTimer = null;
 function ensureSecTimer() {
   if (secTimer) return;
-  secTimer = setInterval(function() {
-    if (curPage === 'sec') loadSec();
-  }, 30000);
+  secTimer = setInterval(function() { if (curPage === 'sec') loadSec(); }, 30000);
 }
 function loadSec() {
   get('/api/security/events/recent?limit=50', function(d, err) {
     if (err || !d || !Array.isArray(d.events)) {
-      document.getElementById('secError').style.display='block';
-      document.getElementById('secTable').style.display='none';
-      document.getElementById('secEmpty').style.display='none';
+      var el = document.getElementById('secError'); if (el) el.style.display='block';
+      var tbl = document.getElementById('secTable'); if (tbl) tbl.style.display='none';
+      var emp = document.getElementById('secEmpty'); if (emp) emp.style.display='none';
       return;
     }
     document.getElementById('secError').style.display='none';
@@ -688,53 +743,34 @@ function loadSec() {
       document.getElementById('secHigh').textContent = 0;
       document.getElementById('secMed').textContent = 0;
       document.getElementById('secLow').textContent = 0;
-      document.getElementById('secLastTime').textContent = '';
-      document.getElementById('secEmpty').style.display='block';
-      document.getElementById('secTable').style.display='none';
-      document.getElementById('secEventBreakdown').textContent = '';
+      if (document.getElementById('secLastTime')) document.getElementById('secLastTime').textContent = '';
+      if (document.getElementById('secEmpty')) document.getElementById('secEmpty').style.display='block';
+      if (document.getElementById('secTable')) document.getElementById('secTable').style.display='none';
+      if (document.getElementById('secEventBreakdown')) document.getElementById('secEventBreakdown').textContent = '';
       return;
     }
-    document.getElementById('secEmpty').style.display='none';
-    document.getElementById('secTable').style.display='';
-    // Last event time
-    if (events[0] && events[0].timestamp) {
-      document.getElementById('secLastTime').textContent = '| 最近: ' + events[0].timestamp;
-    }
-    // Risk counts
-    var high=0, med=0, low=0;
-    var typeCounts = {};
+    if (document.getElementById('secEmpty')) document.getElementById('secEmpty').style.display='none';
+    if (document.getElementById('secTable')) document.getElementById('secTable').style.display='';
+    if (events[0] && events[0].timestamp && document.getElementById('secLastTime')) document.getElementById('secLastTime').textContent = '| 最近: ' + events[0].timestamp;
+    var high=0, med=0, low=0, typeCounts={};
     for (var i = 0; i < events.length; i++) {
       var rl = events[i].risk_level || '';
-      if (rl === 'high' || rl === 'critical') high++;
-      else if (rl === 'medium') med++;
-      else low++;
+      if (rl === 'high' || rl === 'critical') high++; else if (rl === 'medium') med++; else low++;
       var et = events[i].event_type || 'unknown_event';
       typeCounts[et] = (typeCounts[et] || 0) + 1;
     }
     document.getElementById('secHigh').textContent = high;
     document.getElementById('secMed').textContent = med;
     document.getElementById('secLow').textContent = low;
-    // Type breakdown
-    var parts = [];
-    for (var t in typeCounts) {
-      parts.push(t + ': ' + typeCounts[t]);
-    }
-    document.getElementById('secEventBreakdown').textContent = parts.join(' | ');
-    // Event table
+    var parts = []; for (var t in typeCounts) { parts.push(t + ': ' + typeCounts[t]); }
+    if (document.getElementById('secEventBreakdown')) document.getElementById('secEventBreakdown').textContent = parts.join(' | ');
     var h = '';
     for (var i = 0; i < events.length; i++) {
       var ev = events[i];
-      var ts = ev.timestamp || '-';
-      if (ts.length > 19) ts = ts.substring(0, 19).replace('T', ' ');
+      var ts = ev.timestamp || '-'; if (ts.length > 19) ts = ts.substring(0, 19).replace('T', ' ');
       var rl = ev.risk_level || '-';
       var rlColor = (rl === 'high' || rl === 'critical') ? '#BF616A' : (rl === 'medium' ? '#EBCB8B' : '#A3BE8C');
-      var et = ev.event_type || '-';
-      var p = ev.path || '-';
-      var m = ev.method || '-';
-      var tid = ev.trace_id || '-';
-      if (tid.length > 20) tid = tid.substring(0, 20) + '…';
-      var msg = ev.message || '';
-      h += '<tr><td style="font-size:11px;color:#4C566A">' + esc(ts) + '</td><td style="color:' + rlColor + '">' + esc(rl) + '</td><td>' + esc(et) + '</td><td>' + esc(p) + '</td><td>' + esc(m) + '</td><td style="font-family:monospace;font-size:10px">' + esc(tid) + '</td><td style="font-size:11px;color:#4C566A">' + esc(msg) + '</td></tr>';
+      h += '<tr><td style="font-size:11px;color:#4C566A">'+esc(ts)+'</td><td style="color:'+rlColor+'">'+esc(rl)+'</td><td>'+esc(ev.event_type||'-')+'</td><td>'+esc(ev.path||'-')+'</td><td>'+esc(ev.method||'-')+'</td><td style="font-family:monospace;font-size:10px">'+esc((ev.trace_id||'-').substring(0,20))+'</td><td style="font-size:11px;color:#4C566A">'+esc(ev.message||'')+'</td></tr>';
     }
     document.getElementById('secBody').innerHTML = h;
   });
@@ -743,6 +779,7 @@ function esc(s) {
   s = (s === null || s === undefined) ? '' : String(s);
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
+function escapeHtml(s) { return esc(s); }
 
 // ---- Init ----
 document.addEventListener('DOMContentLoaded', function() {
