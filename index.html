@@ -60,6 +60,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Inter",sans-serif;background:
 <a class="nav-link" href="#" data-page="optim">自适应优化</a>
 <a class="nav-link" href="#" data-page="dash">总览</a>
 <a class="nav-link" href="#" data-page="sec"><i class="fas fa-shield-alt"></i> 安全防护</a>
+<a class="nav-link" href="#" data-page="report">实验报告</a>
 </div>
 </div>
 </nav>
@@ -269,6 +270,81 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Inter",sans-serif;background:
 <table class="table table-sm" id="secTable" style="display:none"><thead><tr><th>时间</th><th>风险</th><th>事件类型</th><th>路径</th><th>方法</th><th>TraceId</th><th>消息</th></tr></thead><tbody id="secBody"></tbody></table>
 <div id="secEmpty" style="padding:40px;text-align:center;color:#4C566A">暂无安全事件</div>
 <div id="secError" style="padding:20px;text-align:center;color:#BF616A;display:none">安全事件加载失败，请稍后重试</div>
+</div></div>
+</div>
+
+<!-- Report -->
+<div class="page" id="pg-report" style="display:none">
+<div class="card"><div class="card-header"><i class="fas fa-file-alt text-primary"></i> 实验报告 — 项目技术路线与答辩总结</div>
+<div class="card-body">
+<div class="small text-muted mb-3">本页面用于汇总项目的技术路线、实验流程、模块能力和答辩展示要点，帮助说明系统如何从数据处理、联邦训练、攻击检测、自适应优化到安全防护形成完整闭环。当前页面为静态答辩总结，不代表自动生成的正式论文或生产级报告。</div>
+
+<h6 class="mt-3" style="color:#5E81AC"><i class="fas fa-info-circle"></i> 一、项目概述</h6>
+<p style="font-size:13px"><strong>项目名称</strong>：基于机器学习的密码攻击检测与加密算法自适应优化系统</p>
+<p style="font-size:13px"><strong>项目目标</strong>：构建一个面向密码攻击检测与加密策略优化的实验原型系统，展示数据处理、模型训练、联邦训练模拟、攻击风险识别、加密算法对比、自适应参数优化和系统安全防护的完整流程。</p>
+
+<h6 class="mt-3" style="color:#5E81AC"><i class="fas fa-arrow-down"></i> 二、技术路线</h6>
+<div style="display:flex;flex-wrap:wrap;gap:6px;font-size:12px;margin-bottom:10px">
+<div style="background:#5E81AC;color:#fff;padding:6px 14px;border-radius:6px">数据处理</div>
+<div style="color:#4C566A;padding:6px 4px">↓</div>
+<div style="background:#5E81AC;color:#fff;padding:6px 14px;border-radius:6px">模型训练</div>
+<div style="color:#4C566A;padding:6px 4px">↓</div>
+<div style="background:#5E81AC;color:#fff;padding:6px 14px;border-radius:6px">联邦训练</div>
+<div style="color:#4C566A;padding:6px 4px">↓</div>
+<div style="background:#BF616A;color:#fff;padding:6px 14px;border-radius:6px">攻击检测</div>
+<div style="color:#4C566A;padding:6px 4px">↓</div>
+<div style="background:#5E81AC;color:#fff;padding:6px 14px;border-radius:6px">加密对比</div>
+<div style="color:#4C566A;padding:6px 4px">↓</div>
+<div style="background:#5E81AC;color:#fff;padding:6px 14px;border-radius:6px">自适应优化</div>
+<div style="color:#4C566A;padding:6px 4px">↓</div>
+<div style="background:#A3BE8C;color:#fff;padding:6px 14px;border-radius:6px">安全防护</div>
+<div style="color:#4C566A;padding:6px 4px">↓</div>
+<div style="background:#4C566A;color:#fff;padding:6px 14px;border-radius:6px">实验报告</div>
+</div>
+
+<h6 class="mt-3" style="color:#5E81AC"><i class="fas fa-cubes"></i> 三、模块说明</h6>
+<div style="font-size:12px">
+<div class="mb-2 p-2" style="background:rgba(94,129,172,0.06);border-radius:6px"><strong>1. 数据处理</strong> — 演示样本数据生成、UNSW-NB15 公开数据集处理、Paillier/演示密态样本预览和四个模拟联邦节点划分。<br><small class="text-muted">状态：已完成前端展示与接口联动演示。</small></div>
+<div class="mb-2 p-2" style="background:rgba(94,129,172,0.06);border-radius:6px"><strong>2. 模型训练</strong> — 展示本地攻击检测模型训练流程和训练历史，用于形成单节点基线结果。<br><small class="text-muted">状态：已完成接口驱动展示。</small></div>
+<div class="mb-2 p-2" style="background:rgba(94,129,172,0.06);border-radius:6px"><strong>3. 联邦训练</strong> — 模拟 Hospital、Bank、Insurance、Government 四个机构节点的单机联邦训练流程，通过当前后端接口展示 FedAvg 聚合演示结果。<br><small class="text-muted">状态：单机模拟演示，非生产级跨机构部署。</small></div>
+<div class="mb-2 p-2" style="background:rgba(191,97,106,0.06);border-radius:6px"><strong>4. 攻击检测</strong> — 通过后端检测接口展示风险分数、风险等级和攻击类型。IF / XGBoost / LSTM 为项目计划中的多模型方向，实际能力以后端接口返回为准。<br><small class="text-muted">状态：已完成接口驱动风险评分展示。</small></div>
+<div class="mb-2 p-2" style="background:rgba(94,129,172,0.06);border-radius:6px"><strong>5. 加密对比</strong> — 展示当前后端接口返回的 AES / Paillier 对比指标，用于说明不同加密方案在性能和适用场景上的差异。<br><small class="text-muted">状态：演示级指标展示，非完整生产级密码学评测。</small></div>
+<div class="mb-2 p-2" style="background:rgba(94,129,172,0.06);border-radius:6px"><strong>6. 自适应优化</strong> — 展示 Q-learning / 自适应优化相关状态、推荐参数和历史记录，用于说明攻击检测结果如何影响加密参数调整。<br><small class="text-muted">状态：参数调整流程展示，非生产级自动化安全策略平台。</small></div>
+<div class="mb-2 p-2" style="background:rgba(163,190,140,0.06);border-radius:6px"><strong>7. 安全防护</strong> — 展示 TraceId、慢接口检测、限流记录、安全事件日志和只读查询 API 形成的系统自身防护与可观测闭环。<br><small class="text-muted">状态：已完成基础安全事件看板展示。</small></div>
+</div>
+
+<h6 class="mt-3" style="color:#5E81AC"><i class="fas fa-list-ol"></i> 四、实验流程</h6>
+<ol style="font-size:12px">
+<li>打开总览页面，查看系统运行状态。</li>
+<li>进入数据处理页面，生成或加载样本数据。</li>
+<li>进入数据集处理页面，查看 UNSW-NB15 公开数据集和四个模拟节点划分。</li>
+<li>进入模型训练页面，执行本地训练并查看训练历史。</li>
+<li>进入联邦训练页面，执行一轮模拟联邦训练。</li>
+<li>进入攻击检测页面，使用内置样本或上传文件进行风险检测。</li>
+<li>进入加密对比页面，查看 AES / Paillier 指标展示。</li>
+<li>进入自适应优化页面，查看参数调整状态和历史记录。</li>
+<li>进入安全防护页面，查看 TraceId、慢接口、限流和安全事件看板。</li>
+<li>回到实验报告页面，总结完整技术路线。</li>
+</ol>
+
+<h6 class="mt-3" style="color:#5E81AC"><i class="fas fa-star"></i> 五、创新点</h6>
+<ol style="font-size:12px">
+<li>将攻击检测结果与加密策略优化进行流程联动展示。</li>
+<li>使用联邦学习思想设计多机构节点训练演示流程。</li>
+<li>引入 Paillier / AES 对比，展示不同加密方案的性能差异。</li>
+<li>使用 Q-learning / 自适应优化思路展示风险驱动的参数调整过程。</li>
+<li>增加 TraceId、慢接口、限流和安全事件看板，形成系统自身防护与可观测闭环。</li>
+<li>将多个安全与机器学习模块整理成适合答辩演示的可视化系统。</li>
+</ol>
+
+<h6 class="mt-3" style="color:#BF616A"><i class="fas fa-exclamation-triangle"></i> 六、当前系统边界说明</h6>
+<div class="p-2" style="background:rgba(191,97,106,0.06);border-radius:6px;font-size:12px">
+当前系统为大创项目实验原型，部分能力为模拟、演示或预留设计。联邦训练为单机模拟流程，不代表真实生产级跨机构部署；Paillier / AES 对比指标来自当前后端接口返回，不代表完整密码学基准评测；Q-learning / 自适应优化用于展示参数调整流程，不代表完整生产级自动化安全策略平台；系统安全防护模块展示 TraceId、慢接口、限流和安全事件日志能力，不代表完整企业级安全运营平台。
+</div>
+
+<h6 class="mt-3" style="color:#5E81AC"><i class="fas fa-comment"></i> 七、答辩讲解建议</h6>
+<p style="font-size:12px">本系统围绕"攻击检测驱动加密策略优化"展开。首先通过数据处理和公开数据集构造实验输入，再通过本地训练和模拟联邦训练得到检测基础；随后攻击检测模块输出风险分数和攻击类型，加密对比模块展示 AES 与 Paillier 的性能差异，自适应优化模块根据风险和开销展示参数调整过程；最后安全防护模块通过 TraceId、慢接口、限流和安全事件日志展示系统自身的防护与可观测能力。</p>
+
 </div></div>
 </div>
 
