@@ -302,13 +302,12 @@ document.getElementById('nav').addEventListener('click', function(e) {
   curPage = pg;
   // Lazy load
   if (pg === 'dash') loadDash();
-  if (pg === 'sec') loadSec();
+  if (pg === 'sec') { loadSec(); ensureSecTimer(); }
   if (pg === 'fed') loadFed();
   if (pg === 'ds') loadDS();
   if (pg === 'optim') loadOpt();
   if (pg === 'enc') updEnc();
   if (pg === 'train') loadTrainHist();
-  if (pg === 'sec') loadSec();
 });
 
 // ---- Toast ----
@@ -569,14 +568,30 @@ function renderDashCharts(recs) {
 }
 
 // ---- Security Dashboard ----
+var secTimer = null;
+function ensureSecTimer() {
+  if (secTimer) return;
+  secTimer = setInterval(function() {
+    if (curPage === 'sec') loadSec();
+  }, 30000);
+}
 function loadSec() {
-  get('/api/security/events/recent?limit=50', function(d) {
-    if (!d) { document.getElementById('secError').style.display='block'; return; }
+  get('/api/security/events/recent?limit=50', function(d, err) {
+    if (err || !d || !Array.isArray(d.events)) {
+      document.getElementById('secError').style.display='block';
+      document.getElementById('secTable').style.display='none';
+      document.getElementById('secEmpty').style.display='none';
+      return;
+    }
     document.getElementById('secError').style.display='none';
-    var events = d.events || [];
+    var events = d.events;
     var total = events.length;
     document.getElementById('secTotal').textContent = total;
     if (total === 0) {
+      document.getElementById('secHigh').textContent = 0;
+      document.getElementById('secMed').textContent = 0;
+      document.getElementById('secLow').textContent = 0;
+      document.getElementById('secLastTime').textContent = '';
       document.getElementById('secEmpty').style.display='block';
       document.getElementById('secTable').style.display='none';
       document.getElementById('secEventBreakdown').textContent = '';
@@ -596,7 +611,7 @@ function loadSec() {
       if (rl === 'high' || rl === 'critical') high++;
       else if (rl === 'medium') med++;
       else low++;
-      var et = events[i].event_type || 'unknown';
+      var et = events[i].event_type || 'unknown_event';
       typeCounts[et] = (typeCounts[et] || 0) + 1;
     }
     document.getElementById('secHigh').textContent = high;
@@ -628,8 +643,8 @@ function loadSec() {
   });
 }
 function esc(s) {
-  if (typeof s !== 'string') return s === null || s === undefined ? '' : String(s);
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  s = (s === null || s === undefined) ? '' : String(s);
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 // ---- Init ----
