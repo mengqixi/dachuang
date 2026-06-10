@@ -419,7 +419,7 @@ function startTrain() {
       '<td>'+(res.comparison.accuracy_diff<0?'':'+')+res.comparison.accuracy_diff+'%</td></tr>'+
       '<tr><td>时间</td><td>'+res.traditional.training_time+'s</td><td>'+res.federated.training_time+'s</td><td>'+res.comparison.time_diff+'</td></tr>'+
       '<tr><td>样本</td><td colspan="3">'+res.samples+'条</td></tr></table>'+
-      '<div class="small text-muted">联邦训练在几乎不损失精度前提下保证数据隐私</div>';
+      '<div class="small text-muted">当前结果用于演示传统训练与联邦训练的指标对比，不代表生产级隐私保护结论</div>';
     loadTrainHist();
     toast('训练完成!', true);
   });
