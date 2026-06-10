@@ -193,6 +193,87 @@ def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in app.config["ALLOWED_EXTENSIONS"]
 
 
+DATASET_DIR = os.path.join("data", "datasets")
+UNSW_DIR = os.path.join(DATASET_DIR, "UNSW-NB15")
+PROCESSED_DATA_DIR = os.path.join(DATASET_DIR, "processed")
+PROCESSED_X_PATH = os.path.join(PROCESSED_DATA_DIR, "X_processed.npy")
+PROCESSED_Y_PATH = os.path.join(PROCESSED_DATA_DIR, "y_processed.npy")
+PROCESSED_META_PATH = os.path.join(PROCESSED_DATA_DIR, "metadata.json")
+
+
+def _csv_row_count(filepath, max_rows=None):
+    count = 0
+    try:
+        with open(filepath, "r", encoding="utf-8", errors="replace", newline="") as f:
+            reader = csv.reader(f)
+            next(reader, None)
+            for _ in reader:
+                count += 1
+                if max_rows and count >= max_rows:
+                    break
+    except Exception:
+        return 0
+    return count
+
+
+def _find_dataset_source():
+    """Find the best available dataset source without downloading anything."""
+    candidates = []
+    preferred = [
+        os.path.join(UNSW_DIR, "UNSW_NB15_training-set.csv"),
+        os.path.join(UNSW_DIR, "UNSW_NB15_testing-set.csv"),
+    ]
+    if os.path.isdir(UNSW_DIR):
+        for name in sorted(os.listdir(UNSW_DIR)):
+            if name.lower().endswith(".csv"):
+                path = os.path.join(UNSW_DIR, name)
+                if path not in preferred:
+                    preferred.append(path)
+    for path in preferred:
+        if os.path.exists(path):
+            candidates.append({
+                "path": path,
+                "source": os.path.basename(path),
+                "source_type": "UNSW-NB15",
+            })
+
+    generated_train = os.path.join("data", "generated", "train.csv")
+    generated_test = os.path.join("data", "generated", "test.csv")
+    if os.path.exists(generated_train):
+        candidates.append({
+            "path": generated_train,
+            "test_path": generated_test if os.path.exists(generated_test) else None,
+            "source": "data/generated/train.csv",
+            "source_type": "local_generated",
+        })
+
+    if os.path.isdir("data"):
+        for name in sorted(os.listdir("data")):
+            path = os.path.join("data", name)
+            if name.lower().endswith(".csv") and os.path.isfile(path):
+                candidates.append({
+                    "path": path,
+                    "source": name,
+                    "source_type": "local_csv",
+                })
+
+    return candidates[0] if candidates else None
+
+
+def _processed_dataset_ready():
+    return os.path.exists(PROCESSED_X_PATH) and os.path.exists(PROCESSED_Y_PATH)
+
+
+def _load_processed_metadata():
+    if not os.path.exists(PROCESSED_META_PATH):
+        return {}
+    try:
+        with open(PROCESSED_META_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
 def generate_sensitive_dataset(n_records=100):
     dataset = []
     for i in range(n_records):
@@ -1387,58 +1468,107 @@ def data_statistics():
 @app.route("/api/dataset/unsw/status", methods=["GET"])
 def dataset_unsw_status():
     """检查UNSW-NB15数据集状态"""
-    path = "data/datasets/UNSW-NB15"
-    files = []
-    if os.path.exists(path):
-        files = [f for f in os.listdir(path) if f.endswith('.csv')]
-    return jsonify(api_response(data={"exists": len(files) > 0, "files": files, "path": path}))
+    from src.preprocess.feature_engineering import inspect_csv
+
+    source = _find_dataset_source()
+    processed_ready = _processed_dataset_ready()
+    meta = _load_processed_metadata()
+    if source is None:
+        return jsonify(api_response(data={
+            "exists": False,
+            "source": None,
+            "source_type": None,
+            "samples": meta.get("samples", 0),
+            "features": meta.get("features", 0),
+            "label_column": meta.get("label_column"),
+            "ready_for_federated": processed_ready,
+            "processed": meta,
+        }))
+
+    try:
+        info = inspect_csv(source["path"])
+    except Exception as e:
+        logger.warning("Dataset inspect failed: %s", e)
+        info = {
+            "samples": _csv_row_count(source["path"], max_rows=1000000),
+            "features": 0,
+            "label_column": None,
+        }
+
+    return jsonify(api_response(data={
+        "exists": True,
+        "source": source["source"],
+        "source_path": source["path"],
+        "source_type": source["source_type"],
+        "samples": info.get("samples", 0),
+        "features": info.get("features", 0),
+        "label_column": info.get("label_column"),
+        "ready_for_federated": processed_ready,
+        "processed": meta,
+    }))
 
 
 @app.route("/api/dataset/unsw/process", methods=["POST"])
 def dataset_unsw_process():
-    """处理UNSW-NB15数据集并拆分为联邦4节点"""
+    """Process the best available security dataset and split it into 4 nodes."""
     try:
-        from src.preprocess.feature_engineering import load_unsw_nb15, minmax_normalize
+        from src.preprocess.feature_engineering import inspect_csv, load_security_csv, minmax_normalize
         from src.preprocess.federated_splitter import save_federated_data
         from src.detection.ensemble_detector import ensemble_detector
 
-        path = "data/datasets/UNSW-NB15"
-        csv_files = [f for f in os.listdir(path) if f.endswith('.csv')]
-        if not csv_files:
-            return jsonify(api_response(code=400, msg="未找到UNSW-NB15数据文件"))
+        req = request.get_json(silent=True) or {}
+        limit = int(req.get("limit") or 50000)
+        source = _find_dataset_source()
+        if source is None:
+            return jsonify(api_response(code=400, msg="No usable dataset file found. Download a public dataset or generate local CSV data first."))
 
-        filepath = os.path.join(path, csv_files[0])
-        logger.info("加载UNSW-NB15: %s", filepath)
-        X, y = load_unsw_nb15(filepath)
+        filepath = source["path"]
+        logger.info("Loading dataset source: %s", filepath)
+        X, y, _ = load_security_csv(filepath, limit=limit)
+        if len(X) == 0:
+            return jsonify(api_response(code=400, msg="Dataset file is empty or features cannot be extracted."))
         X = minmax_normalize(X)
 
-        # 保存处理后的数据
-        np.save(os.path.join(path, "X_processed.npy"), X)
-        np.save(os.path.join(path, "y_processed.npy"), y)
+        os.makedirs(PROCESSED_DATA_DIR, exist_ok=True)
+        np.save(PROCESSED_X_PATH, X)
+        np.save(PROCESSED_Y_PATH, y)
 
-        # 拆分为联邦4节点
         nodes = save_federated_data(X, y)
 
-        # 创建序列数据用于LSTM
-        X_seq = np.array([X[i:i+10] for i in range(min(len(X)-10, 2000))])
-        y_seq = np.array([1.0 if np.mean(y[i:i+10]) > 0.3 else 0.0 for i in range(min(len(X)-10, 2000))])
+        seq_count = max(0, min(len(X) - 10, 2000))
+        X_seq = np.array([X[i:i + 10] for i in range(seq_count)]) if seq_count else None
+        fit_x = X[:min(len(X), 5000)]
+        fit_y = y[:min(len(y), 5000)]
+        fit_seq = X_seq[:min(len(X_seq), 500)] if X_seq is not None else None
+        result = ensemble_detector.fit(fit_x, fit_y, fit_seq)
 
-        # 训练三模型融合检测器
-        result = ensemble_detector.fit(X[:min(len(X), 5000)], y[:min(len(y), 5000)], X_seq[:min(len(X_seq), 500)])
-        logger.info("三模型融合检测器训练完成: %s", result)
+        try:
+            info = inspect_csv(filepath)
+        except Exception:
+            info = {}
+        label_counts = {str(k): int(v) for k, v in zip(*np.unique(y, return_counts=True))}
+        metadata = {
+            "source": source["source"],
+            "source_type": source["source_type"],
+            "source_path": filepath,
+            "samples": int(len(X)),
+            "features": int(X.shape[1]),
+            "label_column": info.get("label_column"),
+            "label_counts": label_counts,
+            "processed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        with open(PROCESSED_META_PATH, "w", encoding="utf-8") as f:
+            json.dump(metadata, f, ensure_ascii=False, indent=2)
 
         return jsonify(api_response(data={
-            "samples": len(X),
-            "features": X.shape[1],
-            "nodes": [{"name": n[0], "samples": n[1]} for n in nodes],
+            **metadata,
+            "nodes": [{"name": n[0], "samples": int(n[1]), "ready": True} for n in nodes],
             "ensemble_accuracy": result.get("accuracy", 0),
         }))
     except Exception as e:
-        logger.error("数据集处理失败: %s", e)
-        return jsonify(api_response(code=500, msg="处理失败: %s" % e))
+        logger.exception("Dataset processing failed")
+        return jsonify(api_response(code=500, msg="Processing failed: %s" % e))
 
-
-# ─── API: 联邦学习4节点 ───
 
 @app.route("/api/federated/nodes", methods=["GET"])
 def federated_nodes():
@@ -1529,6 +1659,68 @@ def ensemble_detect():
         "anomalies": int(np.sum(preds)),
         "detections": results,
         "model": "IF+XGBoost+LSTM融合(0.3/0.3/0.4)",
+    }))
+
+@app.route("/api/ensemble/detect_from_dataset", methods=["POST"])
+def ensemble_detect_from_dataset():
+    """Run detection on samples from the processed dataset."""
+    from src.detection.ensemble_detector import ensemble_detector
+
+    if not _processed_dataset_ready():
+        return jsonify(api_response(code=400, msg="请先在数据处理页面处理数据集"))
+
+    req = request.get_json(silent=True) or {}
+    limit = max(1, min(int(req.get("limit") or 50), 500))
+    has_offset = "offset" in req
+    offset = max(0, int(req.get("offset") or 0))
+
+    X = np.load(PROCESSED_X_PATH)
+    y = np.load(PROCESSED_Y_PATH)
+    if len(X) == 0:
+        return jsonify(api_response(code=400, msg="已处理数据集为空"))
+
+    if has_offset:
+        if offset >= len(X):
+            offset = 0
+        end = min(offset + limit, len(X))
+        indices = np.arange(offset, end)
+    elif len(X) <= limit:
+        indices = np.arange(len(X))
+    else:
+        step = (len(X) - 1) / float(limit - 1)
+        indices = np.array([int(round(i * step)) for i in range(limit)], dtype=np.int64)
+    sample_x = X[indices]
+    sample_y = y[indices]
+
+    if not ensemble_detector.is_ready():
+        ensemble_detector.load_or_init()
+
+    preds, scores, risk_levels = ensemble_detector.predict(sample_x)
+    risk_names = {0: "低", 1: "中", 2: "高", 3: "危险"}
+    metadata = _load_processed_metadata()
+
+    results = []
+    for i in range(len(sample_x)):
+        pred = int(preds[i])
+        label = int(sample_y[i])
+        attack_type = "Normal" if pred == 0 else "Attack"
+        results.append({
+            "id": int(indices[i] + 1),
+            "is_attack": bool(pred),
+            "actual_label": label,
+            "risk_score": round(float(scores[i]), 4),
+            "risk_level": risk_names.get(int(risk_levels[i]), "低"),
+            "attack_type": attack_type,
+        })
+
+    return jsonify(api_response(data={
+        "total": len(results),
+        "anomalies": int(np.sum(preds)),
+        "detections": results,
+        "source": metadata.get("source", "processed dataset"),
+        "source_type": metadata.get("source_type", "processed"),
+        "offset": offset,
+        "limit": limit,
     }))
 
 

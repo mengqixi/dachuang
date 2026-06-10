@@ -1,61 +1,174 @@
 # -*- coding: utf-8 -*-
-"""特征工程 - 统一18维特征提取与标准化"""
+"""Feature extraction for network/security datasets.
+
+The project uses a fixed 18-dimensional feature vector.  This module accepts
+UNSW-NB15 style CSV files, the project's generated CSV files, and simple
+numeric CSV files with a label column.
+"""
+
+from __future__ import annotations
+
+import csv
+import os
+from typing import Dict, Iterable, List, Optional, Tuple
 
 import numpy as np
-from typing import Dict, List, Optional
+
 
 FEATURE_NAMES = [
-    'key_generation_time', 'ciphertext_entropy', 'hash_collision_count',
-    'request_frequency', 'response_time', 'payload_size',
-    'connection_duration', 'packet_interarrival', 'failed_attempts',
-    'session_duration', 'request_size_variance', 'encryption_rounds',
-    'decryption_success_rate', 'memory_usage', 'cpu_usage',
-    'network_latency', 'protocol_violations', 'anomaly_score',
+    "key_generation_time",
+    "ciphertext_entropy",
+    "hash_collision_count",
+    "request_frequency",
+    "response_time",
+    "payload_size",
+    "connection_duration",
+    "packet_interarrival",
+    "failed_attempts",
+    "session_duration",
+    "request_size_variance",
+    "encryption_rounds",
+    "decryption_success_rate",
+    "memory_usage",
+    "cpu_usage",
+    "network_latency",
+    "protocol_violations",
+    "anomaly_score",
 ]
 
 
+UNSW_FEATURE_ALIASES = {
+    "key_generation_time": ["key_generation_time", "stime"],
+    "ciphertext_entropy": ["ciphertext_entropy", "ct_ftp_cmd"],
+    "hash_collision_count": ["hash_collision_count", "ct_srv_src"],
+    "request_frequency": ["request_frequency", "rate"],
+    "response_time": ["response_time", "sload"],
+    "payload_size": ["payload_size", "spkts", "sbytes"],
+    "connection_duration": ["connection_duration", "dur"],
+    "packet_interarrival": ["packet_interarrival", "sjit"],
+    "failed_attempts": ["failed_attempts", "ct_dst_src_ltm"],
+    "session_duration": ["session_duration", "rate"],
+    "request_size_variance": ["request_size_variance", "sbytes"],
+    "encryption_rounds": ["encryption_rounds", "ct_srv_dst"],
+    "decryption_success_rate": ["decryption_success_rate"],
+    "memory_usage": ["memory_usage"],
+    "cpu_usage": ["cpu_usage"],
+    "network_latency": ["network_latency", "trans_depth"],
+    "protocol_violations": ["protocol_violations", "ct_state_ttl"],
+    "anomaly_score": ["anomaly_score", "label"],
+}
+
+LABEL_COLUMNS = ["label", "is_attack", "attack", "target", "class"]
+
+
+def _to_float(value, default: float = 0.0) -> float:
+    if value is None or value == "":
+        return default
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _read_first(row: Dict, aliases: Iterable[str], default: float = 0.0) -> float:
+    for key in aliases:
+        if key in row and row.get(key) not in (None, ""):
+            return _to_float(row.get(key), default)
+    return default
+
+
+def infer_label(row: Dict) -> int:
+    """Return 1 for attack rows and 0 for normal rows."""
+    for key in LABEL_COLUMNS:
+        if key in row and row.get(key) not in (None, ""):
+            value = str(row.get(key)).strip().lower()
+            if value in {"0", "0.0", "normal", "benign", "false", "no"}:
+                return 0
+            if value in {"1", "1.0", "attack", "true", "yes"}:
+                return 1
+            return 0 if value == "normal" else 1
+
+    attack_cat = str(row.get("attack_cat", "")).strip().lower()
+    if attack_cat:
+        return 0 if attack_cat in {"normal", "benign"} else 1
+
+    return 0
+
+
 def extract_features_structured(row: Dict) -> np.ndarray:
-    """从UNSW-NB15风格的行数据提取18维特征向量"""
-    vec = np.zeros(18, dtype=np.float64)
-    vec[0] = float(row.get('key_generation_time', row.get('stime', 0)))
-    vec[1] = float(row.get('ciphertext_entropy', row.get('ct_ftp_cmd', 0)))
-    vec[2] = float(row.get('hash_collision_count', row.get('ct_srv_src', 0)))
-    vec[3] = float(row.get('request_frequency', row.get('rate', 0)))
-    vec[4] = float(row.get('response_time', row.get('sload', 0)))
-    vec[5] = float(row.get('payload_size', row.get('spkts', 0)))
-    vec[6] = float(row.get('connection_duration', row.get('dur', 0)))
-    vec[7] = float(row.get('packet_interarrival', row.get('sjit', 0)))
-    vec[8] = float(row.get('failed_attempts', row.get('ct_dst_src_ltm', 0)))
-    vec[9] = float(row.get('session_duration', row.get('rate', 0)))
-    vec[10] = float(row.get('request_size_variance', row.get('sbytes', 0)))
-    vec[11] = float(row.get('encryption_rounds', row.get('ct_srv_dst', 0)))
-    vec[12] = float(row.get('decryption_success_rate', 1.0))
-    vec[13] = float(row.get('memory_usage', 0.3))
-    vec[14] = float(row.get('cpu_usage', 0.2))
-    vec[15] = float(row.get('network_latency', row.get('trans_depth', 0)))
-    vec[16] = float(row.get('protocol_violations', row.get('ct_state_ttl', 0)))
-    vec[17] = float(row.get('anomaly_score', row.get('label', 0)))
+    """Extract the fixed 18-dimensional vector from a dictionary row."""
+    vec = np.zeros(len(FEATURE_NAMES), dtype=np.float64)
+    for i, feature in enumerate(FEATURE_NAMES):
+        vec[i] = _read_first(row, UNSW_FEATURE_ALIASES.get(feature, [feature]))
     return vec
 
 
 def minmax_normalize(X: np.ndarray, fit_params: Optional[Dict] = None) -> np.ndarray:
-    """Min-Max归一化到[0,1]"""
+    """Normalize a matrix into [0, 1]."""
+    X = np.asarray(X, dtype=np.float64)
+    if X.size == 0:
+        return X
     if fit_params:
-        mins, maxs = fit_params['mins'], fit_params['maxs']
+        mins, maxs = fit_params["mins"], fit_params["maxs"]
     else:
         mins, maxs = X.min(axis=0), X.max(axis=0)
     return np.clip((X - mins) / (maxs - mins + 1e-10), 0, 1)
 
 
-def load_unsw_nb15(filepath: str) -> np.ndarray:
-    """加载UNSW-NB15 CSV并提取特征"""
-    import csv
-    X_rows, y_vals = [], []
-    with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
+def load_security_csv(filepath: str, limit: Optional[int] = None) -> Tuple[np.ndarray, np.ndarray, List[Dict]]:
+    """Load a CSV into features, labels, and raw records."""
+    rows: List[Dict] = []
+    X_rows: List[np.ndarray] = []
+    y_vals: List[int] = []
+
+    with open(filepath, "r", encoding="utf-8", errors="replace", newline="") as f:
         reader = csv.DictReader(f)
+        if not reader.fieldnames:
+            return np.empty((0, len(FEATURE_NAMES))), np.empty(0, dtype=np.int32), []
         for row in reader:
             vec = extract_features_structured(row)
-            label = int(float(row.get('label', 0)))
+            label = infer_label(row)
+            rows.append(row)
             X_rows.append(vec)
             y_vals.append(label)
-    return np.array(X_rows, dtype=np.float64), np.array(y_vals, dtype=np.int32)
+
+    if not X_rows:
+        return np.empty((0, len(FEATURE_NAMES))), np.empty(0, dtype=np.int32), []
+    if limit and len(X_rows) > limit:
+        if limit == 1:
+            indices = [0]
+        else:
+            step = (len(X_rows) - 1) / float(limit - 1)
+            indices = [int(round(i * step)) for i in range(limit)]
+        X_rows = [X_rows[i] for i in indices]
+        y_vals = [y_vals[i] for i in indices]
+        rows = [rows[i] for i in indices]
+    return np.asarray(X_rows, dtype=np.float64), np.asarray(y_vals, dtype=np.int32), rows
+
+
+def load_unsw_nb15(filepath: str, limit: Optional[int] = None) -> Tuple[np.ndarray, np.ndarray]:
+    """Backward-compatible loader for UNSW-NB15 style CSV files."""
+    X, y, _ = load_security_csv(filepath, limit=limit)
+    return X, y
+
+
+def inspect_csv(filepath: str) -> Dict:
+    """Return lightweight metadata for status endpoints."""
+    info = {
+        "path": filepath,
+        "name": os.path.basename(filepath),
+        "samples": 0,
+        "features": 0,
+        "label_column": None,
+    }
+    with open(filepath, "r", encoding="utf-8", errors="replace", newline="") as f:
+        reader = csv.DictReader(f)
+        fields = reader.fieldnames or []
+        info["features"] = len([c for c in fields if c not in set(LABEL_COLUMNS + ["attack_cat", "id"])])
+        for col in LABEL_COLUMNS + ["attack_cat"]:
+            if col in fields:
+                info["label_column"] = col
+                break
+        for _ in reader:
+            info["samples"] += 1
+    return info

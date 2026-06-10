@@ -98,6 +98,15 @@ class EnsembleDetector:
             logger.info("Ensemble: XGBoost训练完成")
         except Exception as e:
             logger.warning("Ensemble: XGBoost训练失败: %s", e)
+            try:
+                from sklearn.linear_model import LogisticRegression
+                y_bin = (y > 0).astype(int)
+                self.xgb_model = LogisticRegression(max_iter=300, solver="lbfgs")
+                self.xgb_model.fit(X, y_bin)
+                joblib.dump(self.xgb_model, os.path.join(MODEL_DIR, "xgboost.pkl"))
+                logger.info("Ensemble: LogisticRegression fallback训练完成")
+            except Exception as fallback_error:
+                logger.warning("Ensemble: fallback分类器训练失败: %s", fallback_error)
 
         # 3. 训练LSTM
         try:
@@ -114,7 +123,7 @@ class EnsembleDetector:
         self._is_ready = True
 
         # 评估
-        preds = self.predict(X)
+        preds, _, _ = self.predict(X)
         accuracy = float(np.mean(preds == (y > 0).astype(int)))
         logger.info("三模型融合检测器训练完成: accuracy=%.4f", accuracy)
         return {"accuracy": accuracy}
