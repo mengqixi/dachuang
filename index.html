@@ -248,13 +248,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Inter",sans-serif;background:
 
 <!-- Security Dashboard -->
 <div class="page" id="pg-sec" style="display:none">
-<div class="card"><div class="card-header"><i class="fas fa-shield-alt text-primary"></i> 安全防护 — TraceId · 慢接口检测 · 限流 · 安全事件日志</div>
-<div class="card-body"><div class="small text-muted mb-3">展示 TraceId 请求追踪、慢接口检测、接口限流和安全事件日志形成的系统安全防护闭环。</div>
+<div class="card"><div class="card-header"><i class="fas fa-shield-alt text-primary"></i> 安全防护 — TraceId / 慢接口 / 限流 / 安全事件看板</div>
+<div class="card-body"><div class="small text-muted mb-2">本模块用于展示系统自身的安全防护与可观测能力，包括 TraceId 请求链路追踪、慢接口检测、接口限流记录和安全事件日志。当前页面通过只读接口展示最近安全事件，用于答辩说明攻击检测系统自身的防护闭环，不代表完整企业级安全运营平台。</div>
+<div class="small text-muted mb-3"><i class="fas fa-arrow-right text-primary"></i> 流程：请求进入系统 → TraceId 追踪 → 慢接口/限流检测 → 安全事件日志 → 只读 API 查询 → 看板展示</div>
 <div class="stat-grid" id="secStats">
-<div class="stat-card"><div class="stat-num text-primary" id="secTotal">--</div><div class="stat-label">事件总数</div></div>
-<div class="stat-card"><div class="stat-num text-danger" id="secHigh">0</div><div class="stat-label">高风险</div></div>
-<div class="stat-card"><div class="stat-num text-warning" id="secMed">0</div><div class="stat-label">中风险</div></div>
-<div class="stat-card"><div class="stat-num text-success" id="secLow">0</div><div class="stat-label">低风险</div></div>
+<div class="stat-card"><div class="stat-num text-primary" id="secTotal">--</div><div class="stat-label">事件总数<small class="text-muted d-block">最近查询返回的事件数</small></div></div>
+<div class="stat-card"><div class="stat-num text-danger" id="secHigh">0</div><div class="stat-label">高风险<small class="text-muted d-block">risk_level: high</small></div></div>
+<div class="stat-card"><div class="stat-num text-warning" id="secMed">0</div><div class="stat-label">中风险<small class="text-muted d-block">risk_level: medium</small></div></div>
+<div class="stat-card"><div class="stat-num text-success" id="secLow">0</div><div class="stat-label">低风险<small class="text-muted d-block">risk_level: low</small></div></div>
 </div>
 <div class="d-flex justify-content-between align-items-center mb-2">
 <span style="font-size:13px;font-weight:600">最近事件 <span id="secLastTime" style="font-weight:400;color:#4C566A;font-size:11px"></span></span>
@@ -263,6 +264,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Inter",sans-serif;background:
 <button class="btn btn-primary btn-sm" onclick="loadSec()"><i class="fas fa-sync"></i> 刷新</button>
 </div>
 </div>
+<div class="small text-muted mb-1">事件类型统计基于最近安全事件日志，用于展示慢接口、限流等安全事件的分布情况。</div>
+<div class="small text-muted mb-1">最近事件表展示只读接口返回的安全事件记录，包括时间、风险等级、事件类型、请求路径、方法、TraceId 和事件消息。</div>
 <table class="table table-sm" id="secTable" style="display:none"><thead><tr><th>时间</th><th>风险</th><th>事件类型</th><th>路径</th><th>方法</th><th>TraceId</th><th>消息</th></tr></thead><tbody id="secBody"></tbody></table>
 <div id="secEmpty" style="padding:40px;text-align:center;color:#4C566A">暂无安全事件</div>
 <div id="secError" style="padding:20px;text-align:center;color:#BF616A;display:none">安全事件加载失败，请稍后重试</div>
