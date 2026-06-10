@@ -162,8 +162,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Inter",sans-serif;background:
 
 <!-- Detect -->
 <div class="page" id="pg-detect" style="display:none">
-<div class="card"><div class="card-header"><i class="fas fa-shield-alt text-warning"></i> 攻击检测 — 三模型融合 (IF 0.3 + XGB 0.3 + LSTM 0.4)</div>
-<div class="card-body"><div class="small text-muted mb-3">展示当前攻击检测接口输出的风险评分、风险等级和攻击类型，用于演示异常行为识别流程。</div>
+<div class="card"><div class="card-header"><i class="fas fa-shield-alt text-warning"></i> 攻击检测 — 后端接口驱动的风险评分演示</div>
+<div class="card-body"><div class="small text-muted mb-2">本模块用于展示攻击检测接口的演示流程。系统可使用内置样本或上传 CSV/JSON 文件，调用后端检测接口输出风险分数、风险等级和攻击类型，为后续自适应加密优化提供风险输入。当前页面展示的是系统接口返回结果，不代表完整生产级在线流量检测平台。</div>
+<div class="small text-muted mb-2"><i class="fas fa-arrow-right text-primary"></i> 流程：样本输入 → 特征解析 → 后端检测接口 → 风险评分 → 风险等级 / 攻击类型</div>
+<div class="small text-muted mb-3" style="background:rgba(94,129,172,0.06);padding:8px 12px;border-radius:8px"><i class="fas fa-info-circle text-primary"></i> 检测逻辑说明：当前页面以前端调用后端检测接口为主，展示融合评分结果。Isolation Forest、XGBoost、LSTM 等名称用于说明项目计划中的多模型融合方向，实际可运行能力以当前后端接口返回为准。</div>
 <div class="row g-2">
 <div class="col-md-4">
 <div class="upload-zone mb-2" onclick="document.getElementById('detF').click()"><i class="fas fa-cloud-upload-alt"></i><div>上传CSV/JSON</div></div>
@@ -172,14 +174,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Inter",sans-serif;background:
 </div>
 <div class="col-md-8">
 <div class="stat-grid">
-<div class="stat-card"><div class="stat-num text-primary" id="detT">--</div><div class="stat-label">总记录</div></div>
-<div class="stat-card"><div class="stat-num text-danger" id="detA">--</div><div class="stat-label">异常数</div></div>
-<div class="stat-card"><div class="stat-num text-success" id="detConf">--</div><div class="stat-label">平均置信度</div></div>
-<div class="stat-card"><div class="stat-num" id="detTim">--</div><div class="stat-label">耗时</div></div>
+<div class="stat-card"><div class="stat-num text-primary" id="detT">--</div><div class="stat-label">总记录<small class="text-muted d-block">本次检测样本数</small></div></div>
+<div class="stat-card"><div class="stat-num text-danger" id="detA">--</div><div class="stat-label">异常数<small class="text-muted d-block">高风险样本数</small></div></div>
+<div class="stat-card"><div class="stat-num text-success" id="detConf">--</div><div class="stat-label">平均置信度<small class="text-muted d-block">接口返回均值</small></div></div>
+<div class="stat-card"><div class="stat-num" id="detTim">--</div><div class="stat-label">耗时<small class="text-muted d-block">检测接口耗时</small></div></div>
 </div>
 </div>
 </div>
-<table class="table table-sm mt-2"><thead><tr><th>#</th><th>结果</th><th>风险分数</th><th>风险等级</th><th>攻击类型</th></tr></thead><tbody id="detTB"></tbody></table>
+<div class="small text-muted mt-2 mb-1">检测结果表：展示后端接口返回的风险分数、风险等级和攻击类型，供后续优化模块参考。</div>
+<table class="table table-sm"><thead><tr><th>序号</th><th>检测结果</th><th>风险分数</th><th>风险等级</th><th>攻击类型</th></tr></thead><tbody id="detTB"></tbody></table>
 </div></div>
 </div>
 
