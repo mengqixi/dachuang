@@ -28,6 +28,10 @@ build/
 # 日志文件
 *.log
 
+# 运行时数据和离线库
+data/ipdb/*.xdb
+data/ipdb/*.mmdb
+
 # 上传目录
 /uploads/
 

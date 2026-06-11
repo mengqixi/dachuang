@@ -20,6 +20,7 @@ loguru>=0.5.0
 requests>=2.25.0
 joblib>=1.0.0
 pyyaml>=5.0.0
+py-ip2region>=3.0.4
 
 # 深度学习（可选）
 torch>=1.9.0

@@ -14,7 +14,8 @@ from functools import lru_cache
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 DEFAULT_IPDB_DIR = os.path.join(PROJECT_ROOT, "data", "ipdb")
-DEFAULT_XDB_PATH = os.path.join(DEFAULT_IPDB_DIR, "ip2region.xdb")
+DEFAULT_XDB_PATH = os.path.join(DEFAULT_IPDB_DIR, "ip2region_v4.xdb")
+LEGACY_XDB_PATH = os.path.join(DEFAULT_IPDB_DIR, "ip2region.xdb")
 DEFAULT_CSV_PATH = os.path.join(DEFAULT_IPDB_DIR, "ip_geo.csv")
 
 
@@ -35,7 +36,7 @@ def lookup_ip_geo(ip, xdb_path=DEFAULT_XDB_PATH, csv_path=DEFAULT_CSV_PATH):
 
     Supported offline sources:
     - data/ipdb/ip_geo.csv with columns: start_ip,end_ip,country,region,city,isp
-    - data/ipdb/ip2region.xdb when an optional ip2region reader is installed
+    - data/ipdb/ip2region_v4.xdb when py-ip2region is installed
     """
     ip = (ip or "").strip()
     try:
@@ -53,10 +54,12 @@ def lookup_ip_geo(ip, xdb_path=DEFAULT_XDB_PATH, csv_path=DEFAULT_CSV_PATH):
         return csv_geo
 
     xdb_geo = _lookup_ip2region(ip, xdb_path)
+    if not xdb_geo and xdb_path != LEGACY_XDB_PATH:
+        xdb_geo = _lookup_ip2region(ip, LEGACY_XDB_PATH)
     if xdb_geo:
         return xdb_geo
 
-    configured = os.path.exists(csv_path) or os.path.exists(xdb_path)
+    configured = os.path.exists(csv_path) or os.path.exists(xdb_path) or os.path.exists(LEGACY_XDB_PATH)
     return _base_geo(source="unknown", configured=configured)
 
 
@@ -107,6 +110,11 @@ def _load_ip2region_searcher(xdb_path):
     if not os.path.exists(xdb_path):
         return None
     try:
+        from ip2region import searcher, util
+        return searcher.new_with_file_only(util.IPv4, xdb_path)
+    except Exception:
+        pass
+    try:
         from ip2region.xdbSearcher import XdbSearcher
         content = XdbSearcher.loadContentFromFile(xdb_path)
         return XdbSearcher(contentBuff=content)
@@ -119,18 +127,33 @@ def _lookup_ip2region(ip, xdb_path):
     if searcher is None:
         return None
     try:
-        region = searcher.searchByIPStr(ip)
+        if hasattr(searcher, "searchByIPStr"):
+            region = searcher.searchByIPStr(ip)
+        else:
+            region = searcher.search(ip)
     except Exception:
         return None
     parts = (region or "").split("|")
     while len(parts) < 5:
         parts.append("unknown")
-    country, _, province, city, isp = parts[:5]
+
+    # py-ip2region 3.x returns: country|region|city|isp|country_code.
+    # Older bindings commonly return: country|area|province|city|isp.
+    if len(parts[4]) in (2, 3):
+        country, region, city, isp = parts[0], parts[1], parts[2], parts[3]
+    else:
+        country, _, region, city, isp = parts[:5]
+
     return _base_geo(
-        country or "unknown",
-        province or "unknown",
-        city or "unknown",
-        isp or "unknown",
+        _clean_region_value(country),
+        _clean_region_value(region),
+        _clean_region_value(city),
+        _clean_region_value(isp),
         "ip2region",
         True,
     )
+
+
+def _clean_region_value(value):
+    value = (value or "").strip()
+    return "unknown" if value in ("", "0") else value
