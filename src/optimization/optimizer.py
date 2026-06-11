@@ -29,6 +29,10 @@ class OptimizationRecord:
     rounds: int
     reward: float
     performance_gain: float
+    security_strength: float = 70.0
+    security_delta: float = 0.0
+    cost_delta_percent: float = 0.0
+    old_security_strength: float = 70.0
     old_key_length: int = 2048
     old_rounds: int = 10
     reason_detail: str = ""
@@ -142,13 +146,17 @@ class AdaptiveOptimizer:
         old_cost = self._calc_cost(old_key_length, old_rounds)
         new_cost = self._calc_cost(key_length, rounds)
         baseline_cost = self._calc_cost(2048, 10)
+        old_strength = self._calc_security_strength(old_key_length, old_rounds)
+        new_strength = self._calc_security_strength(key_length, rounds)
+        security_delta = new_strength - old_strength
+        cost_delta_percent = ((new_cost - old_cost) / old_cost) * 100 if old_cost > 0 else 0.0
         changed = (key_length != old_key_length) or (rounds != old_rounds)
 
         should_adjust = force or (changed and risk_change >= RISK_CHANGE_THRESHOLD)
 
         if should_adjust:
             gain = ((baseline_cost - new_cost) / baseline_cost) * 100
-            self.performance_gain += gain
+            self.performance_gain = max(0.0, self.performance_gain + max(0.0, gain))
             if key_length > old_key_length:
                 direction = "提升"
             elif key_length < old_key_length:
@@ -183,7 +191,11 @@ class AdaptiveOptimizer:
             key_length=key_length,
             rounds=rounds,
             reward=round(reward, 4),
-            performance_gain=round(self.performance_gain, 2),
+            performance_gain=round(max(0.0, self.performance_gain), 2),
+            security_strength=round(new_strength, 1),
+            security_delta=round(security_delta, 1),
+            cost_delta_percent=round(cost_delta_percent, 1),
+            old_security_strength=round(old_strength, 1),
             old_key_length=old_key_length,
             old_rounds=old_rounds,
             reason_detail=detail,
@@ -197,7 +209,11 @@ class AdaptiveOptimizer:
             "risk_level": risk_level,
             "risk_score": round(anomaly_score, 4),
             "reward": round(reward, 4),
-            "performance_gain": round(self.performance_gain, 2),
+            "performance_gain": round(max(0.0, self.performance_gain), 2),
+            "security_strength": round(new_strength, 1),
+            "security_delta": round(security_delta, 1),
+            "cost_delta_percent": round(cost_delta_percent, 1),
+            "old_security_strength": round(old_strength, 1),
             "old_key_length": old_key_length,
             "old_rounds": old_rounds,
             "change_detail": detail,
@@ -236,7 +252,8 @@ class AdaptiveOptimizer:
             "current_risk_score": round(self._last_anomaly_score, 4),
             "last_signal": self._last_signal,
             "last_decision": self._last_decision,
-            "performance_gain": round(self.performance_gain, 2),
+            "performance_gain": round(max(0.0, self.performance_gain), 2),
+            "security_strength": round(self._calc_security_strength(self.current_key_length, self.current_rounds), 1),
             "total_updates": len(self.history),
             "last_update": self._last_update,
             "agent_trained": self.agent.is_trained,
@@ -301,6 +318,12 @@ class AdaptiveOptimizer:
         kl_cost = {1024: 1.0, 2048: 2.5, 4096: 6.0}
         r_cost = {10: 1.0, 12: 1.2}
         return kl_cost.get(key_length, 2.5) * r_cost.get(rounds, 1.0)
+
+    @staticmethod
+    def _calc_security_strength(key_length: int, rounds: int) -> float:
+        key_score = {1024: 35.0, 2048: 70.0, 4096: 100.0}.get(key_length, 70.0)
+        round_bonus = {10: 0.0, 12: 8.0}.get(rounds, 0.0)
+        return min(100.0, key_score + round_bonus)
 
     @staticmethod
     def _calc_reward(risk_level_idx: int, anomaly_score: float, key_length: int, rounds: int) -> float:

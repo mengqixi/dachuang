@@ -232,7 +232,7 @@ body{margin:0;background:#F5F6F8;color:#263238;font-family:-apple-system,BlinkMa
               <div class="metric"><div class="metric-value" id="oKL">--</div><div class="metric-label">当前密钥</div></div>
               <div class="metric"><div class="metric-value" id="oRR">--</div><div class="metric-label">当前轮数</div></div>
               <div class="metric"><div class="metric-value" id="oReward">--</div><div class="metric-label">本次奖励</div></div>
-              <div class="metric"><div class="metric-value" id="oGain">--</div><div class="metric-label">效率变化</div></div>
+              <div class="metric"><div class="metric-value" id="oGain">--</div><div class="metric-label">安全强度</div></div>
             </div>
             <div class="d-flex flex-wrap gap-2 mt-3">
               <button class="btn-lightx" onclick="runOptScenario(0.12)">低风险</button>
@@ -251,7 +251,7 @@ body{margin:0;background:#F5F6F8;color:#263238;font-family:-apple-system,BlinkMa
           <div class="panel-body">
             <div class="flow mb-3" id="oFlow"><span>风险输入</span><span>策略选择</span><span>参数调整</span><span>奖励反馈</span></div>
             <div class="table-responsive">
-              <table class="table table-sm"><thead><tr><th>时间</th><th>风险</th><th>风险分数</th><th>参数变化</th><th>奖励</th><th>原因</th></tr></thead><tbody id="oTB"></tbody></table>
+              <table class="table table-sm"><thead><tr><th>时间</th><th>风险</th><th>风险分数</th><th>参数变化</th><th>安全强度</th><th>开销变化</th><th>原因</th></tr></thead><tbody id="oTB"></tbody></table>
             </div>
           </div>
         </div>
@@ -489,7 +489,7 @@ function loadOpt(){
   });
   get('/api/optimization/history',function(d){
     var rows=safeArray(d.history).slice(-20).reverse();
-    document.getElementById('oTB').innerHTML=rows.length?rows.map(function(r){r=safeObject(r);return '<tr><td>'+escapeHtml(r.timestamp?new Date(r.timestamp*1000).toLocaleTimeString():'--')+'</td><td>'+escapeHtml(r.risk_level||'--')+'</td><td>'+escapeHtml(r.risk_score??'--')+'</td><td>'+escapeHtml(r.old_key_length||'--')+'bit/'+escapeHtml(r.old_rounds||'--')+'轮 → '+escapeHtml(r.key_length||'--')+'bit/'+escapeHtml(r.rounds||'--')+'轮</td><td>'+escapeHtml(r.reward??'--')+'</td><td>'+escapeHtml(r.reason_detail||r.reason||'--')+'</td></tr>'}).join(''):'<tr><td colspan="6" class="muted">暂无优化历史，请点击风险按钮生成过程记录。</td></tr>';
+    document.getElementById('oTB').innerHTML=rows.length?rows.map(function(r){r=safeObject(r);return '<tr><td>'+escapeHtml(r.timestamp?new Date(r.timestamp*1000).toLocaleTimeString():'--')+'</td><td>'+escapeHtml(r.risk_level||'--')+'</td><td>'+escapeHtml(r.risk_score??'--')+'</td><td>'+escapeHtml(r.old_key_length||'--')+'bit/'+escapeHtml(r.old_rounds||'--')+'轮 → '+escapeHtml(r.key_length||'--')+'bit/'+escapeHtml(r.rounds||'--')+'轮</td><td>'+escapeHtml(formatSecurityStrength(r))+'</td><td>'+escapeHtml(formatCostDelta(r.cost_delta_percent))+'</td><td>'+escapeHtml(r.reason_detail||r.reason||'--')+'</td></tr>'}).join(''):'<tr><td colspan="7" class="muted">暂无优化历史，请点击风险按钮生成过程记录。</td></tr>';
   });
 }
 function updateOptSummary(d){
@@ -497,7 +497,7 @@ function updateOptSummary(d){
   document.getElementById('oKL').textContent=(d.current_key_length||'--')+' bit';
   document.getElementById('oRR').textContent=d.current_rounds||'--';
   document.getElementById('oReward').textContent=safeGet(d,'last_decision.reward','--');
-  document.getElementById('oGain').textContent=(d.performance_gain??'--')+'%';
+  document.getElementById('oGain').textContent=(d.security_strength??safeGet(d,'last_decision.security_strength','--'))+'%';
   var risk=d.risk_level||'low',score=Number(d.current_risk_score||0);
   var w={low:'20%',medium:'45%',high:'70%',critical:'95%'};
   var color={low:'#7CB342',medium:'#F2B705',high:'#E67E22',critical:'#B71C1C'};
@@ -505,9 +505,27 @@ function updateOptSummary(d){
   document.getElementById('oRB').style.background=color[risk]||'#7CB342';
   document.getElementById('oRiskTxt').textContent=risk+' / '+score.toFixed(2);
 }
+function formatSecurityStrength(d){
+  d=safeObject(d);
+  var strength=d.security_strength??'--';
+  var delta=Number(d.security_delta||0);
+  if(strength==='--') return '--';
+  if(delta>0) return strength+'% ↑'+delta.toFixed(1);
+  if(delta<0) return strength+'% ↓'+Math.abs(delta).toFixed(1);
+  return strength+'%';
+}
+function formatCostDelta(v){
+  if(v===undefined||v===null||v==='') return '--';
+  var n=Number(v);
+  if(!isFinite(n)) return '--';
+  if(Math.abs(n)<0.1) return '基本不变';
+  return n>0 ? ('开销上升 '+n.toFixed(1)+'%') : ('开销下降 '+Math.abs(n).toFixed(1)+'%');
+}
 function renderOptDecision(decision,signal){
   decision=safeObject(decision);signal=safeObject(signal);
   if(!Object.keys(decision).length){return}
+  var strength=formatSecurityStrength(decision);
+  var costText=formatCostDelta(decision.cost_delta_percent);
   var txt='风险输入 '+escapeHtml(signal.anomaly_score??decision.risk_score??'--')+
     '，CPU '+escapeHtml(signal.cpu_usage??decision.cpu_usage??'--')+
     '，内存 '+escapeHtml(signal.memory_usage??decision.memory_usage??'--')+
@@ -515,13 +533,13 @@ function renderOptDecision(decision,signal){
     '，动作 '+escapeHtml(decision.q_action??'--')+
     ' → 参数 '+escapeHtml(decision.old_key_length||'--')+'bit/'+escapeHtml(decision.old_rounds||'--')+
     '轮 调整为 '+escapeHtml(decision.key_length||'--')+'bit/'+escapeHtml(decision.rounds||'--')+
-    '轮 → 奖励 '+escapeHtml(decision.reward??'--')+'。'+escapeHtml(decision.change_detail||decision.reason||'');
+    '轮 → 安全强度 '+escapeHtml(strength)+'，'+escapeHtml(costText)+'，奖励 '+escapeHtml(decision.reward??'--')+'。'+escapeHtml(decision.change_detail||decision.reason||'');
   document.getElementById('oDecision').innerHTML=txt;
 }
 function runOptScenario(score){
   post('/api/optimization/auto',{anomaly_score:score,force:true},function(d,err){
     if(err){toast(err,false);return}
-    updateOptSummary({current_key_length:d.key_length,current_rounds:d.rounds,risk_level:d.risk_level,current_risk_score:d.risk_score,performance_gain:d.performance_gain,last_decision:d,last_signal:d});
+    updateOptSummary({current_key_length:d.key_length,current_rounds:d.rounds,risk_level:d.risk_level,current_risk_score:d.risk_score,performance_gain:d.performance_gain,security_strength:d.security_strength,last_decision:d,last_signal:d});
     renderOptDecision(d,d);
     loadOpt();
     toast('优化步骤已执行',true);
