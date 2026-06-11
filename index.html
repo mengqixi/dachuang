@@ -259,6 +259,19 @@ body{margin:0;background:#F5F6F8;color:#263238;font-family:-apple-system,BlinkMa
         <div id="secError" class="notice bad" style="display:none">安全事件加载失败。</div>
       </div>
     </div>
+    <div class="panel">
+      <div class="panel-head"><i class="fas fa-map-marker-alt text-primary"></i> 最近访问记录</div>
+      <div class="panel-body">
+        <p class="muted small-text">记录访问首页的 IP、设备、浏览器、系统、时间和 TraceId。归属地采用离线识别，不调用第三方查询服务。</p>
+        <div class="table-responsive">
+          <table class="table table-sm" id="visitTable">
+            <thead><tr><th>时间</th><th>IP</th><th>归属地</th><th>设备</th><th>浏览器</th><th>系统</th><th>路径</th><th>TraceId</th></tr></thead>
+            <tbody id="visitBody"></tbody>
+          </table>
+        </div>
+        <div id="visitEmpty" class="notice">暂无访问记录，刷新页面后会自动产生记录。</div>
+      </div>
+    </div>
   </section>
 
   <section class="page" id="pg-report">
@@ -339,7 +352,7 @@ function loadOverview(){
   get('/api/system/health',function(d,err){document.getElementById('ovHealth').textContent=err?'异常':'运行中'});
   get('/api/dataset/unsw/status',function(d){d=safeObject(d);document.getElementById('ovDataset').textContent=d.exists?(d.ready_for_federated?'已处理':'可处理'):'缺失'});
   get('/api/federated/nodes',function(d){var ready=safeArray(safeGet(d,'nodes',[])).filter(function(n){return n.ready}).length;document.getElementById('ovNodes').textContent=ready+'/4'});
-  get('/api/security/events/recent?limit=50',function(d){document.getElementById('ovSecurity').textContent=safeArray(safeGet(d,'events',[])).length});
+  get('/api/security/events/recent?limit=50',function(d){document.getElementById('ovSecurity').textContent=safeArray(safeGet(d,'events',[])).filter(function(e){return e.event_type!=='site_visit'}).length});
 }
 
 document.getElementById('dc').addEventListener('input',function(){document.getElementById('dcL').textContent=this.value+' 条'});
@@ -464,13 +477,31 @@ function updEnc(){
 function loadSec(){
   get('/api/security/events/recent?limit=50',function(d,err){
     var events=safeArray(safeGet(d,'events',[]));
+    var securityEvents=events.filter(function(e){return e.event_type!=='site_visit'});
     document.getElementById('secError').style.display=err?'block':'none';
-    document.getElementById('secTotal').textContent=events.length;
-    var high=0,med=0,low=0,typeCount={};events.forEach(function(e){var r=e.risk_level||'low';if(r==='high'||r==='critical')high++;else if(r==='medium')med++;else low++;typeCount[e.event_type||'unknown']=(typeCount[e.event_type||'unknown']||0)+1});
+    document.getElementById('secTotal').textContent=securityEvents.length;
+    var high=0,med=0,low=0,typeCount={};securityEvents.forEach(function(e){var r=e.risk_level||'low';if(r==='high'||r==='critical')high++;else if(r==='medium')med++;else low++;typeCount[e.event_type||'unknown']=(typeCount[e.event_type||'unknown']||0)+1});
     document.getElementById('secHigh').textContent=high;document.getElementById('secMed').textContent=med;document.getElementById('secLow').textContent=low;
     document.getElementById('secEventBreakdown').textContent=Object.keys(typeCount).map(function(k){return k+': '+typeCount[k]}).join(' | ');
-    document.getElementById('secEmpty').style.display=events.length?'none':'block';document.getElementById('secTable').style.display=events.length?'table':'none';
-    document.getElementById('secBody').innerHTML=events.map(function(e){return '<tr><td>'+escapeHtml((e.timestamp||'-').substring(0,19).replace('T',' '))+'</td><td>'+escapeHtml(e.risk_level||'-')+'</td><td>'+escapeHtml(e.event_type||'-')+'</td><td>'+escapeHtml(e.path||'-')+'</td><td>'+escapeHtml(e.method||'-')+'</td><td>'+escapeHtml((e.trace_id||'-').substring(0,18))+'</td><td>'+escapeHtml(e.message||'')+'</td></tr>'}).join('');
+    document.getElementById('secEmpty').style.display=securityEvents.length?'none':'block';document.getElementById('secTable').style.display=securityEvents.length?'table':'none';
+    document.getElementById('secBody').innerHTML=securityEvents.map(function(e){return '<tr><td>'+escapeHtml((e.timestamp||'-').substring(0,19).replace('T',' '))+'</td><td>'+escapeHtml(e.risk_level||'-')+'</td><td>'+escapeHtml(e.event_type||'-')+'</td><td>'+escapeHtml(e.path||'-')+'</td><td>'+escapeHtml(e.method||'-')+'</td><td>'+escapeHtml((e.trace_id||'-').substring(0,18))+'</td><td>'+escapeHtml(e.message||'')+'</td></tr>'}).join('');
+  });
+  loadVisits();
+}
+function formatGeo(geo){
+  geo=safeObject(geo);
+  var parts=[geo.country,geo.region,geo.city].filter(function(v){return v&&v!=='unknown'});
+  return parts.length?parts.join(' / '):'unknown';
+}
+function loadVisits(){
+  get('/api/security/events/recent?limit=50&event_type=site_visit',function(d){
+    var visits=safeArray(safeGet(d,'events',[]));
+    document.getElementById('visitEmpty').style.display=visits.length?'none':'block';
+    document.getElementById('visitTable').style.display=visits.length?'table':'none';
+    document.getElementById('visitBody').innerHTML=visits.map(function(e){
+      e=safeObject(e);var extra=safeObject(e.extra);
+      return '<tr><td>'+escapeHtml((e.timestamp||'-').substring(0,19).replace('T',' '))+'</td><td>'+escapeHtml(e.ip||'-')+'</td><td>'+escapeHtml(formatGeo(extra.geo))+'</td><td>'+escapeHtml(extra.device_type||'-')+'</td><td>'+escapeHtml(extra.browser||'-')+'</td><td>'+escapeHtml(extra.os||'-')+'</td><td>'+escapeHtml(e.path||'-')+'</td><td>'+escapeHtml((e.trace_id||'-').substring(0,18))+'</td></tr>';
+    }).join('');
   });
 }
 function ensureSecTimer(){if(secTimer)return;secTimer=setInterval(function(){if(document.getElementById('pg-security').classList.contains('active'))loadSec()},30000)}

@@ -1,5 +1,6 @@
 """Non-blocking security middleware for Flask."""
 
+import ipaddress
 import os
 import time
 
@@ -108,8 +109,13 @@ class SecurityMiddleware:
                 trace_id=trace_id,
                 path=request.path if request else "",
                 method=request.method if request else "",
-                ip=request.remote_addr or request.headers.get("X-Forwarded-For", "unknown") if request else "unknown",
+                ip=self._get_client_ip(request) if request else "unknown",
             )
+        except Exception:
+            pass
+
+        try:
+            self._log_site_visit(trace_id)
         except Exception:
             pass
 
@@ -148,6 +154,105 @@ class SecurityMiddleware:
                     "data": {},
                 }), 403
         return None
+
+    def _log_site_visit(self, trace_id):
+        if request is None:
+            return
+        if request.method != "GET" or request.path != "/":
+            return
+
+        user_agent = request.headers.get("User-Agent", "")
+        ip = self._get_client_ip(request)
+        self.security_logger.log_security_event(
+            trace_id=trace_id,
+            event_type="site_visit",
+            message="网站访问记录",
+            risk_level="info",
+            path=request.path,
+            method=request.method,
+            ip=ip,
+            user_agent=user_agent,
+            extra={
+                "device_type": self._detect_device_type(user_agent),
+                "browser": self._detect_browser(user_agent),
+                "os": self._detect_os(user_agent),
+                "forwarded_for": request.headers.get("X-Forwarded-For", ""),
+                "ip_source": self._get_ip_source(request),
+                "geo": self._offline_geo(ip),
+            },
+        )
+
+    def _get_client_ip(self, flask_request):
+        forwarded_for = flask_request.headers.get("X-Forwarded-For", "")
+        if forwarded_for:
+            first_ip = forwarded_for.split(",")[0].strip()
+            if first_ip:
+                return first_ip
+        real_ip = flask_request.headers.get("X-Real-IP", "").strip()
+        if real_ip:
+            return real_ip
+        return flask_request.remote_addr or "unknown"
+
+    def _get_ip_source(self, flask_request):
+        if flask_request.headers.get("X-Forwarded-For", ""):
+            return "x_forwarded_for"
+        if flask_request.headers.get("X-Real-IP", ""):
+            return "x_real_ip"
+        return "remote_addr"
+
+    def _offline_geo(self, ip):
+        geo = {"country": "unknown", "region": "unknown", "city": "unknown"}
+        try:
+            parsed = ipaddress.ip_address(ip)
+        except Exception:
+            return geo
+        if parsed.is_loopback:
+            return {"country": "local", "region": "local", "city": "localhost"}
+        if parsed.is_private:
+            return {"country": "private", "region": "private", "city": "private"}
+        return geo
+
+    def _detect_device_type(self, user_agent):
+        ua = (user_agent or "").lower()
+        if any(token in ua for token in ("bot", "spider", "crawler")):
+            return "bot"
+        if any(token in ua for token in ("mobile", "iphone", "android")):
+            return "mobile"
+        if any(token in ua for token in ("ipad", "tablet")):
+            return "tablet"
+        if user_agent:
+            return "desktop"
+        return "unknown"
+
+    def _detect_browser(self, user_agent):
+        ua = (user_agent or "").lower()
+        if "edg/" in ua or "edge/" in ua:
+            return "Edge"
+        if "chrome/" in ua and "chromium" not in ua:
+            return "Chrome"
+        if "firefox/" in ua:
+            return "Firefox"
+        if "safari/" in ua and "chrome/" not in ua:
+            return "Safari"
+        if "curl/" in ua:
+            return "curl"
+        if "python-requests" in ua:
+            return "python-requests"
+        return "unknown"
+
+    def _detect_os(self, user_agent):
+        ua = (user_agent or "").lower()
+        if "windows" in ua:
+            return "Windows"
+        if "android" in ua:
+            return "Android"
+        if "iphone" in ua or "ipad" in ua or "ios" in ua:
+            return "iOS"
+        if "mac os" in ua or "macintosh" in ua:
+            return "macOS"
+        if "linux" in ua:
+            return "Linux"
+        return "unknown"
 
     def _build_rate_limit_response(self, trace_id, reason):
         if jsonify is None:
@@ -217,7 +322,7 @@ class SecurityMiddleware:
                 method=request.method if request else "",
                 status_code=response.status_code,
                 duration_ms=elapsed_ms,
-                ip=request.remote_addr or request.headers.get("X-Forwarded-For", "unknown") if request else "unknown",
+                ip=self._get_client_ip(request) if request else "unknown",
                 user_agent=request.headers.get("User-Agent", "") if request else "",
             )
             if self.slow_api.was_slow(elapsed_ms):
@@ -228,7 +333,7 @@ class SecurityMiddleware:
                     risk_level="low",
                     path=request.path if request else "",
                     method=request.method if request else "",
-                    ip=request.remote_addr or request.headers.get("X-Forwarded-For", "unknown") if request else "unknown",
+                    ip=self._get_client_ip(request) if request else "unknown",
                     user_agent=request.headers.get("User-Agent", "") if request else "",
                     extra={
                         "status_code": response.status_code,

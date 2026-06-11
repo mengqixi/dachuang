@@ -39,7 +39,7 @@ security:
     enabled: false
     sqlite_table: security_events
   security_events:
-    enabled: false
+    enabled: true
     log_path: data/logs/security_events.log
     max_events: 200
     max_extra_chars: 4096
