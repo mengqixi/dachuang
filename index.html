@@ -433,7 +433,8 @@ function runFed(){
   post('/api/federated/round',{epochs:Number(document.getElementById('fedE').value)||3},function(d,err){
     if(err){toast(err,false);return}
     var clients=safeArray(d.clients),hist=safeArray(d.history);
-    document.getElementById('fedRes').innerHTML='轮次: '+escapeHtml(d.round||0)+'；平均精度: '+escapeHtml(d.avg_accuracy||0)+'<br>'+clients.map(function(c){return escapeHtml(c.name)+': '+escapeHtml(c.accuracy)+' ('+escapeHtml(c.samples)+' 条)'}).join('；');
+    function pct(v){v=Number(v);return isFinite(v)?(v*100).toFixed(1)+'%':'--'}
+    document.getElementById('fedRes').innerHTML='轮次: '+escapeHtml(d.round||0)+'；平均精度: '+pct(d.avg_accuracy)+'<br>'+clients.map(function(c){return escapeHtml(c.name)+': '+pct(c.accuracy)+'，loss '+escapeHtml(c.loss||'--')+' ('+escapeHtml(c.samples)+' 条)'}).join('；');
     var ctx=document.getElementById('fedCh');if(fedChart)fedChart.destroy();if(ctx&&hist.length){fedChart=new Chart(ctx,{type:'line',data:{labels:hist.map(function(x){return 'R'+x.round}),datasets:[{label:'FedAvg 平均精度',data:hist.map(function(x){return x.accuracy}),borderColor:'#7CB342',fill:false,tension:.25}]},options:{responsive:true,maintainAspectRatio:false,scales:{y:{min:0,max:1}}}})}
     toast('联邦训练完成',true);
   });

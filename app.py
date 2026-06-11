@@ -1600,14 +1600,19 @@ def federated_round():
     for name in NODE_NAMES:
         client = FederatedClient(name, os.path.join(FEDERATED_DIR, name))
         if client.load_data():
-            result = client.train_local(epochs=epochs)
+            result = client.train_local(global_weights=fedavg_server.global_weights, epochs=epochs)
             results.append(result)
 
     global_weights = fedavg_server.aggregate(results)
 
     return jsonify(api_response(data={
         "round": fedavg_server.round,
-        "clients": [{"name": r["name"], "accuracy": r["accuracy"], "samples": r["samples"]} for r in results],
+        "clients": [{
+            "name": r["name"],
+            "accuracy": r["accuracy"],
+            "loss": r.get("loss", 0),
+            "samples": r["samples"],
+        } for r in results],
         "avg_accuracy": round(np.mean([r["accuracy"] for r in results]), 4) if results else 0,
         "history": fedavg_server.get_history(),
     }))

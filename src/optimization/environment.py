@@ -9,8 +9,12 @@
 
 from typing import Dict, List, Tuple, Any, Optional
 import numpy as np
-import gym
-from gym import spaces
+try:
+    import gym
+    from gym import spaces
+except ImportError:
+    import gymnasium as gym
+    from gymnasium import spaces
 from loguru import logger
 
 
