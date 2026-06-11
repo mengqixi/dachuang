@@ -3,6 +3,7 @@
 import ipaddress
 import os
 import time
+from urllib.parse import unquote_plus
 
 try:
     import yaml
@@ -158,16 +159,17 @@ class SecurityMiddleware:
     def _log_site_visit(self, trace_id):
         if request is None:
             return
-        if request.method != "GET" or request.path != "/":
+        if not self._should_log_site_visit(request):
             return
 
         user_agent = request.headers.get("User-Agent", "")
         ip = self._get_client_ip(request)
+        risk = self._assess_visit_risk(request, user_agent)
         self.security_logger.log_security_event(
             trace_id=trace_id,
             event_type="site_visit",
-            message="网站访问记录",
-            risk_level="info",
+            message=risk["message"],
+            risk_level=risk["risk_level"],
             path=request.path,
             method=request.method,
             ip=ip,
@@ -179,8 +181,92 @@ class SecurityMiddleware:
                 "forwarded_for": request.headers.get("X-Forwarded-For", ""),
                 "ip_source": self._get_ip_source(request),
                 "geo": self._offline_geo(ip),
+                "full_path": request.full_path.rstrip("?"),
+                "risk_reasons": risk["reasons"],
             },
         )
+
+    def _should_log_site_visit(self, flask_request):
+        """Log human page visits and suspicious page probes, not API/static noise."""
+        if flask_request.method != "GET":
+            return False
+
+        path = flask_request.path or "/"
+        if path.startswith("/api/") or path.startswith("/static/"):
+            return False
+        if path in ("/favicon.ico", "/robots.txt"):
+            return False
+        if path.lower().endswith((
+            ".css", ".js", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico",
+            ".woff", ".woff2", ".ttf", ".map",
+        )):
+            return False
+        return True
+
+    def _assess_visit_risk(self, flask_request, user_agent):
+        """Small offline heuristic for access-log risk labels.
+
+        It is intentionally conservative: the request is only recorded, never
+        blocked. This gives the dashboard medium/high risk examples without
+        adding a scanner, WAF, or external threat-intelligence dependency.
+        """
+        path = (flask_request.path or "").lower()
+        query = (flask_request.query_string or b"").decode("utf-8", "ignore").lower()
+        ua = (user_agent or "").lower()
+        target = unquote_plus("%s?%s" % (path, query))
+
+        high_markers = (
+            ".env", "wp-login", "wp-admin", "phpmyadmin", "/admin", "../",
+            "..%2f", "/etc/passwd", "select%20", "union%20", " or 1=1",
+            "or%201%3d1", "<script", "%3cscript",
+        )
+        medium_path_markers = (
+            "login", "backup", ".git", "config", "debug", "console",
+            "shell", "upload",
+        )
+        high_ua_markers = ("sqlmap", "nikto", "acunetix", "nessus", "masscan", "nmap")
+        medium_ua_markers = ("curl/", "python-requests", "wget/", "httpclient")
+
+        reasons = []
+        risk_level = "info"
+
+        for marker in high_markers:
+            if marker in target:
+                reasons.append("high_risk_path_or_query:%s" % marker)
+                risk_level = "high"
+                break
+
+        if risk_level != "high":
+            for marker in high_ua_markers:
+                if marker in ua:
+                    reasons.append("high_risk_user_agent:%s" % marker)
+                    risk_level = "high"
+                    break
+
+        if risk_level == "info":
+            for marker in medium_path_markers:
+                if marker in target:
+                    reasons.append("medium_risk_path_or_query:%s" % marker)
+                    risk_level = "medium"
+                    break
+
+        if risk_level == "info":
+            for marker in medium_ua_markers:
+                if marker in ua:
+                    reasons.append("medium_risk_user_agent:%s" % marker)
+                    risk_level = "medium"
+                    break
+
+        messages = {
+            "high": "高风险可疑访问记录",
+            "medium": "中风险可疑访问记录",
+            "info": "网站访问记录",
+        }
+        return {
+            "risk_level": risk_level,
+            "message": messages.get(risk_level, "网站访问记录"),
+            "reasons": reasons,
+        }
 
     def _get_client_ip(self, flask_request):
         forwarded_for = flask_request.headers.get("X-Forwarded-For", "")

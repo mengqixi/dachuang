@@ -43,6 +43,11 @@ body{margin:0;background:#F5F6F8;color:#263238;font-family:-apple-system,BlinkMa
 .chart-box{height:210px}
 .table-sm th{font-size:12px;color:#455A64;font-weight:700}
 .table-sm td{font-size:12px;vertical-align:middle}
+.visit-scroll{max-height:280px;overflow-y:auto;border:1px solid #E6ECF2;border-radius:10px}
+.visit-scroll table{margin-bottom:0}
+.risk-high{color:#B71C1C;font-weight:700}
+.risk-medium{color:#8A6200;font-weight:700}
+.risk-info,.risk-low{color:#2E7D32;font-weight:700}
 .notice{background:#F7FAFC;border:1px dashed #C7D2DE;border-radius:10px;padding:10px 12px;font-size:13px;color:#455A64}
 .flow{display:flex;flex-wrap:wrap;gap:8px}
 .flow span{background:#EEF2F6;border-radius:999px;padding:5px 10px;font-size:12px}
@@ -262,10 +267,10 @@ body{margin:0;background:#F5F6F8;color:#263238;font-family:-apple-system,BlinkMa
     <div class="panel">
       <div class="panel-head"><i class="fas fa-map-marker-alt text-primary"></i> 最近访问记录</div>
       <div class="panel-body">
-        <p class="muted small-text">记录访问首页的 IP、设备、浏览器、系统、时间和 TraceId。归属地采用离线识别，不调用第三方查询服务。</p>
-        <div class="table-responsive">
+        <p class="muted small-text">记录页面访问的 IP、设备、浏览器、系统、风险等级、时间和 TraceId。归属地采用离线识别，不调用第三方查询服务。</p>
+        <div class="table-responsive visit-scroll">
           <table class="table table-sm" id="visitTable">
-            <thead><tr><th>时间</th><th>IP</th><th>归属地</th><th>设备</th><th>浏览器</th><th>系统</th><th>路径</th><th>TraceId</th></tr></thead>
+            <thead><tr><th>时间</th><th>风险</th><th>IP</th><th>归属地</th><th>设备</th><th>浏览器</th><th>系统</th><th>路径</th><th>TraceId</th><th>原因</th></tr></thead>
             <tbody id="visitBody"></tbody>
           </table>
         </div>
@@ -479,8 +484,8 @@ function loadSec(){
     var events=safeArray(safeGet(d,'events',[]));
     var securityEvents=events.filter(function(e){return e.event_type!=='site_visit'});
     document.getElementById('secError').style.display=err?'block':'none';
-    document.getElementById('secTotal').textContent=securityEvents.length;
-    var high=0,med=0,low=0,typeCount={};securityEvents.forEach(function(e){var r=e.risk_level||'low';if(r==='high'||r==='critical')high++;else if(r==='medium')med++;else low++;typeCount[e.event_type||'unknown']=(typeCount[e.event_type||'unknown']||0)+1});
+    document.getElementById('secTotal').textContent=events.length;
+    var high=0,med=0,low=0,typeCount={};events.forEach(function(e){var r=e.risk_level||'low';if(r==='high'||r==='critical')high++;else if(r==='medium')med++;else low++;typeCount[e.event_type||'unknown']=(typeCount[e.event_type||'unknown']||0)+1});
     document.getElementById('secHigh').textContent=high;document.getElementById('secMed').textContent=med;document.getElementById('secLow').textContent=low;
     document.getElementById('secEventBreakdown').textContent=Object.keys(typeCount).map(function(k){return k+': '+typeCount[k]}).join(' | ');
     document.getElementById('secEmpty').style.display=securityEvents.length?'none':'block';document.getElementById('secTable').style.display=securityEvents.length?'table':'none';
@@ -500,7 +505,9 @@ function loadVisits(){
     document.getElementById('visitTable').style.display=visits.length?'table':'none';
     document.getElementById('visitBody').innerHTML=visits.map(function(e){
       e=safeObject(e);var extra=safeObject(e.extra);
-      return '<tr><td>'+escapeHtml((e.timestamp||'-').substring(0,19).replace('T',' '))+'</td><td>'+escapeHtml(e.ip||'-')+'</td><td>'+escapeHtml(formatGeo(extra.geo))+'</td><td>'+escapeHtml(extra.device_type||'-')+'</td><td>'+escapeHtml(extra.browser||'-')+'</td><td>'+escapeHtml(extra.os||'-')+'</td><td>'+escapeHtml(e.path||'-')+'</td><td>'+escapeHtml((e.trace_id||'-').substring(0,18))+'</td></tr>';
+      var risk=e.risk_level||'info';
+      var reasons=safeArray(extra.risk_reasons).join('；')||'-';
+      return '<tr><td>'+escapeHtml((e.timestamp||'-').substring(0,19).replace('T',' '))+'</td><td class="risk-'+escapeHtml(risk)+'">'+escapeHtml(risk)+'</td><td>'+escapeHtml(e.ip||'-')+'</td><td>'+escapeHtml(formatGeo(extra.geo))+'</td><td>'+escapeHtml(extra.device_type||'-')+'</td><td>'+escapeHtml(extra.browser||'-')+'</td><td>'+escapeHtml(extra.os||'-')+'</td><td>'+escapeHtml(e.path||'-')+'</td><td>'+escapeHtml((e.trace_id||'-').substring(0,18))+'</td><td>'+escapeHtml(reasons)+'</td></tr>';
     }).join('');
   });
 }
