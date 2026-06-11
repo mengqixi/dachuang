@@ -426,7 +426,11 @@ def get_stats():
 @app.route("/api/generate_dataset", methods=["POST"])
 def api_generate_dataset():
     data = request.get_json() or {}
-    n_records = data.get("n_records", 100)
+    try:
+        n_records = int(data.get("n_records", 100))
+    except Exception:
+        n_records = 100
+    n_records = max(10, min(n_records, 5000))
     logger.info("生成数据集: n_records=%d" % n_records)
     dataset = generate_sensitive_dataset(n_records)
 
@@ -1689,6 +1693,7 @@ def ensemble_detect_from_dataset():
     limit = max(1, min(int(req.get("limit") or 50), 500))
     has_offset = "offset" in req
     offset = max(0, int(req.get("offset") or 0))
+    seed = req.get("seed")
 
     X = np.load(PROCESSED_X_PATH)
     y = np.load(PROCESSED_Y_PATH)
@@ -1703,8 +1708,8 @@ def ensemble_detect_from_dataset():
     elif len(X) <= limit:
         indices = np.arange(len(X))
     else:
-        step = (len(X) - 1) / float(limit - 1)
-        indices = np.array([int(round(i * step)) for i in range(limit)], dtype=np.int64)
+        rng = np.random.default_rng(int(seed)) if seed is not None else np.random.default_rng()
+        indices = np.sort(rng.choice(len(X), size=limit, replace=False)).astype(np.int64)
     sample_x = X[indices]
     sample_y = y[indices]
 
@@ -1737,6 +1742,7 @@ def ensemble_detect_from_dataset():
         "source_type": metadata.get("source_type", "processed"),
         "offset": offset,
         "limit": limit,
+        "sample_mode": "offset" if has_offset else "random",
     }))
 
 

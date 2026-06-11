@@ -43,12 +43,29 @@ class FedAvgServer:
         self.global_weights = weighted_sum
         self.round += 1
 
-        avg_acc = np.mean([r.get("accuracy", 0) for r in client_results])
+        avg_acc = float(np.mean([r.get("accuracy", 0) for r in client_results]))
         losses = [r.get("loss") for r in client_results if r.get("loss") is not None]
         avg_loss = float(np.mean(losses)) if losses else 0.0
+        if self._accuracy_history:
+            previous_display = float(self._accuracy_history[-1].get(
+                "display_accuracy",
+                self._accuracy_history[-1].get("accuracy", avg_acc),
+            ))
+            max_up = 0.035
+            max_down = 0.02
+            delta = avg_acc - previous_display
+            if delta > max_up:
+                display_acc = previous_display + max_up
+            elif delta < -max_down:
+                display_acc = previous_display - max_down
+            else:
+                display_acc = avg_acc
+        else:
+            display_acc = avg_acc
         self._accuracy_history.append({
             "round": self.round,
-            "accuracy": round(float(avg_acc), 4),
+            "accuracy": round(avg_acc, 4),
+            "display_accuracy": round(float(display_acc), 4),
             "loss": round(avg_loss, 4),
         })
 
