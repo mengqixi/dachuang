@@ -895,6 +895,7 @@ def optimization_update():
         cpu_usage=req.get("cpu_usage", 0.3),
         memory_usage=req.get("memory_usage", 0.4),
         model_accuracy=req.get("accuracy", 0.95),
+        force=bool(req.get("force", False)),
     )
     return jsonify(api_response(data=result))
 
@@ -932,12 +933,21 @@ def optimization_config():
 def optimization_auto():
     """自动优化：从检测状态获取风险并调参"""
     req = request.get_json() or {}
-    anomaly_score = req.get("anomaly_score", np.random.random() * 0.6)
+    if "anomaly_score" in req:
+        signal = {
+            "anomaly_score": req.get("anomaly_score", 0.5),
+            "cpu_usage": req.get("cpu_usage", 0.3),
+            "memory_usage": req.get("memory_usage", 0.4),
+            "model_accuracy": req.get("accuracy", 0.95),
+        }
+    else:
+        signal = get_optimizer().next_demo_signal()
     result = get_optimizer().update(
-        anomaly_score=anomaly_score,
-        cpu_usage=req.get("cpu_usage", 0.3),
-        memory_usage=req.get("memory_usage", 0.4),
-        model_accuracy=req.get("accuracy", 0.95),
+        anomaly_score=signal["anomaly_score"],
+        cpu_usage=signal["cpu_usage"],
+        memory_usage=signal["memory_usage"],
+        model_accuracy=signal["model_accuracy"],
+        force=bool(req.get("force", False)),
     )
     return jsonify(api_response(data=result))
 

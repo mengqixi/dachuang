@@ -136,6 +136,16 @@ body{margin:0;background:#F5F6F8;color:#263238;font-family:-apple-system,BlinkMa
           <div class="col-md-6"><div class="panel mb-0"><div class="panel-head">明文样本预览</div><div class="panel-body" id="pp">暂无生成记录</div></div></div>
           <div class="col-md-6"><div class="panel mb-0"><div class="panel-head">密态样本预览</div><div class="panel-body" id="ep">暂无生成记录</div></div></div>
         </div>
+        <div class="panel mt-3 mb-0">
+          <div class="panel-head">加密性能对比</div>
+          <div class="panel-body">
+            <p class="muted small-text">对比 AES 与 Paillier 在不同数据规模下的接口返回指标，作为后续自适应优化的参数成本参考。</p>
+            <select class="form-select form-select-sm mb-2" id="encSz" onchange="updEnc()"><option value="10">10MB</option><option value="50" selected>50MB</option></select>
+            <button class="btn-lightx" onclick="updEnc()">刷新对比</button>
+            <div class="chart-box mt-3"><canvas id="encCh"></canvas></div>
+            <div id="encTB" class="muted small-text"></div>
+          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -214,30 +224,35 @@ body{margin:0;background:#F5F6F8;color:#263238;font-family:-apple-system,BlinkMa
     <div class="row g-3">
       <div class="col-lg-5">
         <div class="panel">
-          <div class="panel-head"><i class="fas fa-sliders-h text-primary"></i> 自适应优化</div>
+          <div class="panel-head"><i class="fas fa-sliders-h text-primary"></i> 自适应优化 - 风险驱动参数调整</div>
           <div class="panel-body">
-            <p class="muted small-text">根据当前接口返回的风险状态展示参数调整流程。</p>
-            <div class="mb-2">攻击风险 <div class="progress" style="height:6px"><div class="progress-bar" id="oRB" style="width:20%;background:#7CB342"></div></div></div>
-            <div>密钥：<b id="oKL">--</b></div>
-            <div>轮数：<b id="oRR">--</b></div>
-            <button class="btn-main mt-2" onclick="toggleAuto()"><i class="fas fa-play"></i> 自动优化</button>
-          </div>
-        </div>
-        <div class="panel">
-          <div class="panel-head">加密对比</div>
-          <div class="panel-body">
-            <select class="form-select form-select-sm mb-2" id="encSz" onchange="updEnc()"><option value="10">10MB</option><option value="50" selected>50MB</option></select>
-            <button class="btn-lightx" onclick="updEnc()">刷新</button>
-            <div class="chart-box mt-3"><canvas id="encCh"></canvas></div>
-            <div id="encTB" class="muted small-text"></div>
+            <p class="muted small-text">按照“风险输入 → Q-learning/规则策略 → 参数调整 → 奖励反馈”的流程展示。未训练 Q-table 时使用风险等级兜底策略，便于稳定演示。</p>
+            <div class="mb-2">攻击风险 <span id="oRiskTxt" class="status-pill info">--</span><div class="progress" style="height:6px"><div class="progress-bar" id="oRB" style="width:20%;background:#7CB342"></div></div></div>
+            <div class="metric-grid">
+              <div class="metric"><div class="metric-value" id="oKL">--</div><div class="metric-label">当前密钥</div></div>
+              <div class="metric"><div class="metric-value" id="oRR">--</div><div class="metric-label">当前轮数</div></div>
+              <div class="metric"><div class="metric-value" id="oReward">--</div><div class="metric-label">本次奖励</div></div>
+              <div class="metric"><div class="metric-value" id="oGain">--</div><div class="metric-label">效率变化</div></div>
+            </div>
+            <div class="d-flex flex-wrap gap-2 mt-3">
+              <button class="btn-lightx" onclick="runOptScenario(0.12)">低风险</button>
+              <button class="btn-lightx" onclick="runOptScenario(0.36)">中风险</button>
+              <button class="btn-lightx" onclick="runOptScenario(0.68)">高风险</button>
+              <button class="btn-main" onclick="runOptScenario(0.88)">危险风险</button>
+            </div>
+            <button class="btn-main mt-2" onclick="toggleAuto()"><i class="fas fa-play"></i> 自动连续优化</button>
+            <div id="oDecision" class="notice mt-3">点击风险按钮或开启自动连续优化，查看参数调整过程。</div>
           </div>
         </div>
       </div>
       <div class="col-lg-7">
         <div class="panel">
-          <div class="panel-head">参数调整历史</div>
-          <div class="panel-body table-responsive">
-            <table class="table table-sm"><thead><tr><th>时间</th><th>参数</th><th>风险</th><th>原因</th></tr></thead><tbody id="oTB"></tbody></table>
+          <div class="panel-head">优化过程与历史</div>
+          <div class="panel-body">
+            <div class="flow mb-3" id="oFlow"><span>风险输入</span><span>策略选择</span><span>参数调整</span><span>奖励反馈</span></div>
+            <div class="table-responsive">
+              <table class="table table-sm"><thead><tr><th>时间</th><th>风险</th><th>风险分数</th><th>参数变化</th><th>奖励</th><th>原因</th></tr></thead><tbody id="oTB"></tbody></table>
+            </div>
           </div>
         </div>
       </div>
@@ -337,9 +352,9 @@ function showPage(pg){
   el.classList.add('active');el.style.display='block';
   document.querySelectorAll('#nav a').forEach(function(a){a.classList.toggle('active',a.dataset.page===pg)});
   try{if(pg==='overview')loadOverview()}catch(e){console.error(e)}
-  try{if(pg==='data')loadDS()}catch(e){console.error(e)}
+  try{if(pg==='data'){loadDS();updEnc()}}catch(e){console.error(e)}
   try{if(pg==='federated'){loadFed();loadTrainHist()}}catch(e){console.error(e)}
-  try{if(pg==='optimize'){loadOpt();updEnc()}}catch(e){console.error(e)}
+  try{if(pg==='optimize'){loadOpt()}}catch(e){console.error(e)}
   try{if(pg==='security'){loadSec();ensureSecTimer()}}catch(e){console.error(e)}
 }
 document.getElementById('nav').addEventListener('click',function(e){var a=e.target.closest('a');if(a&&a.dataset.page){e.preventDefault();showPage(a.dataset.page)}});
@@ -467,16 +482,58 @@ function showDetRes(d,time){
 }
 
 function loadOpt(){
-  get('/api/optimization/status',function(d){d=safeObject(d);document.getElementById('oKL').textContent=(d.current_key_length||'--')+' bit';document.getElementById('oRR').textContent=d.current_rounds||'--';var w={low:'20%',medium:'45%',high:'70%',critical:'95%'};document.getElementById('oRB').style.width=w[d.risk_level]||'20%'});
-  get('/api/optimization/history',function(d){var rows=safeArray(d.history).slice(-20).reverse();document.getElementById('oTB').innerHTML=rows.length?rows.map(function(r){r=safeObject(r);return '<tr><td>'+escapeHtml(r.timestamp?new Date(r.timestamp*1000).toLocaleTimeString():'--')+'</td><td>'+escapeHtml(r.key_length||'--')+'bit / '+escapeHtml(r.rounds||'--')+'轮</td><td>'+escapeHtml(r.risk_level||'--')+'</td><td>'+escapeHtml(r.reason_detail||r.reason||'--')+'</td></tr>'}).join(''):'<tr><td colspan="4" class="muted">暂无优化历史</td></tr>'});
+  get('/api/optimization/status',function(d){
+    d=safeObject(d);
+    updateOptSummary(d);
+    renderOptDecision(safeObject(d.last_decision),safeObject(d.last_signal));
+  });
+  get('/api/optimization/history',function(d){
+    var rows=safeArray(d.history).slice(-20).reverse();
+    document.getElementById('oTB').innerHTML=rows.length?rows.map(function(r){r=safeObject(r);return '<tr><td>'+escapeHtml(r.timestamp?new Date(r.timestamp*1000).toLocaleTimeString():'--')+'</td><td>'+escapeHtml(r.risk_level||'--')+'</td><td>'+escapeHtml(r.risk_score??'--')+'</td><td>'+escapeHtml(r.old_key_length||'--')+'bit/'+escapeHtml(r.old_rounds||'--')+'轮 → '+escapeHtml(r.key_length||'--')+'bit/'+escapeHtml(r.rounds||'--')+'轮</td><td>'+escapeHtml(r.reward??'--')+'</td><td>'+escapeHtml(r.reason_detail||r.reason||'--')+'</td></tr>'}).join(''):'<tr><td colspan="6" class="muted">暂无优化历史，请点击风险按钮生成过程记录。</td></tr>';
+  });
 }
-function toggleAuto(){if(autoOn){clearInterval(optTimer);autoOn=false;toast('自动优化已关闭',true);return}autoOn=true;toast('自动优化已开启',true);optTimer=setInterval(function(){post('/api/optimization/auto',{},function(){loadOpt()})},3000)}
+function updateOptSummary(d){
+  d=safeObject(d);
+  document.getElementById('oKL').textContent=(d.current_key_length||'--')+' bit';
+  document.getElementById('oRR').textContent=d.current_rounds||'--';
+  document.getElementById('oReward').textContent=safeGet(d,'last_decision.reward','--');
+  document.getElementById('oGain').textContent=(d.performance_gain??'--')+'%';
+  var risk=d.risk_level||'low',score=Number(d.current_risk_score||0);
+  var w={low:'20%',medium:'45%',high:'70%',critical:'95%'};
+  var color={low:'#7CB342',medium:'#F2B705',high:'#E67E22',critical:'#B71C1C'};
+  document.getElementById('oRB').style.width=w[risk]||'20%';
+  document.getElementById('oRB').style.background=color[risk]||'#7CB342';
+  document.getElementById('oRiskTxt').textContent=risk+' / '+score.toFixed(2);
+}
+function renderOptDecision(decision,signal){
+  decision=safeObject(decision);signal=safeObject(signal);
+  if(!Object.keys(decision).length){return}
+  var txt='风险输入 '+escapeHtml(signal.anomaly_score??decision.risk_score??'--')+
+    '，CPU '+escapeHtml(signal.cpu_usage??decision.cpu_usage??'--')+
+    '，内存 '+escapeHtml(signal.memory_usage??decision.memory_usage??'--')+
+    ' → 策略 '+escapeHtml(decision.policy_source||'--')+
+    '，动作 '+escapeHtml(decision.q_action??'--')+
+    ' → 参数 '+escapeHtml(decision.old_key_length||'--')+'bit/'+escapeHtml(decision.old_rounds||'--')+
+    '轮 调整为 '+escapeHtml(decision.key_length||'--')+'bit/'+escapeHtml(decision.rounds||'--')+
+    '轮 → 奖励 '+escapeHtml(decision.reward??'--')+'。'+escapeHtml(decision.change_detail||decision.reason||'');
+  document.getElementById('oDecision').innerHTML=txt;
+}
+function runOptScenario(score){
+  post('/api/optimization/auto',{anomaly_score:score,force:true},function(d,err){
+    if(err){toast(err,false);return}
+    updateOptSummary({current_key_length:d.key_length,current_rounds:d.rounds,risk_level:d.risk_level,current_risk_score:d.risk_score,performance_gain:d.performance_gain,last_decision:d,last_signal:d});
+    renderOptDecision(d,d);
+    loadOpt();
+    toast('优化步骤已执行',true);
+  });
+}
+function toggleAuto(){if(autoOn){clearInterval(optTimer);autoOn=false;toast('自动优化已关闭',true);return}autoOn=true;toast('自动优化已开启',true);optTimer=setInterval(function(){post('/api/optimization/auto',{force:true},function(){loadOpt()})},3000)}
 function updEnc(){
   post('/api/compare_encryption',{data_size_mb:Number(document.getElementById('encSz').value)||50},function(d,err){
     if(err){document.getElementById('encTB').textContent='加密对比接口不可用';return}
     var tr=safeObject(d.traditional),ho=safeObject(d.homomorphic);
     document.getElementById('encTB').textContent='AES: '+(tr.encryption_time_ms||'--')+'ms / '+(tr.throughput_mbps||'--')+'Mbps；Paillier: '+(ho.encryption_time_ms||'--')+'ms / '+(ho.throughput_mbps||'--')+'Mbps';
-    var ctx=document.getElementById('encCh');if(encChart)encChart.destroy();encChart=new Chart(ctx,{type:'line',data:{labels:['10MB','20MB','30MB','40MB','50MB'],datasets:[{label:'AES-256',data:[72,60,50,42,35],borderColor:'#4F76A7',fill:false},{label:'Paillier',data:[22,18,15,12,10],borderColor:'#7CB342',fill:false}]},options:{responsive:true,maintainAspectRatio:false}});
+    var ctx=document.getElementById('encCh');if(!ctx)return;if(encChart)encChart.destroy();encChart=new Chart(ctx,{type:'line',data:{labels:['10MB','20MB','30MB','40MB','50MB'],datasets:[{label:'AES-256',data:[72,60,50,42,35],borderColor:'#4F76A7',fill:false},{label:'Paillier',data:[22,18,15,12,10],borderColor:'#7CB342',fill:false}]},options:{responsive:true,maintainAspectRatio:false}});
   });
 }
 

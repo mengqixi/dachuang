@@ -53,6 +53,14 @@ class AdaptiveOptimizer:
         self._baseline_cost: float = self._calc_cost(2048, 10)
         self._last_update: float = 0
         self._last_anomaly_score: float = 0.0
+        self._last_signal: Dict[str, Any] = {
+            "anomaly_score": 0.0,
+            "cpu_usage": 0.3,
+            "memory_usage": 0.4,
+            "model_accuracy": 0.95,
+        }
+        self._last_decision: Dict[str, Any] = {}
+        self._demo_index: int = 0
         self._total_cooldown_hits: int = 0
         # 累计节省时间（模拟）
         self._total_saved_time_sec: float = 0.0
@@ -81,26 +89,38 @@ class AdaptiveOptimizer:
         cpu_usage: float = 0.3,
         memory_usage: float = 0.4,
         model_accuracy: float = 0.95,
+        force: bool = False,
     ) -> Dict[str, Any]:
         """执行一次平滑优化更新"""
         now = time.time()
+        previous_score = self._last_anomaly_score
 
         # 冷却检查
-        if now - self._last_update < COOLDOWN_SECONDS:
+        if not force and now - self._last_update < COOLDOWN_SECONDS:
             self._total_cooldown_hits += 1
-            return {
+            result = {
                 "action": "cooldown",
                 "key_length": self.current_key_length,
                 "rounds": self.current_rounds,
                 "risk_level": self.current_risk_level,
+                "risk_score": round(anomaly_score, 4),
                 "reward": 0,
                 "performance_gain": round(self.performance_gain, 2),
                 "reason": "冷却中(%.0fs)" % (COOLDOWN_SECONDS - (now - self._last_update)),
+                "stage": "cooldown",
             }
+            self._last_decision = result
+            return result
 
         # 风险变化阈值检查
-        risk_change = abs(anomaly_score - self._last_anomaly_score)
+        risk_change = abs(anomaly_score - previous_score)
         self._last_anomaly_score = anomaly_score
+        self._last_signal = {
+            "anomaly_score": round(anomaly_score, 4),
+            "cpu_usage": round(cpu_usage, 4),
+            "memory_usage": round(memory_usage, 4),
+            "model_accuracy": round(model_accuracy, 4),
+        }
 
         risk_level = self._calc_risk_level(anomaly_score)
         self.current_risk_level = risk_level
@@ -111,7 +131,7 @@ class AdaptiveOptimizer:
             dtype=np.float32,
         )
 
-        action, _ = self.agent.predict(state)
+        action, q_value = self._choose_action(state, risk_level)
         raw_kl, raw_r = self.agent.decode_action(action)
 
         # 平滑限幅
@@ -124,14 +144,19 @@ class AdaptiveOptimizer:
         baseline_cost = self._calc_cost(2048, 10)
         changed = (key_length != old_key_length) or (rounds != old_rounds)
 
-        should_adjust = changed and risk_change >= RISK_CHANGE_THRESHOLD
+        should_adjust = force or (changed and risk_change >= RISK_CHANGE_THRESHOLD)
 
         if should_adjust:
             gain = ((baseline_cost - new_cost) / baseline_cost) * 100
             self.performance_gain += gain
-            detail = "攻击风险从%.2f上升到%.2f，自动提升密钥长度至%dbits" % (
-                self._last_anomaly_score - risk_change, anomaly_score, key_length) if risk_change > 0 else \
-                     "风险等级变化为%s，调整加密参数" % risk_level
+            if key_length > old_key_length:
+                direction = "提升"
+            elif key_length < old_key_length:
+                direction = "降低"
+            else:
+                direction = "保持"
+            detail = "风险 %.2f → %.2f，策略建议%s密钥至%dbit、轮数%d" % (
+                previous_score, anomaly_score, direction, key_length, rounds)
             self._total_saved_time_sec += abs(new_cost - old_cost) * 0.1
             logger.info("加密参数调整: %dbit/%d轮 → %dbit/%d轮 (风险=%s, 增益=%.1f%%, Δ风险=%.2f)",
                         old_key_length, old_rounds, key_length, rounds, risk_level, gain, risk_change)
@@ -165,20 +190,30 @@ class AdaptiveOptimizer:
         )
         self.history.append(record)
 
-        return {
+        result = {
             "action": "update" if should_adjust else ("maintain" if not changed else "threshold_blocked"),
             "key_length": key_length,
             "rounds": rounds,
             "risk_level": risk_level,
+            "risk_score": round(anomaly_score, 4),
             "reward": round(reward, 4),
             "performance_gain": round(self.performance_gain, 2),
             "old_key_length": old_key_length,
             "old_rounds": old_rounds,
             "change_detail": detail,
             "risk_change": round(risk_change, 3),
+            "cpu_usage": round(cpu_usage, 4),
+            "memory_usage": round(memory_usage, 4),
+            "model_accuracy": round(model_accuracy, 4),
+            "q_action": int(action),
+            "q_value": round(float(q_value), 4),
+            "policy_source": "q_learning" if self.agent.is_trained else "risk_rule_fallback",
+            "stage": "adjusted" if should_adjust else ("blocked" if changed else "maintained"),
             "total_saved_time": round(self._total_saved_time_sec, 1),
             "reason": detail,
         }
+        self._last_decision = result
+        return result
 
     def get_current_config(self) -> Dict[str, int]:
         return {"key_length": self.current_key_length, "rounds": self.current_rounds}
@@ -198,6 +233,9 @@ class AdaptiveOptimizer:
             "current_key_length": self.current_key_length,
             "current_rounds": self.current_rounds,
             "risk_level": self.current_risk_level,
+            "current_risk_score": round(self._last_anomaly_score, 4),
+            "last_signal": self._last_signal,
+            "last_decision": self._last_decision,
             "performance_gain": round(self.performance_gain, 2),
             "total_updates": len(self.history),
             "last_update": self._last_update,
@@ -205,6 +243,19 @@ class AdaptiveOptimizer:
             "total_saved_time": round(self._total_saved_time_sec, 1),
             "cooldown_hits": self._total_cooldown_hits,
         }
+
+    def next_demo_signal(self) -> Dict[str, float]:
+        sequence = [
+            {"anomaly_score": 0.12, "cpu_usage": 0.28, "memory_usage": 0.34, "model_accuracy": 0.96},
+            {"anomaly_score": 0.36, "cpu_usage": 0.34, "memory_usage": 0.42, "model_accuracy": 0.95},
+            {"anomaly_score": 0.68, "cpu_usage": 0.48, "memory_usage": 0.56, "model_accuracy": 0.93},
+            {"anomaly_score": 0.88, "cpu_usage": 0.61, "memory_usage": 0.68, "model_accuracy": 0.91},
+            {"anomaly_score": 0.44, "cpu_usage": 0.39, "memory_usage": 0.46, "model_accuracy": 0.94},
+            {"anomaly_score": 0.18, "cpu_usage": 0.30, "memory_usage": 0.36, "model_accuracy": 0.96},
+        ]
+        signal = sequence[self._demo_index % len(sequence)]
+        self._demo_index += 1
+        return dict(signal)
 
     def get_effect_comparison(self) -> Dict:
         """获取静态vs自适应效果对比"""
@@ -232,6 +283,18 @@ class AdaptiveOptimizer:
             return "high"
         else:
             return "critical"
+
+    def _choose_action(self, state: np.ndarray, risk_level: str) -> Tuple[int, float]:
+        if self.agent.is_trained:
+            return self.agent.predict(state)
+        fallback = {
+            "low": (1024, 10),
+            "medium": (2048, 10),
+            "high": (2048, 12),
+            "critical": (4096, 12),
+        }
+        key_length, rounds = fallback.get(risk_level, (2048, 10))
+        return EncryptionEnv.encode_action(key_length, rounds), 0.0
 
     @staticmethod
     def _calc_cost(key_length: int, rounds: int) -> float:
