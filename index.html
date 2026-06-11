@@ -43,8 +43,8 @@ body{margin:0;background:#F5F6F8;color:#263238;font-family:-apple-system,BlinkMa
 .chart-box{height:210px}
 .table-sm th{font-size:12px;color:#455A64;font-weight:700}
 .table-sm td{font-size:12px;vertical-align:middle}
-.visit-scroll{max-height:280px;overflow-y:auto;border:1px solid #E6ECF2;border-radius:10px}
-.visit-scroll table{margin-bottom:0}
+.event-scroll,.visit-scroll{max-height:280px;overflow-y:auto;border:1px solid #E6ECF2;border-radius:10px}
+.event-scroll table,.visit-scroll table{margin-bottom:0}
 .risk-high{color:#B71C1C;font-weight:700}
 .risk-medium{color:#8A6200;font-weight:700}
 .risk-info,.risk-low{color:#2E7D32;font-weight:700}
@@ -257,7 +257,7 @@ body{margin:0;background:#F5F6F8;color:#263238;font-family:-apple-system,BlinkMa
         </div>
         <button class="btn-main mt-3" onclick="loadSec()">刷新事件</button>
         <span class="muted small-text ms-2" id="secEventBreakdown"></span>
-        <div class="table-responsive mt-3">
+        <div class="table-responsive mt-3 event-scroll">
           <table class="table table-sm" id="secTable"><thead><tr><th>时间</th><th>风险</th><th>事件类型</th><th>路径</th><th>方法</th><th>TraceId</th><th>消息</th></tr></thead><tbody id="secBody"></tbody></table>
         </div>
         <div id="secEmpty" class="notice">暂无安全事件。访问接口或触发限流后会产生事件。</div>
@@ -324,7 +324,7 @@ function escapeHtml(v){v=(v===null||v===undefined)?'':String(v);return v.replace
 var esc=escapeHtml;
 function getData(p){if(Array.isArray(p))return p;if(!p||typeof p!=='object')return null;if(p.code!==undefined)return Number(p.code)===200?p.data:null;if(p.data!==undefined)return p.data;return p}
 function toast(msg,ok){var t=document.createElement('div');t.className='toastx';t.style.background=ok?'#2E7D32':'#B71C1C';t.textContent=msg;document.body.appendChild(t);setTimeout(function(){t.remove()},2800)}
-function apiFetch(url,opt,cb){var x=new XMLHttpRequest();x.open((opt&&opt.method)||'GET',url,true);if(!(opt&&opt.form))x.setRequestHeader('Content-Type','application/json');x.timeout=(opt&&opt.timeout)||30000;x.onload=function(){try{var j=JSON.parse(x.responseText||'{}');var d=getData(j);if(x.status>=200&&x.status<300&&d!==null)cb(d,null,j);else cb(null,(j&&j.msg)||('HTTP '+x.status),j)}catch(e){cb(null,'JSON 解析失败: '+e.message)}};x.onerror=function(){cb(null,'网络请求失败')};x.ontimeout=function(){cb(null,'请求超时')};x.send(opt&&opt.form?opt.form:JSON.stringify((opt&&opt.body)||{}))}
+function apiFetch(url,opt,cb){var method=(opt&&opt.method)||'GET';if(method==='GET'){url+=(url.indexOf('?')>=0?'&':'?')+'_ts='+Date.now()}var x=new XMLHttpRequest();x.open(method,url,true);if(!(opt&&opt.form))x.setRequestHeader('Content-Type','application/json');x.setRequestHeader('Cache-Control','no-cache');x.timeout=(opt&&opt.timeout)||30000;x.onload=function(){try{var j=JSON.parse(x.responseText||'{}');var d=getData(j);if(x.status>=200&&x.status<300&&d!==null)cb(d,null,j);else cb(null,(j&&j.msg)||('HTTP '+x.status),j)}catch(e){cb(null,'JSON 解析失败: '+e.message)}};x.onerror=function(){cb(null,'网络请求失败')};x.ontimeout=function(){cb(null,'请求超时')};x.send(opt&&opt.form?opt.form:JSON.stringify((opt&&opt.body)||{}))}
 function get(url,cb){apiFetch(url,{method:'GET'},cb)}
 function post(url,body,cb){apiFetch(url,{method:'POST',body:body},cb)}
 
@@ -480,7 +480,7 @@ function updEnc(){
 }
 
 function loadSec(){
-  get('/api/security/events/recent?limit=50',function(d,err){
+  get('/api/security/events/recent?limit=200',function(d,err){
     var events=safeArray(safeGet(d,'events',[]));
     var securityEvents=events.filter(function(e){return e.event_type!=='site_visit'});
     document.getElementById('secError').style.display=err?'block':'none';
@@ -498,15 +498,36 @@ function formatGeo(geo){
   var parts=[geo.country,geo.region,geo.city].filter(function(v){return v&&v!=='unknown'});
   return parts.length?parts.join(' / '):'unknown';
 }
+function describeRiskReason(raw){
+  raw=String(raw||'');
+  var pair=raw.split(':');
+  var code=pair[0]||'';
+  var marker=pair.slice(1).join(':')||'-';
+  if(code==='high_risk_user_agent')return 'User-Agent 包含高风险扫描器特征：'+marker+'，常见于自动化漏洞扫描或探测工具。';
+  if(code==='medium_risk_user_agent')return 'User-Agent 包含自动化客户端特征：'+marker+'，可能是脚本、命令行工具或接口探测请求。';
+  var high={'.env':'访问了 .env 配置文件路径，可能在探测环境变量、密钥或数据库连接信息。','wp-login':'访问了 WordPress 登录入口，当前系统不是 WordPress，通常属于批量弱口令或后台探测。','wp-admin':'访问了 WordPress 管理后台路径，当前系统不是 WordPress，通常属于后台探测。','phpmyadmin':'访问了 phpMyAdmin 管理路径，可能在探测数据库管理入口。','/admin':'访问了常见管理后台路径，可能在尝试发现隐藏管理入口。','../':'请求中包含目录穿越特征 ../，可能在尝试读取上级目录文件。','..%2f':'请求中包含 URL 编码后的目录穿越特征 ..%2f，可能在尝试绕过路径过滤。','/etc/passwd':'请求中包含 Linux 敏感文件 /etc/passwd，可能在尝试读取系统账户文件。','select ':'请求参数中包含 SQL SELECT 片段，可能存在 SQL 注入探测。','union ':'请求参数中包含 SQL UNION 片段，可能存在联合查询注入探测。',' or 1=1':'请求参数中包含 or 1=1，常见于 SQL 注入绕过条件探测。','<script':'请求中包含 script 标签，可能存在 XSS 跨站脚本探测。'};
+  var medium={'login':'访问了登录相关路径，属于需要关注的入口探测行为。','backup':'访问了备份相关路径，可能在探测备份文件或历史数据泄露。','.git':'访问了 .git 相关路径，可能在探测源码仓库泄露。','config':'访问了配置相关路径，可能在探测配置文件泄露。','debug':'访问了调试相关路径，可能在探测调试接口是否暴露。','console':'访问了控制台相关路径，可能在探测管理控制台入口。','shell':'访问了 shell 相关路径，可能在探测 WebShell 或命令执行入口。','upload':'访问了上传相关路径，可能在探测文件上传入口。'};
+  if(code.indexOf('high_')===0)return high[marker]||('访问路径或参数包含高风险特征：'+marker+'，可能是敏感文件、后台入口或注入类探测。');
+  if(code.indexOf('medium_')===0)return medium[marker]||('访问路径或参数包含中风险特征：'+marker+'，建议关注是否为正常业务访问。');
+  return raw||'-';
+}
+function formatRiskReasons(extra){
+  extra=safeObject(extra);
+  var details=safeArray(extra.risk_reason_details);
+  if(details.length)return details.join('；');
+  var raw=safeArray(extra.risk_reasons);
+  if(raw.length)return raw.map(describeRiskReason).join('；');
+  return '普通页面访问，未命中可疑路径、扫描器 User-Agent 或注入探测特征。';
+}
 function loadVisits(){
-  get('/api/security/events/recent?limit=50&event_type=site_visit',function(d){
+  get('/api/security/events/recent?limit=200&event_type=site_visit',function(d){
     var visits=safeArray(safeGet(d,'events',[]));
     document.getElementById('visitEmpty').style.display=visits.length?'none':'block';
     document.getElementById('visitTable').style.display=visits.length?'table':'none';
     document.getElementById('visitBody').innerHTML=visits.map(function(e){
       e=safeObject(e);var extra=safeObject(e.extra);
       var risk=e.risk_level||'info';
-      var reasons=safeArray(extra.risk_reasons).join('；')||'-';
+      var reasons=formatRiskReasons(extra);
       return '<tr><td>'+escapeHtml((e.timestamp||'-').substring(0,19).replace('T',' '))+'</td><td class="risk-'+escapeHtml(risk)+'">'+escapeHtml(risk)+'</td><td>'+escapeHtml(e.ip||'-')+'</td><td>'+escapeHtml(formatGeo(extra.geo))+'</td><td>'+escapeHtml(extra.device_type||'-')+'</td><td>'+escapeHtml(extra.browser||'-')+'</td><td>'+escapeHtml(extra.os||'-')+'</td><td>'+escapeHtml(e.path||'-')+'</td><td>'+escapeHtml((e.trace_id||'-').substring(0,18))+'</td><td>'+escapeHtml(reasons)+'</td></tr>';
     }).join('');
   });

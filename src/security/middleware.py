@@ -183,6 +183,7 @@ class SecurityMiddleware:
                 "geo": self._offline_geo(ip),
                 "full_path": request.full_path.rstrip("?"),
                 "risk_reasons": risk["reasons"],
+                "risk_reason_details": risk["reason_details"],
             },
         )
 
@@ -228,11 +229,15 @@ class SecurityMiddleware:
         medium_ua_markers = ("curl/", "python-requests", "wget/", "httpclient")
 
         reasons = []
+        reason_details = []
         risk_level = "info"
 
         for marker in high_markers:
             if marker in target:
                 reasons.append("high_risk_path_or_query:%s" % marker)
+                reason_details.append(self._describe_visit_risk_reason(
+                    "high", "path_or_query", marker
+                ))
                 risk_level = "high"
                 break
 
@@ -240,6 +245,9 @@ class SecurityMiddleware:
             for marker in high_ua_markers:
                 if marker in ua:
                     reasons.append("high_risk_user_agent:%s" % marker)
+                    reason_details.append(self._describe_visit_risk_reason(
+                        "high", "user_agent", marker
+                    ))
                     risk_level = "high"
                     break
 
@@ -247,6 +255,9 @@ class SecurityMiddleware:
             for marker in medium_path_markers:
                 if marker in target:
                     reasons.append("medium_risk_path_or_query:%s" % marker)
+                    reason_details.append(self._describe_visit_risk_reason(
+                        "medium", "path_or_query", marker
+                    ))
                     risk_level = "medium"
                     break
 
@@ -254,6 +265,9 @@ class SecurityMiddleware:
             for marker in medium_ua_markers:
                 if marker in ua:
                     reasons.append("medium_risk_user_agent:%s" % marker)
+                    reason_details.append(self._describe_visit_risk_reason(
+                        "medium", "user_agent", marker
+                    ))
                     risk_level = "medium"
                     break
 
@@ -266,7 +280,49 @@ class SecurityMiddleware:
             "risk_level": risk_level,
             "message": messages.get(risk_level, "网站访问记录"),
             "reasons": reasons,
+            "reason_details": reason_details,
         }
+
+    def _describe_visit_risk_reason(self, risk_level, reason_type, marker):
+        if reason_type == "user_agent":
+            if risk_level == "high":
+                return "User-Agent 包含高风险扫描器特征：%s，常见于自动化漏洞扫描或探测工具。" % marker
+            return "User-Agent 包含自动化客户端特征：%s，可能是脚本、命令行工具或接口探测请求。" % marker
+
+        high_descriptions = {
+            ".env": "访问了 .env 配置文件路径，可能在探测环境变量、密钥或数据库连接信息。",
+            "wp-login": "访问了 WordPress 登录入口，当前系统不是 WordPress，通常属于批量弱口令或后台探测。",
+            "wp-admin": "访问了 WordPress 管理后台路径，当前系统不是 WordPress，通常属于后台探测。",
+            "phpmyadmin": "访问了 phpMyAdmin 管理路径，可能在探测数据库管理入口。",
+            "/admin": "访问了常见管理后台路径，可能在尝试发现隐藏管理入口。",
+            "../": "请求中包含目录穿越特征 ../，可能在尝试读取上级目录文件。",
+            "..%2f": "请求中包含 URL 编码后的目录穿越特征 ..%2f，可能在尝试绕过路径过滤。",
+            "/etc/passwd": "请求中包含 Linux 敏感文件 /etc/passwd，可能在尝试读取系统账户文件。",
+            "select ": "请求参数中包含 SQL SELECT 片段，可能存在 SQL 注入探测。",
+            "union ": "请求参数中包含 SQL UNION 片段，可能存在联合查询注入探测。",
+            " or 1=1": "请求参数中包含 or 1=1，常见于 SQL 注入绕过条件探测。",
+            "<script": "请求中包含 script 标签，可能存在 XSS 跨站脚本探测。",
+        }
+        medium_descriptions = {
+            "login": "访问了登录相关路径，属于需要关注的入口探测行为。",
+            "backup": "访问了备份相关路径，可能在探测备份文件或历史数据泄露。",
+            ".git": "访问了 .git 相关路径，可能在探测源码仓库泄露。",
+            "config": "访问了配置相关路径，可能在探测配置文件泄露。",
+            "debug": "访问了调试相关路径，可能在探测调试接口是否暴露。",
+            "console": "访问了控制台相关路径，可能在探测管理控制台入口。",
+            "shell": "访问了 shell 相关路径，可能在探测 WebShell 或命令执行入口。",
+            "upload": "访问了上传相关路径，可能在探测文件上传入口。",
+        }
+
+        if risk_level == "high":
+            return high_descriptions.get(
+                marker,
+                "访问路径或参数包含高风险特征：%s，可能是敏感文件、后台入口或注入类探测。" % marker,
+            )
+        return medium_descriptions.get(
+            marker,
+            "访问路径或参数包含中风险特征：%s，建议关注是否为正常业务访问。" % marker,
+        )
 
     def _get_client_ip(self, flask_request):
         forwarded_for = flask_request.headers.get("X-Forwarded-For", "")
