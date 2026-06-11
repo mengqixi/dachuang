@@ -1614,6 +1614,7 @@ def federated_round():
             "samples": r["samples"],
         } for r in results],
         "avg_accuracy": round(np.mean([r["accuracy"] for r in results]), 4) if results else 0,
+        "avg_loss": round(np.mean([r.get("loss", 0) for r in results]), 4) if results else 0,
         "history": fedavg_server.get_history(),
     }))
 

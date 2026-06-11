@@ -44,10 +44,16 @@ class FedAvgServer:
         self.round += 1
 
         avg_acc = np.mean([r.get("accuracy", 0) for r in client_results])
-        self._accuracy_history.append({"round": self.round, "accuracy": round(float(avg_acc), 4)})
+        losses = [r.get("loss") for r in client_results if r.get("loss") is not None]
+        avg_loss = float(np.mean(losses)) if losses else 0.0
+        self._accuracy_history.append({
+            "round": self.round,
+            "accuracy": round(float(avg_acc), 4),
+            "loss": round(avg_loss, 4),
+        })
 
-        logger.info("FedAvg 第%d轮: %d个客户端, avg_acc=%.4f",
-                    self.round, len(client_results), avg_acc)
+        logger.info("FedAvg 第%d轮: %d个客户端, avg_acc=%.4f, avg_loss=%.4f",
+                    self.round, len(client_results), avg_acc, avg_loss)
         return self.global_weights
 
     def get_history(self) -> List[Dict]:
