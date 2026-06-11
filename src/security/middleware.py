@@ -1,6 +1,5 @@
 """Non-blocking security middleware for Flask."""
 
-import ipaddress
 import os
 import time
 from urllib.parse import unquote_plus
@@ -18,7 +17,9 @@ except ImportError:
     request = None
 
 from src.security.security_logger import SecurityEventLogger
+from src.security.ip_geo import lookup_ip_geo
 from src.security.trace_id import DEFAULT_TRACE_HEADER, get_or_create_trace_id
+from src.security.user_agent_parser import parse_user_agent
 
 
 class _AllowAllChecker:
@@ -115,11 +116,6 @@ class SecurityMiddleware:
         except Exception:
             pass
 
-        try:
-            self._log_site_visit(trace_id)
-        except Exception:
-            pass
-
         if self.config.get("rate_limit", {}).get("enabled", False):
             allowed, reason = self.rate_limiter.check(request)
             if not allowed:
@@ -156,7 +152,7 @@ class SecurityMiddleware:
                 }), 403
         return None
 
-    def _log_site_visit(self, trace_id):
+    def _log_site_visit(self, trace_id, duration_ms=0.0, status_code=None):
         if request is None:
             return
         if not self._should_log_site_visit(request):
@@ -164,6 +160,7 @@ class SecurityMiddleware:
 
         user_agent = request.headers.get("User-Agent", "")
         ip = self._get_client_ip(request)
+        ua_info = parse_user_agent(user_agent)
         risk = self._assess_visit_risk(request, user_agent)
         self.security_logger.log_security_event(
             trace_id=trace_id,
@@ -175,13 +172,30 @@ class SecurityMiddleware:
             ip=ip,
             user_agent=user_agent,
             extra={
-                "device_type": self._detect_device_type(user_agent),
-                "browser": self._detect_browser(user_agent),
-                "os": self._detect_os(user_agent),
-                "forwarded_for": request.headers.get("X-Forwarded-For", ""),
+                "device_type": ua_info["device_type"],
+                "device_model": ua_info["device_model"],
+                "browser": ua_info["browser"],
+                "browser_version": ua_info["browser_version"],
+                "os": ua_info["os"],
+                "os_version": ua_info["os_version"],
+                "is_bot": ua_info["is_bot"],
+                "forwarded_for": self._limit_text(request.headers.get("X-Forwarded-For", ""), 300),
+                "real_ip": self._limit_text(request.headers.get("X-Real-IP", ""), 100),
                 "ip_source": self._get_ip_source(request),
-                "geo": self._offline_geo(ip),
-                "full_path": request.full_path.rstrip("?"),
+                "remote_addr": request.remote_addr or "unknown",
+                "host": self._limit_text(request.host or "", 200),
+                "scheme": request.scheme or "",
+                "server_port": self._get_server_port(request),
+                "client_port": self._get_client_port(request),
+                "query_string": self._limit_text(
+                    (request.query_string or b"").decode("utf-8", "ignore"), 500
+                ),
+                "referer": self._limit_text(request.headers.get("Referer", ""), 500),
+                "accept_language": self._limit_text(request.headers.get("Accept-Language", ""), 200),
+                "geo": lookup_ip_geo(ip),
+                "full_path": self._limit_text(request.full_path.rstrip("?"), 500),
+                "status_code": status_code,
+                "duration_ms": round(duration_ms or 0.0, 2),
                 "risk_reasons": risk["reasons"],
                 "risk_reason_details": risk["reason_details"],
             },
@@ -342,18 +356,6 @@ class SecurityMiddleware:
             return "x_real_ip"
         return "remote_addr"
 
-    def _offline_geo(self, ip):
-        geo = {"country": "unknown", "region": "unknown", "city": "unknown"}
-        try:
-            parsed = ipaddress.ip_address(ip)
-        except Exception:
-            return geo
-        if parsed.is_loopback:
-            return {"country": "local", "region": "local", "city": "localhost"}
-        if parsed.is_private:
-            return {"country": "private", "region": "private", "city": "private"}
-        return geo
-
     def _detect_device_type(self, user_agent):
         ua = (user_agent or "").lower()
         if any(token in ua for token in ("bot", "spider", "crawler")):
@@ -395,6 +397,25 @@ class SecurityMiddleware:
         if "linux" in ua:
             return "Linux"
         return "unknown"
+
+    @staticmethod
+    def _limit_text(value, max_length):
+        value = "" if value is None else str(value)
+        return value[:max_length]
+
+    @staticmethod
+    def _get_server_port(flask_request):
+        port = flask_request.environ.get("SERVER_PORT")
+        if port:
+            return str(port)
+        host = flask_request.host or ""
+        if ":" in host:
+            return host.rsplit(":", 1)[-1]
+        return "443" if flask_request.scheme == "https" else "80"
+
+    @staticmethod
+    def _get_client_port(flask_request):
+        return str(flask_request.environ.get("REMOTE_PORT") or "unknown")
 
     def _build_rate_limit_response(self, trace_id, reason):
         if jsonify is None:
@@ -454,6 +475,11 @@ class SecurityMiddleware:
                 status_code=response.status_code,
                 duration_ms=elapsed_ms,
             )
+        except Exception:
+            pass
+
+        try:
+            self._log_site_visit(trace_id, duration_ms=elapsed_ms, status_code=response.status_code)
         except Exception:
             pass
 

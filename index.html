@@ -267,10 +267,10 @@ body{margin:0;background:#F5F6F8;color:#263238;font-family:-apple-system,BlinkMa
     <div class="panel">
       <div class="panel-head"><i class="fas fa-map-marker-alt text-primary"></i> 最近访问记录</div>
       <div class="panel-body">
-        <p class="muted small-text">记录页面访问的 IP、设备、浏览器、系统、风险等级、时间和 TraceId。归属地采用离线识别，不调用第三方查询服务。</p>
+        <p class="muted small-text">记录页面访问的 IP、归属地、设备机型、系统、浏览器、请求方式、端口、来源和 TraceId。归属地来自本地离线库；未配置离线库时仅区分 local/private/unknown。</p>
         <div class="table-responsive visit-scroll">
           <table class="table table-sm" id="visitTable">
-            <thead><tr><th>时间</th><th>风险</th><th>IP</th><th>归属地</th><th>设备</th><th>浏览器</th><th>系统</th><th>路径</th><th>TraceId</th><th>原因</th></tr></thead>
+            <thead><tr><th>时间</th><th>风险</th><th>IP</th><th>归属地</th><th>ISP</th><th>设备</th><th>机型</th><th>系统</th><th>浏览器</th><th>方法</th><th>端口</th><th>耗时</th><th>路径</th><th>来源</th><th>TraceId</th></tr></thead>
             <tbody id="visitBody"></tbody>
           </table>
         </div>
@@ -497,7 +497,26 @@ function loadSec(){
 function formatGeo(geo){
   geo=safeObject(geo);
   var parts=[geo.country,geo.region,geo.city].filter(function(v){return v&&v!=='unknown'});
-  return parts.length?parts.join(' / '):'unknown';
+  if(parts.length)return parts.join(' / ');
+  if(geo.source==='unknown'&&geo.configured===false)return 'unknown（未配置离线库）';
+  return geo.source||'unknown';
+}
+function withVersion(name,version){
+  name=name||'-';version=version||'unknown';
+  return version&&version!=='unknown'?name+' '+version:name;
+}
+function formatPorts(extra){
+  extra=safeObject(extra);
+  var server=extra.server_port||'-', client=extra.client_port||'-';
+  return '服务 '+server+' / 客户 '+client;
+}
+function formatSource(extra){
+  extra=safeObject(extra);
+  if(extra.referer)return extra.referer;
+  if(extra.forwarded_for)return 'XFF: '+extra.forwarded_for;
+  if(extra.real_ip)return 'X-Real-IP: '+extra.real_ip;
+  if(extra.host)return 'Host: '+extra.host;
+  return extra.ip_source||'-';
 }
 function describeRiskReason(raw){
   raw=String(raw||'');
@@ -528,8 +547,8 @@ function loadVisits(){
     document.getElementById('visitBody').innerHTML=visits.map(function(e){
       e=safeObject(e);var extra=safeObject(e.extra);
       var risk=e.risk_level||'info';
-      var reasons=formatRiskReasons(extra);
-      return '<tr><td>'+escapeHtml((e.timestamp||'-').substring(0,19).replace('T',' '))+'</td><td class="risk-'+escapeHtml(risk)+'">'+escapeHtml(risk)+'</td><td>'+escapeHtml(e.ip||'-')+'</td><td>'+escapeHtml(formatGeo(extra.geo))+'</td><td>'+escapeHtml(extra.device_type||'-')+'</td><td>'+escapeHtml(extra.browser||'-')+'</td><td>'+escapeHtml(extra.os||'-')+'</td><td>'+escapeHtml(e.path||'-')+'</td><td>'+escapeHtml((e.trace_id||'-').substring(0,18))+'</td><td>'+escapeHtml(reasons)+'</td></tr>';
+      var geo=safeObject(extra.geo);
+      return '<tr><td>'+escapeHtml((e.timestamp||'-').substring(0,19).replace('T',' '))+'</td><td class="risk-'+escapeHtml(risk)+'">'+escapeHtml(risk)+'</td><td>'+escapeHtml(e.ip||'-')+'</td><td>'+escapeHtml(formatGeo(geo))+'</td><td>'+escapeHtml(geo.isp||'-')+'</td><td>'+escapeHtml(extra.device_type||'-')+'</td><td>'+escapeHtml(extra.device_model||'-')+'</td><td>'+escapeHtml(withVersion(extra.os,extra.os_version))+'</td><td>'+escapeHtml(withVersion(extra.browser,extra.browser_version))+'</td><td>'+escapeHtml(e.method||'-')+'</td><td>'+escapeHtml(formatPorts(extra))+'</td><td>'+escapeHtml(extra.duration_ms??'-')+'ms</td><td>'+escapeHtml(e.path||'-')+'</td><td>'+escapeHtml(formatSource(extra))+'</td><td>'+escapeHtml((e.trace_id||'-').substring(0,18))+'</td></tr>';
     }).join('');
   });
 }
