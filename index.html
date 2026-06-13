@@ -51,10 +51,22 @@ body{margin:0;background:#F5F6F8;color:#263238;font-family:-apple-system,BlinkMa
 .notice{background:#F7FAFC;border:1px dashed #C7D2DE;border-radius:10px;padding:10px 12px;font-size:13px;color:#455A64}
 .flow{display:flex;flex-wrap:wrap;gap:8px}
 .flow span{background:#EEF2F6;border-radius:999px;padding:5px 10px;font-size:12px}
-.sample-preview{max-height:300px;overflow:auto}
+.sample-preview{max-height:420px;overflow:auto}
 .sample-preview table{min-width:720px}
+.compare-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.explain-box{border:1px solid #E2E8F0;border-radius:10px;padding:12px;background:#fff}
+.explain-box h6{margin:0 0 6px;font-size:14px;font-weight:700}
+.enc-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.enc-metric{border:1px solid #E2E8F0;border-radius:10px;padding:10px;background:#FAFBFC}
+.enc-metric b{display:block;font-size:18px;color:#2F5F93}
+.enc-metric span{font-size:12px;color:#607D8B}
+.opt-step-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.opt-step{border:1px solid #E2E8F0;border-radius:10px;background:#fff;padding:12px}
+.opt-step .step-title{font-size:12px;color:#607D8B;margin-bottom:6px}
+.opt-step .step-value{font-size:18px;font-weight:700;color:#2F5F93}
+.opt-step .step-desc{font-size:12px;color:#546E7A;margin-top:6px;line-height:1.5}
 .toastx{position:fixed;top:58px;right:18px;z-index:9999;color:#fff;border-radius:8px;padding:10px 15px;font-size:13px;box-shadow:0 6px 20px rgba(0,0,0,.15)}
-@media(max-width:900px){.metric-grid,.node-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.navbar-nav{overflow-x:auto;max-width:100%}}
+@media(max-width:900px){.metric-grid,.node-grid,.compare-grid,.enc-metrics,.opt-step-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.navbar-nav{overflow-x:auto;max-width:100%}}
 </style>
 </head>
 <body>
@@ -120,8 +132,8 @@ body{margin:0;background:#F5F6F8;color:#263238;font-family:-apple-system,BlinkMa
             <div class="row g-2 align-items-end">
               <div class="col-md-6">
                 <label class="form-label small-text">记录数</label>
-                <input type="range" class="form-range" id="dc" min="100" max="5000" step="100" value="1000">
-                <div id="dcL" class="small-text fw-bold">100 条</div>
+                <input type="range" class="form-range" id="dc" min="50" max="1000" step="50" value="200">
+                <div id="dcL" class="small-text fw-bold">200 条</div>
               </div>
               <div class="col-md-4">
                 <label class="form-label small-text">处理方式</label>
@@ -135,17 +147,34 @@ body{margin:0;background:#F5F6F8;color:#263238;font-family:-apple-system,BlinkMa
         <h6>四个联邦节点</h6>
         <div class="node-grid" id="dsNodes"></div>
         <div class="row g-3 mt-1">
-          <div class="col-md-6"><div class="panel mb-0"><div class="panel-head">明文样本预览 <span class="muted small-text">可横向/纵向滚动</span></div><div class="panel-body sample-preview" id="pp">暂无生成记录</div></div></div>
+          <div class="col-md-6"><div class="panel mb-0"><div class="panel-head">明文样本预览 <span class="muted small-text">显示全部生成记录，可横向/纵向滚动</span></div><div class="panel-body sample-preview" id="pp">暂无生成记录</div></div></div>
           <div class="col-md-6"><div class="panel mb-0"><div class="panel-head">密态样本预览 <span class="muted small-text">可横向/纵向滚动</span></div><div class="panel-body sample-preview" id="ep">暂无生成记录</div></div></div>
         </div>
         <div class="panel mt-3 mb-0">
           <div class="panel-head">加密性能对比</div>
           <div class="panel-body">
-            <p class="muted small-text">对比 AES 与 Paillier 在不同数据规模下的接口返回指标，作为后续自适应优化的参数成本参考。</p>
+            <p class="muted small-text">对比 AES 与 Paillier 在不同数据规模下的接口返回指标，重点观察“速度、吞吐、隐私能力”的取舍，作为后续自适应优化的参数成本参考。</p>
+            <div class="compare-grid mb-3">
+              <div class="explain-box">
+                <h6>AES-256 对称加密</h6>
+                <div class="muted small-text">适合批量数据传输和存储加密，速度快、吞吐高，但不支持在密文上直接计算。系统中用于说明传统加密的效率优势。</div>
+              </div>
+              <div class="explain-box">
+                <h6>Paillier 同态加密</h6>
+                <div class="muted small-text">支持加法同态，可在不解密的情况下做部分统计或聚合，隐私保护能力更强，但加解密耗时和计算开销明显更高。</div>
+              </div>
+            </div>
             <select class="form-select form-select-sm mb-2" id="encSz" onchange="updEnc()"><option value="10">10MB</option><option value="50" selected>50MB</option></select>
             <button class="btn-lightx" onclick="updEnc()">刷新对比</button>
+            <div class="enc-metrics mt-3">
+              <div class="enc-metric"><b id="aesTime">--</b><span>AES 加密耗时</span></div>
+              <div class="enc-metric"><b id="paiTime">--</b><span>Paillier 加密耗时</span></div>
+              <div class="enc-metric"><b id="aesThrough">--</b><span>AES 吞吐</span></div>
+              <div class="enc-metric"><b id="paiThrough">--</b><span>Paillier 吞吐</span></div>
+            </div>
             <div class="chart-box mt-3"><canvas id="encCh"></canvas></div>
             <div id="encTB" class="muted small-text"></div>
+            <div id="encExplain" class="notice mt-2"></div>
           </div>
         </div>
       </div>
@@ -180,7 +209,11 @@ body{margin:0;background:#F5F6F8;color:#263238;font-family:-apple-system,BlinkMa
               <div class="col-md-4"><button class="btn-main" id="fedRunBtn" onclick="runFed()"><i class="fas fa-play"></i> 执行一轮</button></div>
             </div>
             <div id="fedRes" class="muted small-text mt-2"></div>
-            <div class="chart-box mt-3"><canvas id="fedCh"></canvas></div>
+            <div class="notice mt-2">图表使用后端接口返回的真实节点训练结果：柱状图表示四个节点本轮验证精度，折线表示 FedAvg 历史平均精度和平均损失。</div>
+            <div class="row g-3 mt-1">
+              <div class="col-md-6"><div class="chart-box mt-3"><canvas id="fedCh"></canvas></div></div>
+              <div class="col-md-6"><div class="chart-box mt-3"><canvas id="fedHistCh"></canvas></div></div>
+            </div>
           </div>
         </div>
       </div>
@@ -214,9 +247,9 @@ body{margin:0;background:#F5F6F8;color:#263238;font-family:-apple-system,BlinkMa
           </div>
         </div>
         <div id="detSource" class="muted small-text mt-2"></div>
-        <div class="notice mt-2">下方仅展示部分检测样本，完整结果由后端接口返回。</div>
+        <div id="detExplain" class="notice mt-2">下方仅展示部分检测样本，完整结果由后端接口返回。真实标签来自数据集标注，用于对照模型预测是否与样本原始标注一致：0 表示正常，1 表示攻击。</div>
         <div class="table-responsive mt-2">
-          <table class="table table-sm"><thead><tr><th>#</th><th>检测结果</th><th>风险分数</th><th>风险等级</th><th>攻击类型</th><th>真实标签</th></tr></thead><tbody id="detTB"></tbody></table>
+          <table class="table table-sm"><thead><tr><th>#</th><th>检测结果</th><th>风险分数</th><th>风险等级</th><th>攻击类型</th><th>真实标签</th><th>判定说明</th></tr></thead><tbody id="detTB"></tbody></table>
         </div>
       </div>
     </div>
@@ -243,7 +276,24 @@ body{margin:0;background:#F5F6F8;color:#263238;font-family:-apple-system,BlinkMa
               <button class="btn-main" onclick="runOptScenario(0.88)">危险风险</button>
             </div>
             <button class="btn-main mt-2" id="optAutoBtn" onclick="toggleAuto()"><i class="fas fa-play"></i> 自动连续优化</button>
-            <span class="muted small-text ms-2" id="oAutoHint">自动模式每 10 秒执行一次，便于观察参数变化。</span>
+            <span class="muted small-text ms-2" id="oAutoHint">自动模式每 20 秒执行一次，建议答辩时优先点击风险按钮做单步演示。</span>
+            <div class="opt-step-grid mt-3">
+              <div class="opt-step">
+                <div class="step-title">优化前参数</div>
+                <div class="step-value" id="oBefore">--</div>
+                <div class="step-desc">上一次或当前使用的密钥长度与加密轮数。</div>
+              </div>
+              <div class="opt-step">
+                <div class="step-title">优化后参数</div>
+                <div class="step-value" id="oAfter">--</div>
+                <div class="step-desc">根据风险输入调整后的目标参数。</div>
+              </div>
+              <div class="opt-step">
+                <div class="step-title">优化作用</div>
+                <div class="step-value" id="oEffect">--</div>
+                <div class="step-desc" id="oEffectDesc">点击风险按钮后展示安全性和开销变化。</div>
+              </div>
+            </div>
             <div id="oDecision" class="notice mt-3">点击风险按钮或开启自动连续优化，查看参数调整过程。</div>
           </div>
         </div>
@@ -347,8 +397,8 @@ function get(url,cb){apiFetch(url,{method:'GET'},cb)}
 function post(url,body,cb){apiFetch(url,{method:'POST',body:body},cb)}
 
 var nodeIcons={hospital:'fa-hospital',bank:'fa-university',insurance:'fa-shield-alt',government:'fa-landmark'};
-var trChart=null,fedChart=null,encChart=null,optTimer=null,autoOn=false,secTimer=null;
-var OPT_INTERVAL_MS=10000;
+var trChart=null,fedChart=null,fedHistChart=null,encChart=null,optTimer=null,autoOn=false,secTimer=null;
+var OPT_INTERVAL_MS=20000;
 
 function showPage(pg){
   document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');p.style.display='none'});
@@ -376,7 +426,19 @@ function loadOverview(){
   get('/api/system/health',function(d,err){document.getElementById('ovHealth').textContent=err?'异常':'运行中'});
   get('/api/dataset/unsw/status',function(d){d=safeObject(d);document.getElementById('ovDataset').textContent=d.exists?(d.ready_for_federated?'已处理':'可处理'):'缺失'});
   get('/api/federated/nodes',function(d){var ready=safeArray(safeGet(d,'nodes',[])).filter(function(n){return n.ready}).length;document.getElementById('ovNodes').textContent=ready+'/4'});
-  get('/api/security/events/recent?limit=200',function(d){document.getElementById('ovSecurity').textContent=safeArray(safeGet(d,'events',[])).filter(function(e){return e.event_type!=='site_visit'}).length});
+  get('/api/security/events/recent?limit=200',function(d){document.getElementById('ovSecurity').textContent=safeArray(safeGet(d,'events',[])).filter(isSecurityEventForDashboard).length});
+}
+
+function isSecurityEventForDashboard(e){
+  e=safeObject(e);
+  var r=e.risk_level||'low';
+  return e.event_type!=='site_visit'||r==='medium'||r==='high'||r==='critical';
+}
+
+function isSecurityAlertEvent(e){
+  e=safeObject(e);
+  var r=e.risk_level||'low';
+  return r==='medium'||r==='high'||r==='critical';
 }
 
 document.getElementById('dcL').textContent=document.getElementById('dc').value+' 条';
@@ -387,7 +449,7 @@ function buildTable(data){
   var cols=Object.keys(safeObject(data[0])).slice(0,6);
   if(!cols.length)return '<div class="muted small-text">暂无数据</div>';
   var h='<div class="table-responsive"><table class="table table-sm"><thead><tr>'+cols.map(function(c){return '<th>'+escapeHtml(c)+'</th>'}).join('')+'</tr></thead><tbody>';
-  h+=data.slice(0,50).map(function(r){r=safeObject(r);return '<tr>'+cols.map(function(c){var v=r[c];if(typeof v==='object')v=JSON.stringify(v);return '<td>'+escapeHtml(String(v).substring(0,60))+'</td>'}).join('')+'</tr>'}).join('');
+  h+=data.map(function(r){r=safeObject(r);return '<tr>'+cols.map(function(c){var v=r[c];if(typeof v==='object')v=JSON.stringify(v);return '<td>'+escapeHtml(String(v).substring(0,60))+'</td>'}).join('')+'</tr>'}).join('');
   return h+'</tbody></table></div>';
 }
 function genData(){
@@ -463,10 +525,29 @@ function runFed(){
     if(err){toast(err,false);return}
     var clients=safeArray(d.clients),hist=safeArray(d.history);
     function pct(v){v=Number(v);return isFinite(v)?(v*100).toFixed(1)+'%':'--'}
-    document.getElementById('fedRes').innerHTML='轮次: '+escapeHtml(d.round||0)+'；平均精度: '+pct(d.avg_accuracy)+'；平均损失: '+escapeHtml(d.avg_loss||'--')+'<br><span class="muted small-text">曲线使用平滑展示精度，当前平均精度仍为接口原始值。</span><br>'+clients.map(function(c){return escapeHtml(c.name)+': '+pct(c.accuracy)+'，loss '+escapeHtml(c.loss||'--')+' ('+escapeHtml(c.samples)+' 条)'}).join('；');
-    var ctx=document.getElementById('fedCh');if(fedChart)fedChart.destroy();if(ctx&&hist.length){fedChart=new Chart(ctx,{type:'line',data:{labels:hist.map(function(x){return 'R'+x.round}),datasets:[{label:'FedAvg 展示精度',data:hist.map(function(x){x=safeObject(x);return Number(x.display_accuracy??x.accuracy)||0}),borderColor:'#7CB342',fill:false,tension:.25},{label:'平均损失',data:hist.map(function(x){return x.loss}),borderColor:'#D9822B',fill:false,tension:.25}]},options:{responsive:true,maintainAspectRatio:false,scales:{y:{min:0,max:1}}}})}
+    document.getElementById('fedRes').innerHTML='轮次: '+escapeHtml(d.round||0)+'；平均精度: '+pct(d.avg_accuracy)+'；平均损失: '+escapeHtml(d.avg_loss||'--')+'<br>'+clients.map(function(c){return escapeHtml(c.name)+': '+pct(c.accuracy)+'，loss '+escapeHtml(c.loss||'--')+' ('+escapeHtml(c.samples)+' 条)'}).join('；');
+    renderFederatedChart(clients,hist);
     toast('联邦训练完成',true);
   });
+}
+
+function renderFederatedChart(clients,hist){
+  var ctx=document.getElementById('fedCh');var histCtx=document.getElementById('fedHistCh');if(!ctx)return;if(fedChart)fedChart.destroy();if(fedHistChart)fedHistChart.destroy();
+  clients=safeArray(clients).map(safeObject);hist=safeArray(hist).map(safeObject);
+  var nodeLabels=clients.map(function(c){return c.name||'-'});
+  var nodeAcc=clients.map(function(c){return Number(c.accuracy)||0});
+  var nodeLoss=clients.map(function(c){return Number(c.loss)||0});
+  var rounds=hist.map(function(x){return 'R'+(x.round||'')});
+  var avgAcc=hist.map(function(x){return Number(x.accuracy)||0});
+  var avgLoss=hist.map(function(x){return Number(x.loss)||0});
+  fedChart=new Chart(ctx,{data:{labels:nodeLabels,datasets:[
+    {type:'bar',label:'节点验证精度',data:nodeAcc,backgroundColor:'rgba(79,118,167,.72)',yAxisID:'y'},
+    {type:'line',label:'节点损失',data:nodeLoss,borderColor:'#D9822B',backgroundColor:'#D9822B',fill:false,tension:.15,yAxisID:'y1',pointRadius:3}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{title:{display:true,text:'本轮四节点训练结果'}},scales:{y:{min:0,max:1,position:'left',title:{display:true,text:'精度'}},y1:{min:0,position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'损失'}}}}});
+  if(histCtx&&hist.length){fedHistChart=new Chart(histCtx,{type:'line',data:{labels:rounds,datasets:[
+    {label:'FedAvg 原始平均精度',data:avgAcc,borderColor:'#7CB342',backgroundColor:'#7CB342',fill:false,tension:.12,pointRadius:3},
+    {label:'平均损失',data:avgLoss,borderColor:'#D9822B',backgroundColor:'#D9822B',fill:false,tension:.12,pointRadius:3}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{title:{display:true,text:'FedAvg 历史趋势'}},scales:{y:{min:0,max:1}}}})}
 }
 
 function detSample(){
@@ -494,7 +575,51 @@ function showDetRes(d,time){
   document.getElementById('detTim').textContent=time||'--';
   var sampleMode=d.sample_mode==='random'?'；抽样方式: 随机抽样':(d.sample_mode==='offset'?'；抽样方式: 顺序窗口':'');
   document.getElementById('detSource').textContent=d.source?'数据来源: '+d.source+'；类型: '+(d.source_type||'-')+sampleMode:'';
-  document.getElementById('detTB').innerHTML=rows.length?rows.slice(0,20).map(function(r){r=safeObject(r);var atk=!!r.is_attack;return '<tr><td>'+escapeHtml(r.id||'')+'</td><td>'+(atk?'<span class="text-danger">异常</span>':'<span class="text-success">正常</span>')+'</td><td>'+escapeHtml(r.risk_score??'--')+'</td><td>'+escapeHtml(r.risk_level||'--')+'</td><td>'+escapeHtml(r.attack_type||'--')+'</td><td>'+escapeHtml(r.actual_label??'--')+'</td></tr>'}).join(''):'<tr><td colspan="6" class="muted">暂无检测结果</td></tr>';
+  document.getElementById('detExplain').textContent=buildDetectionSummary(rows,d);
+  document.getElementById('detTB').innerHTML=rows.length?rows.slice(0,20).map(function(r){r=safeObject(r);var atk=!!r.is_attack;return '<tr><td>'+escapeHtml(r.id||'')+'</td><td>'+(atk?'<span class="text-danger">异常</span>':'<span class="text-success">正常</span>')+'</td><td>'+escapeHtml(r.risk_score??'--')+'</td><td>'+escapeHtml(r.risk_level||'--')+'</td><td>'+escapeHtml(r.attack_type||'--')+'</td><td>'+escapeHtml(formatActualLabel(r.actual_label))+'</td><td>'+escapeHtml(explainDetectionRow(r))+'</td></tr>'}).join(''):'<tr><td colspan="7" class="muted">暂无检测结果</td></tr>';
+}
+
+function formatActualLabel(v){
+  if(v===undefined||v===null||v==='')return '-';
+  var n=Number(v);
+  if(n===0)return '0 正常';
+  if(n===1)return '1 攻击';
+  return String(v);
+}
+
+function explainDetectionRow(r){
+  r=safeObject(r);
+  var score=Number(r.risk_score);
+  var pred=!!r.is_attack;
+  var actual=(r.actual_label===undefined||r.actual_label===null)?null:Number(r.actual_label);
+  var parts=[];
+  if(isFinite(score)){
+    if(score>=0.75)parts.push('风险分数较高，模型认为攻击特征明显');
+    else if(score>=0.5)parts.push('风险分数中等，存在可疑特征');
+    else parts.push('风险分数较低，接近正常流量');
+  }
+  if(r.risk_level)parts.push('风险等级为 '+r.risk_level);
+  if(actual!==null&&!isNaN(actual)){
+    var match=(pred?1:0)===actual;
+    parts.push(match?'预测与真实标签一致':'预测与真实标签不一致，建议复核特征或模型阈值');
+  }else{
+    parts.push('上传数据未提供真实标签，仅展示模型预测');
+  }
+  return parts.join('；');
+}
+
+function buildDetectionSummary(rows,d){
+  rows=safeArray(rows).map(safeObject);
+  if(!rows.length)return '暂无检测结果。请先从已处理数据集抽样检测，或上传包含特征字段的 CSV/JSON 文件。';
+  var withLabel=rows.filter(function(r){return r.actual_label!==undefined&&r.actual_label!==null});
+  var matched=withLabel.filter(function(r){return (r.is_attack?1:0)===Number(r.actual_label)}).length;
+  var high=rows.filter(function(r){var s=Number(r.risk_score);return isFinite(s)&&s>=0.75}).length;
+  var mid=rows.filter(function(r){var s=Number(r.risk_score);return isFinite(s)&&s>=0.5&&s<0.75}).length;
+  var txt='本次展示前 '+Math.min(rows.length,20)+' 条样本。风险分数越高，说明模型认为该样本越接近攻击行为；风险等级由后端检测接口根据分数区间给出。';
+  if(withLabel.length)txt+=' 真实标签用于验证模型预测：本批含标签样本 '+withLabel.length+' 条，预测一致 '+matched+' 条。';
+  else txt+=' 上传数据未提供真实标签，因此无法计算预测一致性。';
+  txt+=' 高风险样本 '+high+' 条，中风险样本 '+mid+' 条。';
+  return txt;
 }
 
 function loadOpt(){
@@ -504,7 +629,7 @@ function loadOpt(){
     renderOptDecision(safeObject(d.last_decision),safeObject(d.last_signal));
   });
   get('/api/optimization/history',function(d){
-    var rows=safeArray(d.history).slice(-20).reverse();
+    var rows=safeArray(d.history).slice(-10).reverse();
     document.getElementById('oTB').innerHTML=rows.length?rows.map(function(r){r=safeObject(r);return '<tr><td>'+escapeHtml(r.timestamp?new Date(r.timestamp*1000).toLocaleTimeString():'--')+'</td><td>'+escapeHtml(r.risk_level||'--')+'</td><td>'+escapeHtml(r.risk_score??'--')+'</td><td>'+escapeHtml(r.old_key_length||'--')+'bit/'+escapeHtml(r.old_rounds||'--')+'轮 → '+escapeHtml(r.key_length||'--')+'bit/'+escapeHtml(r.rounds||'--')+'轮</td><td>'+escapeHtml(formatSecurityStrength(r))+'</td><td>'+escapeHtml(formatCostDelta(r.cost_delta_percent))+'</td><td>'+escapeHtml(r.reason_detail||r.reason||'--')+'</td></tr>'}).join(''):'<tr><td colspan="7" class="muted">暂无优化历史，请点击风险按钮生成过程记录。</td></tr>';
   });
 }
@@ -514,6 +639,12 @@ function updateOptSummary(d){
   document.getElementById('oRR').textContent=d.current_rounds||'--';
   document.getElementById('oReward').textContent=safeGet(d,'last_decision.reward','--');
   document.getElementById('oGain').textContent=(d.security_strength??safeGet(d,'last_decision.security_strength','--'))+'%';
+  if(!safeGet(d,'last_decision.key_length',null)){
+    document.getElementById('oBefore').textContent=(d.current_key_length||'--')+'bit / '+(d.current_rounds||'--')+'轮';
+    document.getElementById('oAfter').textContent='等待风险输入';
+    document.getElementById('oEffect').textContent='未触发';
+    document.getElementById('oEffectDesc').textContent='点击低/中/高/危险风险按钮后，系统会展示参数如何随风险变化。';
+  }
   var risk=d.risk_level||'low',score=Number(d.current_risk_score||0);
   var w={low:'20%',medium:'45%',high:'70%',critical:'95%'};
   var color={low:'#7CB342',medium:'#F2B705',high:'#E67E22',critical:'#B71C1C'};
@@ -542,15 +673,50 @@ function renderOptDecision(decision,signal){
   if(!Object.keys(decision).length){return}
   var strength=formatSecurityStrength(decision);
   var costText=formatCostDelta(decision.cost_delta_percent);
+  var before=(decision.old_key_length||'--')+'bit / '+(decision.old_rounds||'--')+'轮';
+  var after=(decision.key_length||'--')+'bit / '+(decision.rounds||'--')+'轮';
+  var risk=decision.risk_level||signal.risk_level||'--';
+  var effect=buildOptEffectText(decision);
+  document.getElementById('oBefore').textContent=before;
+  document.getElementById('oAfter').textContent=after;
+  document.getElementById('oEffect').textContent=effect.title;
+  document.getElementById('oEffectDesc').textContent=effect.desc;
   var txt='风险输入 '+escapeHtml(signal.anomaly_score??decision.risk_score??'--')+
     '，CPU '+escapeHtml(signal.cpu_usage??decision.cpu_usage??'--')+
     '，内存 '+escapeHtml(signal.memory_usage??decision.memory_usage??'--')+
+    ' → 风险等级 '+escapeHtml(risk)+
     ' → 策略 '+escapeHtml(decision.policy_source||'--')+
     '，动作 '+escapeHtml(decision.q_action??'--')+
     ' → 参数 '+escapeHtml(decision.old_key_length||'--')+'bit/'+escapeHtml(decision.old_rounds||'--')+
     '轮 调整为 '+escapeHtml(decision.key_length||'--')+'bit/'+escapeHtml(decision.rounds||'--')+
     '轮 → 安全强度 '+escapeHtml(strength)+'，'+escapeHtml(costText)+'，奖励 '+escapeHtml(decision.reward??'--')+'。'+escapeHtml(decision.change_detail||decision.reason||'');
   document.getElementById('oDecision').innerHTML=txt;
+}
+
+function buildOptEffectText(decision){
+  decision=safeObject(decision);
+  var oldKey=Number(decision.old_key_length),newKey=Number(decision.key_length);
+  var oldRounds=Number(decision.old_rounds),newRounds=Number(decision.rounds);
+  var cost=Number(decision.cost_delta_percent);
+  var strength=Number(decision.security_delta);
+  var title='保持平衡';
+  var desc='参数变化较小，当前策略保持安全性和效率之间的平衡。';
+  if(isFinite(newKey)&&isFinite(oldKey)&&newKey>oldKey){
+    title='增强防护';
+    desc='风险升高时提升密钥长度，增强抗攻击能力；代价是计算开销可能增加。';
+  }else if(isFinite(newKey)&&isFinite(oldKey)&&newKey<oldKey){
+    title='提升效率';
+    desc='风险降低时下调密钥长度，减少加密计算开销，适合低风险运行状态。';
+  }else if(isFinite(newRounds)&&isFinite(oldRounds)&&newRounds>oldRounds){
+    title='增加加密轮数';
+    desc='风险升高时增加轮数以提高安全余量。';
+  }else if(isFinite(newRounds)&&isFinite(oldRounds)&&newRounds<oldRounds){
+    title='降低计算开销';
+    desc='风险降低时减少轮数，提高处理效率。';
+  }
+  if(isFinite(strength)&&Math.abs(strength)>0.1)desc+=' 安全强度变化 '+strength.toFixed(1)+'%。';
+  if(isFinite(cost)&&Math.abs(cost)>0.1)desc+=' 开销变化 '+cost.toFixed(1)+'%。';
+  return {title:title,desc:desc};
 }
 function runOptScenario(score){
   post('/api/optimization/auto',{anomaly_score:score,force:true},function(d,err){
@@ -569,14 +735,14 @@ function toggleAuto(){
     optTimer=null;
     autoOn=false;
     if(btn)btn.innerHTML='<i class="fas fa-play"></i> 自动连续优化';
-    if(hint)hint.textContent='自动模式每 10 秒执行一次，便于观察参数变化。';
+    if(hint)hint.textContent='自动模式每 20 秒执行一次，建议答辩时优先点击风险按钮做单步演示。';
     toast('自动优化已关闭',true);
     return;
   }
   autoOn=true;
   if(btn)btn.innerHTML='<i class="fas fa-pause"></i> 停止自动优化';
-  if(hint)hint.textContent='自动优化运行中：每 10 秒执行一次。也可以点击低/中/高/危险风险手动触发。';
-  toast('自动优化已开启：每 10 秒执行一次',true);
+  if(hint)hint.textContent='自动优化运行中：每 20 秒执行一次。也可以点击低/中/高/危险风险手动触发。';
+  toast('自动优化已开启：每 20 秒执行一次',true);
   optTimer=setInterval(function(){
     post('/api/optimization/auto',{force:true},function(d,err){
       if(err){toast(err,false);return}
@@ -598,16 +764,24 @@ function updEnc(){
   post('/api/compare_encryption',{data_size_mb:Number(document.getElementById('encSz').value)||50},function(d,err){
     if(err){document.getElementById('encTB').textContent='加密对比接口不可用';return}
     var tr=safeObject(d.traditional),ho=safeObject(d.homomorphic);
-    document.getElementById('encTB').textContent='AES: '+(tr.encryption_time_ms||'--')+'ms / '+(tr.throughput_mbps||'--')+'Mbps；Paillier: '+(ho.encryption_time_ms||'--')+'ms / '+(ho.throughput_mbps||'--')+'Mbps';
-    var ctx=document.getElementById('encCh');if(!ctx)return;if(encChart)encChart.destroy();encChart=new Chart(ctx,{type:'line',data:{labels:['10MB','20MB','30MB','40MB','50MB'],datasets:[{label:'AES-256',data:[72,60,50,42,35],borderColor:'#4F76A7',fill:false},{label:'Paillier',data:[22,18,15,12,10],borderColor:'#7CB342',fill:false}]},options:{responsive:true,maintainAspectRatio:false}});
+    var aesTime=Number(tr.encryption_time_ms)||0,paiTime=Number(ho.encryption_time_ms)||0;
+    var aesThrough=Number(tr.throughput_mbps)||0,paiThrough=Number(ho.throughput_mbps)||0;
+    var reduction=aesThrough>0?Math.max(0,((aesThrough-paiThrough)/aesThrough)*100):0;
+    document.getElementById('aesTime').textContent=aesTime?aesTime.toFixed(2)+' ms':'--';
+    document.getElementById('paiTime').textContent=paiTime?paiTime.toFixed(2)+' ms':'--';
+    document.getElementById('aesThrough').textContent=aesThrough?aesThrough.toFixed(2)+' Mbps':'--';
+    document.getElementById('paiThrough').textContent=paiThrough?paiThrough.toFixed(2)+' Mbps':'--';
+    document.getElementById('encTB').textContent='当前数据规模 '+escapeHtml(d.data_size_mb||'--')+'MB：AES 更适合高吞吐传输；Paillier 牺牲速度换取密文可计算能力。';
+    document.getElementById('encExplain').textContent='本次接口返回显示：Paillier 加密耗时约为 AES 的 '+(aesTime>0?(paiTime/aesTime).toFixed(1):'--')+' 倍；吞吐下降约 '+reduction.toFixed(1)+'%。这说明自适应优化需要在风险较高时提高隐私保护，在风险较低时保留效率。';
+    var ctx=document.getElementById('encCh');if(!ctx)return;if(encChart)encChart.destroy();encChart=new Chart(ctx,{type:'bar',data:{labels:['加密耗时(ms)','吞吐(Mbps)','安全等级(展示)'],datasets:[{label:'AES-256',data:[aesTime,aesThrough,80],backgroundColor:'rgba(79,118,167,.72)'},{label:'Paillier',data:[paiTime,paiThrough,95],backgroundColor:'rgba(124,179,66,.72)'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{tooltip:{callbacks:{afterBody:function(items){var label=items&&items[0]?items[0].label:'';if(label.indexOf('耗时')>=0)return '数值越低越快';if(label.indexOf('吞吐')>=0)return '数值越高越快';return '展示值越高代表隐私保护能力越强';}}}},scales:{y:{beginAtZero:true}}}});
   });
 }
 
 function loadSec(){
   get('/api/security/events/recent?limit=200',function(d,err){
     var events=safeArray(safeGet(d,'events',[]));
-    var securityEvents=events.filter(function(e){var r=e.risk_level||'low';return e.event_type!=='site_visit'||r==='medium'||r==='high'||r==='critical'});
-    var alertEvents=securityEvents.filter(function(e){var r=e.risk_level||'low';return r==='medium'||r==='high'||r==='critical'});
+    var securityEvents=events.filter(isSecurityEventForDashboard);
+    var alertEvents=securityEvents.filter(isSecurityAlertEvent);
     document.getElementById('secError').style.display=err?'block':'none';
     document.getElementById('secTotal').textContent=securityEvents.length;
     var high=0,med=0,low=0,typeCount={};securityEvents.forEach(function(e){var r=e.risk_level||'low';if(r==='high'||r==='critical')high++;else if(r==='medium')med++;else low++;typeCount[e.event_type||'unknown']=(typeCount[e.event_type||'unknown']||0)+1});
@@ -704,7 +878,7 @@ function loadVisits(){
 function ensureSecTimer(){if(secTimer)return;secTimer=setInterval(function(){if(document.getElementById('pg-security').classList.contains('active'))loadSec()},30000)}
 function loadDash(){loadOverview()}
 
-document.addEventListener('DOMContentLoaded',function(){showPage('overview');document.getElementById('detTB').innerHTML='<tr><td colspan="6" class="muted">暂无检测结果，请先从数据集抽样或上传文件。</td></tr>';});
+document.addEventListener('DOMContentLoaded',function(){showPage('overview');document.getElementById('detTB').innerHTML='<tr><td colspan="7" class="muted">暂无检测结果，请先从数据集抽样或上传文件。</td></tr>';});
 </script>
 </body>
 </html>

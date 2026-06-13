@@ -455,7 +455,7 @@ def api_generate_dataset():
         encrypted = _mock_encrypt(dataset)
 
     return jsonify(api_response(data={
-        "plaintext": dataset[:20],
+        "plaintext": dataset,
         "encrypted": encrypted[:20],
         "n_records": n_records,
         "encryption_method": "Paillier-1024" if p else "mock",
