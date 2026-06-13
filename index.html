@@ -606,7 +606,7 @@ function updEnc(){
 function loadSec(){
   get('/api/security/events/recent?limit=200',function(d,err){
     var events=safeArray(safeGet(d,'events',[]));
-    var securityEvents=events.filter(function(e){return e.event_type!=='site_visit'});
+    var securityEvents=events.filter(function(e){var r=e.risk_level||'low';return e.event_type!=='site_visit'||r==='medium'||r==='high'||r==='critical'});
     var alertEvents=securityEvents.filter(function(e){var r=e.risk_level||'low';return r==='medium'||r==='high'||r==='critical'});
     document.getElementById('secError').style.display=err?'block':'none';
     document.getElementById('secTotal').textContent=securityEvents.length;

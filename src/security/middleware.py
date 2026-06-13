@@ -239,8 +239,15 @@ class SecurityMiddleware:
             "login", "backup", ".git", "config", "debug", "console",
             "shell", "upload",
         )
-        high_ua_markers = ("sqlmap", "nikto", "acunetix", "nessus", "masscan", "nmap")
-        medium_ua_markers = ("curl/", "python-requests", "wget/", "httpclient")
+        high_ua_markers = (
+            "sqlmap", "nikto", "acunetix", "nessus", "masscan", "nmap",
+            "censys", "censysinspect", "shodan", "zgrab", "gobuster",
+            "dirbuster", "cortex-xpanse", "palo alto networks",
+        )
+        medium_ua_markers = (
+            "curl/", "python-requests", "wget/", "httpclient", "httpx",
+            "go-http-client",
+        )
 
         reasons = []
         reason_details = []
