@@ -883,12 +883,9 @@ def upload_file():
 @app.route("/api/optimization/status", methods=["GET"])
 def optimization_status():
     opt = get_optimizer()
-    cfg = opt.get_current_config()
-    return jsonify(api_response(data={
-        "current_key_length": cfg["key_length"], "current_rounds": cfg["rounds"],
-        "risk_level": opt.current_risk_level, "history": opt.get_history(),
-        "performance_gain": opt.performance_gain,
-    }))
+    data = opt.get_status()
+    data["history"] = opt.get_history()
+    return jsonify(api_response(data=data))
 
 
 @app.route("/api/optimization/update", methods=["POST"])

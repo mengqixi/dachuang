@@ -36,6 +36,20 @@ class OptimizationRecord:
     old_key_length: int = 2048
     old_rounds: int = 10
     reason_detail: str = ""
+    policy_source: str = "risk_rule_fallback"
+    q_action: int = 0
+    q_value: float = 0.0
+    stage: str = "maintained"
+    risk_change: float = 0.0
+    recommended_key_length: int = 2048
+    recommended_rounds: int = 10
+    applied: bool = False
+    reward_security: float = 0.0
+    reward_efficiency: float = 0.0
+    reward_adaptability: float = 0.0
+    protection_score: float = 0.0
+    estimated_attack_success_prob: float = 0.0
+    efficiency_cost: float = 0.0
 
 
 _SMOOTH_KL_STEPS = {1024: 2048, 2048: 4096}
@@ -95,28 +109,48 @@ class AdaptiveOptimizer:
         model_accuracy: float = 0.95,
         force: bool = False,
     ) -> Dict[str, Any]:
-        """执行一次平滑优化更新"""
+        """Run one risk-driven parameter optimization step."""
         now = time.time()
+        anomaly_score = max(0.0, min(1.0, float(anomaly_score)))
         previous_score = self._last_anomaly_score
 
-        # 冷却检查
         if not force and now - self._last_update < COOLDOWN_SECONDS:
             self._total_cooldown_hits += 1
+            current_strength = self._calc_security_strength(self.current_key_length, self.current_rounds)
+            current_cost = self._calc_cost(self.current_key_length, self.current_rounds)
+            cooldown_remaining = max(0.0, COOLDOWN_SECONDS - (now - self._last_update))
             result = {
                 "action": "cooldown",
                 "key_length": self.current_key_length,
                 "rounds": self.current_rounds,
+                "recommended_key_length": self.current_key_length,
+                "recommended_rounds": self.current_rounds,
+                "old_key_length": self.current_key_length,
+                "old_rounds": self.current_rounds,
                 "risk_level": self.current_risk_level,
                 "risk_score": round(anomaly_score, 4),
-                "reward": 0,
+                "reward": 0.0,
+                "reward_security": 0.0,
+                "reward_efficiency": 0.0,
+                "reward_adaptability": 0.0,
+                "protection_score": round(self._protection_score(self.current_key_length, self.current_rounds), 4),
+                "estimated_attack_success_prob": 0.0,
+                "efficiency_cost": round(current_cost, 4),
                 "performance_gain": round(self.performance_gain, 2),
-                "reason": "冷却中(%.0fs)" % (COOLDOWN_SECONDS - (now - self._last_update)),
+                "security_strength": round(current_strength, 1),
+                "security_delta": 0.0,
+                "cost_delta_percent": 0.0,
+                "old_security_strength": round(current_strength, 1),
+                "applied": False,
+                "risk_change": round(abs(anomaly_score - previous_score), 3),
+                "cooldown_remaining": round(cooldown_remaining, 1),
+                "reason": "cooldown: wait %.0f seconds before next automatic adjustment" % cooldown_remaining,
                 "stage": "cooldown",
+                "policy_source": "cooldown_guard",
             }
             self._last_decision = result
             return result
 
-        # 风险变化阈值检查
         risk_change = abs(anomaly_score - previous_score)
         self._last_anomaly_score = anomaly_score
         self._last_signal = {
@@ -137,49 +171,65 @@ class AdaptiveOptimizer:
 
         action, q_value = self._choose_action(state, risk_level)
         raw_kl, raw_r = self.agent.decode_action(action)
-
-        # 平滑限幅
-        key_length, rounds = self._smooth_action(raw_kl, raw_r)
+        recommended_key_length, recommended_rounds = self._smooth_action(raw_kl, raw_r)
 
         old_key_length = self.current_key_length
         old_rounds = self.current_rounds
         old_cost = self._calc_cost(old_key_length, old_rounds)
-        new_cost = self._calc_cost(key_length, rounds)
-        baseline_cost = self._calc_cost(2048, 10)
         old_strength = self._calc_security_strength(old_key_length, old_rounds)
+        changed = (recommended_key_length != old_key_length) or (recommended_rounds != old_rounds)
+
+        should_adjust = force or (changed and risk_change >= RISK_CHANGE_THRESHOLD)
+        applied = bool(should_adjust and changed)
+        key_length = recommended_key_length if should_adjust else old_key_length
+        rounds = recommended_rounds if should_adjust else old_rounds
+
+        new_cost = self._calc_cost(key_length, rounds)
         new_strength = self._calc_security_strength(key_length, rounds)
         security_delta = new_strength - old_strength
         cost_delta_percent = ((new_cost - old_cost) / old_cost) * 100 if old_cost > 0 else 0.0
-        changed = (key_length != old_key_length) or (rounds != old_rounds)
 
-        should_adjust = force or (changed and risk_change >= RISK_CHANGE_THRESHOLD)
-
-        if should_adjust:
+        if applied:
+            baseline_cost = self._calc_cost(2048, 10)
             gain = ((baseline_cost - new_cost) / baseline_cost) * 100
             self.performance_gain = max(0.0, self.performance_gain + max(0.0, gain))
             if key_length > old_key_length:
-                direction = "提升"
+                direction = "increase"
             elif key_length < old_key_length:
-                direction = "降低"
+                direction = "decrease"
             else:
-                direction = "保持"
-            detail = "风险 %.2f → %.2f，策略建议%s密钥至%dbit、轮数%d" % (
+                direction = "keep"
+            detail = "risk %.2f -> %.2f, policy recommends %s to %dbit/%d rounds, applied" % (
                 previous_score, anomaly_score, direction, key_length, rounds)
             self._total_saved_time_sec += abs(new_cost - old_cost) * 0.1
-            logger.info("加密参数调整: %dbit/%d轮 → %dbit/%d轮 (风险=%s, 增益=%.1f%%, Δ风险=%.2f)",
-                        old_key_length, old_rounds, key_length, rounds, risk_level, gain, risk_change)
+            logger.info(
+                "encryption parameters adjusted: {}bit/{} rounds -> {}bit/{} rounds (risk={}, risk_change={:.2f})",
+                old_key_length, old_rounds, key_length, rounds, risk_level, risk_change,
+            )
         else:
             gain = 0.0
             if changed and risk_change < RISK_CHANGE_THRESHOLD:
-                detail = "风险变化%.2f<阈值0.2，保持当前参数" % risk_change
+                detail = "risk change %.2f below threshold %.2f; recommendation recorded but current parameters kept" % (
+                    risk_change, RISK_CHANGE_THRESHOLD)
             else:
-                detail = "当前参数已最优"
+                detail = "current parameters already match policy recommendation"
 
         self.current_key_length = key_length
         self.current_rounds = rounds
         self._last_update = now
 
-        reward = self._calc_reward(risk_level_idx, anomaly_score, key_length, rounds)
+        reward_parts = self._calc_reward_components(risk_level_idx, anomaly_score, key_length, rounds)
+        reward = reward_parts["total"]
+        if applied:
+            stage = "adjusted"
+            action_name = "update"
+        elif changed:
+            stage = "threshold_blocked"
+            action_name = "threshold_blocked"
+        else:
+            stage = "maintained"
+            action_name = "maintain"
+        policy_source = "q_learning" if self.agent.is_trained else "risk_rule_fallback"
 
         record = OptimizationRecord(
             timestamp=now,
@@ -199,16 +249,39 @@ class AdaptiveOptimizer:
             old_key_length=old_key_length,
             old_rounds=old_rounds,
             reason_detail=detail,
+            policy_source=policy_source,
+            q_action=int(action),
+            q_value=round(float(q_value), 4),
+            stage=stage,
+            risk_change=round(risk_change, 3),
+            recommended_key_length=recommended_key_length,
+            recommended_rounds=recommended_rounds,
+            applied=applied,
+            reward_security=round(reward_parts["security"], 4),
+            reward_efficiency=round(reward_parts["efficiency"], 4),
+            reward_adaptability=round(reward_parts["adaptability"], 4),
+            protection_score=round(reward_parts["protection_score"], 4),
+            estimated_attack_success_prob=round(reward_parts["estimated_attack_success_prob"], 4),
+            efficiency_cost=round(reward_parts["efficiency_cost"], 4),
         )
         self.history.append(record)
 
         result = {
-            "action": "update" if should_adjust else ("maintain" if not changed else "threshold_blocked"),
+            "action": action_name,
             "key_length": key_length,
             "rounds": rounds,
+            "recommended_key_length": recommended_key_length,
+            "recommended_rounds": recommended_rounds,
+            "applied": applied,
             "risk_level": risk_level,
             "risk_score": round(anomaly_score, 4),
             "reward": round(reward, 4),
+            "reward_security": round(reward_parts["security"], 4),
+            "reward_efficiency": round(reward_parts["efficiency"], 4),
+            "reward_adaptability": round(reward_parts["adaptability"], 4),
+            "protection_score": round(reward_parts["protection_score"], 4),
+            "estimated_attack_success_prob": round(reward_parts["estimated_attack_success_prob"], 4),
+            "efficiency_cost": round(reward_parts["efficiency_cost"], 4),
             "performance_gain": round(max(0.0, self.performance_gain), 2),
             "security_strength": round(new_strength, 1),
             "security_delta": round(security_delta, 1),
@@ -223,8 +296,8 @@ class AdaptiveOptimizer:
             "model_accuracy": round(model_accuracy, 4),
             "q_action": int(action),
             "q_value": round(float(q_value), 4),
-            "policy_source": "q_learning" if self.agent.is_trained else "risk_rule_fallback",
-            "stage": "adjusted" if should_adjust else ("blocked" if changed else "maintained"),
+            "policy_source": policy_source,
+            "stage": stage,
             "total_saved_time": round(self._total_saved_time_sec, 1),
             "reason": detail,
         }
@@ -326,15 +399,51 @@ class AdaptiveOptimizer:
         return min(100.0, key_score + round_bonus)
 
     @staticmethod
-    def _calc_reward(risk_level_idx: int, anomaly_score: float, key_length: int, rounds: int) -> float:
-        protection = (key_length / 4096) * (rounds / 14)
-        security = protection * (1.0 + risk_level_idx * 0.5)
+    def _protection_score(key_length: int, rounds: int) -> float:
+        key_factor = {1024: 0.35, 2048: 0.70, 4096: 1.0}.get(key_length, 0.70)
+        round_factor = {10: 0.90, 12: 1.0}.get(rounds, 0.90)
+        return min(1.0, key_factor * round_factor)
+
+    @staticmethod
+    def _calc_reward_components(
+        risk_level_idx: int,
+        anomaly_score: float,
+        key_length: int,
+        rounds: int,
+    ) -> Dict[str, float]:
+        protection = AdaptiveOptimizer._protection_score(key_length, rounds)
         cost = AdaptiveOptimizer._calc_cost(key_length, rounds)
-        efficiency = -cost * 0.1
-        if risk_level_idx >= 2 and protection >= 0.7:
-            adaptability = 2.0
-        elif risk_level_idx <= 1 and protection <= 0.5:
-            adaptability = 1.0
+        attack_success_prob = max(0.01, min(0.95, anomaly_score * (1.0 - protection * 0.72)))
+
+        # Security benefit: higher risk gives more value to reducing attack success probability.
+        security = (1.0 - attack_success_prob) * (1.0 + risk_level_idx * 0.35) * 3.0
+
+        # Efficiency term: low risk penalizes expensive configurations more strongly.
+        efficiency_weight = 0.12 if risk_level_idx <= 1 else 0.06
+        efficiency = -cost * efficiency_weight
+
+        if risk_level_idx >= 2 and protection >= 0.65:
+            adaptability = 1.8
+        elif risk_level_idx <= 1 and key_length <= 2048:
+            adaptability = 1.1
+        elif risk_level_idx == 1 and protection >= 0.55:
+            adaptability = 0.6
         else:
-            adaptability = 0.0
-        return security + efficiency + adaptability
+            adaptability = -0.2
+
+        total = security + efficiency + adaptability
+        return {
+            "total": round(total, 4),
+            "security": round(security, 4),
+            "efficiency": round(efficiency, 4),
+            "adaptability": round(adaptability, 4),
+            "protection_score": round(protection, 4),
+            "estimated_attack_success_prob": round(attack_success_prob, 4),
+            "efficiency_cost": round(cost, 4),
+        }
+
+    @staticmethod
+    def _calc_reward(risk_level_idx: int, anomaly_score: float, key_length: int, rounds: int) -> float:
+        return AdaptiveOptimizer._calc_reward_components(
+            risk_level_idx, anomaly_score, key_length, rounds
+        )["total"]
