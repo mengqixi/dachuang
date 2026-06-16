@@ -69,6 +69,11 @@ body{margin:0;background:#F5F6F8;color:#263238;font-family:-apple-system,BlinkMa
 .opt-detail{border:1px solid #E2E8F0;border-radius:10px;background:#FAFBFC;padding:10px}
 .opt-detail b{display:block;font-size:16px;color:#2F5F93}
 .opt-detail span{font-size:12px;color:#607D8B}
+.opt-detail-grid{display:none}
+.opt-policy-grid{display:none}
+.opt-slim-note{font-size:13px;color:#607D8B;margin:8px 0 10px}
+.opt-history-wrap{max-height:210px;overflow:auto;border:1px solid #E6ECF2;border-radius:10px}
+.opt-history-wrap table{margin-bottom:0}
 .opt-stage-board{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
 .opt-stage-card{border:1px solid #E2E8F0;border-radius:10px;background:#F8FAFC;padding:10px}
 .opt-stage-card.active{border-color:#4F76A7;background:#EAF2FB;box-shadow:0 0 0 2px rgba(79,118,167,.12)}
@@ -333,7 +338,7 @@ body{margin:0;background:#F5F6F8;color:#263238;font-family:-apple-system,BlinkMa
         <div class="panel">
           <div class="panel-head">优化过程与历史</div>
           <div class="panel-body">
-            <div class="flow mb-3" id="oFlow"><span>??????</span><span>??????</span><span>??????</span><span>??????</span></div>
+            <div class="flow mb-3" id="oFlow"><span>&#39118;&#38505;&#36755;&#20837;</span><span>&#31574;&#30053;&#36873;&#25321;</span><span>&#21442;&#25968;&#35843;&#25972;</span><span>&#22870;&#21169;&#21453;&#39304;</span></div>
             <div class="opt-stage-board mb-3">
               <div class="opt-stage-card" id="optStageRisk"><b>&#9312; &#39118;&#38505;&#36755;&#20837;</b><span id="optStageRiskTxt">--</span></div>
               <div class="opt-stage-card" id="optStagePolicy"><b>&#9313; &#31574;&#30053;&#36873;&#25321;</b><span id="optStagePolicyTxt">--</span></div>
@@ -344,15 +349,9 @@ body{margin:0;background:#F5F6F8;color:#263238;font-family:-apple-system,BlinkMa
               <div class="col-md-7"><div class="chart-box"><canvas id="optTrendCh"></canvas></div></div>
               <div class="col-md-5"><div class="chart-box"><canvas id="optRewardCh"></canvas></div></div>
             </div>
-            <div class="opt-policy-grid mb-3">
-              <div class="opt-policy-item"><b>&#20302;&#39118;&#38505;</b>1024bit / 10&#36718;&#65292;&#20248;&#20808;&#25928;&#29575;</div>
-              <div class="opt-policy-item"><b>&#20013;&#39118;&#38505;</b>2048bit / 10&#36718;&#65292;&#20445;&#25345;&#24179;&#34913;</div>
-              <div class="opt-policy-item"><b>&#39640;&#39118;&#38505;</b>2048bit / 12&#36718;&#65292;&#22686;&#21152;&#20313;&#37327;</div>
-              <div class="opt-policy-item"><b>&#21361;&#38505;</b>4096bit / 12&#36718;&#65292;&#24378;&#21270;&#38450;&#25252;</div>
-            </div>
-            <div class="opt-legend mb-2"><span>&#26354;&#32447;: &#39118;&#38505;/&#23433;&#20840;&#24378;&#24230;/&#25915;&#20987;&#25104;&#21151;&#29575;</span><span>&#26609;&#29366;: &#23433;&#20840;&#25910;&#30410;/&#25928;&#29575;&#20195;&#20215;/&#36866;&#37197;&#22870;&#21169;</span></div>
-            <div class="table-responsive">
-              <table class="table table-sm"><thead><tr><th>&#26102;&#38388;</th><th>&#39118;&#38505;</th><th>&#39118;&#38505;&#20998;&#25968;</th><th>&#21442;&#25968;&#21464;&#21270;</th><th>&#25191;&#34892;</th><th>&#22870;&#21169;&#25286;&#20998;</th><th>&#21407;&#22240;</th></tr></thead><tbody id="oTB"></tbody></table>
+            <div class="opt-slim-note">&#19978;&#26041;&#26354;&#32447;&#23637;&#31034;&#39118;&#38505;&#12289;&#23433;&#20840;&#24378;&#24230;&#21644;&#25915;&#20987;&#25104;&#21151;&#29575;&#30340;&#21464;&#21270;&#65307;&#21491;&#20391;&#26609;&#29366;&#22270;&#23637;&#31034;&#26412;&#27425;&#22870;&#21169;&#30340;&#26469;&#28304;&#12290;</div>
+            <div class="table-responsive opt-history-wrap">
+              <table class="table table-sm"><thead><tr><th>&#26102;&#38388;</th><th>&#39118;&#38505;</th><th>&#21442;&#25968;&#21464;&#21270;</th><th>&#32467;&#35770;</th></tr></thead><tbody id="oTB"></tbody></table>
             </div>
           </div>
         </div>
@@ -686,16 +685,25 @@ function loadOpt(){
     renderOptStages(lastOptDecision,safeObject(d.last_signal));
   });
   get('/api/optimization/history',function(d){
-    var rows=safeArray(d.history).slice(-16).reverse();
+    var rows=safeArray(d.history).slice(-6).reverse();
     document.getElementById('oTB').innerHTML=rows.length?rows.map(function(r){
       r=safeObject(r);
-      var reward=formatRewardParts(r);
       var param=escapeHtml(r.old_key_length||'--')+'bit/'+escapeHtml(r.old_rounds||'--')+'\u8f6e -> '+escapeHtml(r.key_length||'--')+'bit/'+escapeHtml(r.rounds||'--')+'\u8f6e';
-      var exec=stageText(r.stage,r.applied);
-      return '<tr><td>'+escapeHtml(r.timestamp?new Date(r.timestamp*1000).toLocaleTimeString():'--')+'</td><td>'+escapeHtml(r.risk_level||'--')+'</td><td>'+escapeHtml(r.risk_score??'--')+'</td><td>'+param+'</td><td>'+escapeHtml(exec)+'</td><td>'+escapeHtml(reward)+'</td><td>'+escapeHtml(r.reason_detail||r.reason||'--')+'</td></tr>'
-    }).join(''):'<tr><td colspan="7" class="muted">\u6682\u65e0\u4f18\u5316\u5386\u53f2\uff0c\u8bf7\u70b9\u51fb\u98ce\u9669\u6309\u94ae\u751f\u6210\u8fc7\u7a0b\u8bb0\u5f55\u3002</td></tr>';
+      var score=(r.risk_score===undefined||r.risk_score===null)?'--':Number(r.risk_score).toFixed(2);
+      return '<tr><td>'+escapeHtml(r.timestamp?new Date(r.timestamp*1000).toLocaleTimeString():'--')+'</td><td>'+escapeHtml(r.risk_level||'--')+' / '+escapeHtml(score)+'</td><td>'+param+'</td><td>'+escapeHtml(optDecisionText(r))+'</td></tr>'
+    }).join(''):'<tr><td colspan="4" class="muted">\u6682\u65e0\u4f18\u5316\u5386\u53f2\uff0c\u8bf7\u70b9\u51fb\u98ce\u9669\u6309\u94ae\u751f\u6210\u8fc7\u7a0b\u8bb0\u5f55\u3002</td></tr>';
     renderOptCharts(rows.slice().reverse(),lastOptDecision);
   });
+}
+function optDecisionText(d){
+  d=safeObject(d);
+  if(d.stage==='threshold_blocked')return '\u4fdd\u6301\u53c2\u6570\uff1a\u98ce\u9669\u53d8\u5316\u4e0d\u8db3\u4ee5\u89e6\u53d1\u8c03\u6574';
+  if(d.stage==='cooldown')return '\u51b7\u5374\u4e2d\uff1a\u9632\u6b62\u9891\u7e41\u6296\u52a8';
+  if(d.applied===true&&Number(d.key_length)>Number(d.old_key_length))return '\u63d0\u5347\u5bc6\u94a5\uff1a\u589e\u5f3a\u9632\u62a4';
+  if(d.applied===true&&Number(d.key_length)<Number(d.old_key_length))return '\u964d\u4f4e\u5bc6\u94a5\uff1a\u63d0\u5347\u6548\u7387';
+  if(d.applied===true&&Number(d.rounds)>Number(d.old_rounds))return '\u589e\u52a0\u8f6e\u6570\uff1a\u63d0\u9ad8\u9ad8\u98ce\u9669\u4f59\u91cf';
+  if(d.applied===true&&Number(d.rounds)<Number(d.old_rounds))return '\u51cf\u5c11\u8f6e\u6570\uff1a\u964d\u4f4e\u5f00\u9500';
+  return '\u4fdd\u6301\u4e0d\u53d8\uff1a\u5f53\u524d\u53c2\u6570\u5339\u914d\u7b56\u7565';
 }
 function setOptText(id,value){var el=document.getElementById(id);if(el)el.textContent=value;}
 function updateOptSliderLabel(){var el=document.getElementById('optRiskSlider');setOptText('oSliderTxt',Number(el&&el.value||0).toFixed(2));}
@@ -779,14 +787,8 @@ function renderOptDecision(decision,signal){
   setOptText('oAfter',after);
   setOptText('oEffect',effect.title);
   setOptText('oEffectDesc',effect.desc);
-  var txt='\u98ce\u9669\u8f93\u5165 '+escapeHtml(signal.anomaly_score??decision.risk_score??'--')+
-    ' -> \u7b49\u7ea7 '+escapeHtml(decision.risk_level||'--')+
-    ' -> \u7b56\u7565 '+escapeHtml(policyText(decision.policy_source))+
-    ' -> \u63a8\u8350 '+escapeHtml(decision.recommended_key_length||'--')+'bit/'+escapeHtml(decision.recommended_rounds||'--')+'\u8f6e'+
-    ' -> \u6267\u884c\u72b6\u6001 '+escapeHtml(stageText(decision.stage,decision.applied))+
-    ' -> \u5f53\u524d '+escapeHtml(decision.key_length||'--')+'bit/'+escapeHtml(decision.rounds||'--')+'\u8f6e'+
-    ' -> \u5b89\u5168\u5f3a\u5ea6 '+escapeHtml(strength)+'\uff0c'+escapeHtml(costText)+'\uff0c\u5956\u52b1 '+escapeHtml(decision.reward??'--')+'\u3002'+
-    '<br><span class="muted">'+escapeHtml(decision.change_detail||decision.reason||'')+'</span>';
+  var txt='<b>\u672c\u6b21\u7ed3\u8bba\uff1a</b>'+escapeHtml(optDecisionText(decision))+
+    '<br><span class="muted">\u5f53\u524d '+escapeHtml(decision.key_length||'--')+'bit/'+escapeHtml(decision.rounds||'--')+'\u8f6e\uff0c'+escapeHtml(costText)+'\uff0c\u5956\u52b1 '+escapeHtml(decision.reward??'--')+'\uff0c\u4f30\u8ba1\u653b\u51fb\u6210\u529f\u7387 '+escapeHtml(pct(decision.estimated_attack_success_prob))+'\u3002</span>';
   document.getElementById('oDecision').innerHTML=txt;
 }
 function renderOptStages(decision,signal){
