@@ -337,11 +337,16 @@ class AdaptiveOptimizer:
     def next_demo_signal(self) -> Dict[str, float]:
         sequence = [
             {"anomaly_score": 0.12, "cpu_usage": 0.28, "memory_usage": 0.34, "model_accuracy": 0.96},
+            {"anomaly_score": 0.24, "cpu_usage": 0.31, "memory_usage": 0.38, "model_accuracy": 0.955},
             {"anomaly_score": 0.36, "cpu_usage": 0.34, "memory_usage": 0.42, "model_accuracy": 0.95},
+            {"anomaly_score": 0.52, "cpu_usage": 0.42, "memory_usage": 0.50, "model_accuracy": 0.94},
             {"anomaly_score": 0.68, "cpu_usage": 0.48, "memory_usage": 0.56, "model_accuracy": 0.93},
+            {"anomaly_score": 0.82, "cpu_usage": 0.56, "memory_usage": 0.63, "model_accuracy": 0.92},
             {"anomaly_score": 0.88, "cpu_usage": 0.61, "memory_usage": 0.68, "model_accuracy": 0.91},
-            {"anomaly_score": 0.44, "cpu_usage": 0.39, "memory_usage": 0.46, "model_accuracy": 0.94},
-            {"anomaly_score": 0.18, "cpu_usage": 0.30, "memory_usage": 0.36, "model_accuracy": 0.96},
+            {"anomaly_score": 0.74, "cpu_usage": 0.53, "memory_usage": 0.60, "model_accuracy": 0.925},
+            {"anomaly_score": 0.56, "cpu_usage": 0.44, "memory_usage": 0.52, "model_accuracy": 0.94},
+            {"anomaly_score": 0.38, "cpu_usage": 0.35, "memory_usage": 0.44, "model_accuracy": 0.95},
+            {"anomaly_score": 0.22, "cpu_usage": 0.30, "memory_usage": 0.37, "model_accuracy": 0.958},
         ]
         signal = sequence[self._demo_index % len(sequence)]
         self._demo_index += 1

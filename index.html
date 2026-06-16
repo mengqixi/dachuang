@@ -69,8 +69,18 @@ body{margin:0;background:#F5F6F8;color:#263238;font-family:-apple-system,BlinkMa
 .opt-detail{border:1px solid #E2E8F0;border-radius:10px;background:#FAFBFC;padding:10px}
 .opt-detail b{display:block;font-size:16px;color:#2F5F93}
 .opt-detail span{font-size:12px;color:#607D8B}
+.opt-stage-board{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.opt-stage-card{border:1px solid #E2E8F0;border-radius:10px;background:#F8FAFC;padding:10px}
+.opt-stage-card.active{border-color:#4F76A7;background:#EAF2FB;box-shadow:0 0 0 2px rgba(79,118,167,.12)}
+.opt-stage-card b{display:block;font-size:13px;color:#263238}
+.opt-stage-card span{font-size:12px;color:#607D8B}
+.opt-policy-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.opt-policy-item{border:1px solid #E2E8F0;border-radius:10px;background:#fff;padding:9px;font-size:12px}
+.opt-policy-item b{display:block;color:#2F5F93;margin-bottom:3px}
+.opt-legend{display:flex;flex-wrap:wrap;gap:8px;font-size:12px;color:#607D8B}
+.opt-legend span{background:#EEF2F6;border-radius:999px;padding:4px 8px}
 .toastx{position:fixed;top:58px;right:18px;z-index:9999;color:#fff;border-radius:8px;padding:10px 15px;font-size:13px;box-shadow:0 6px 20px rgba(0,0,0,.15)}
-@media(max-width:900px){.metric-grid,.node-grid,.compare-grid,.enc-metrics,.opt-step-grid,.opt-detail-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.navbar-nav{overflow-x:auto;max-width:100%}}
+@media(max-width:900px){.metric-grid,.node-grid,.compare-grid,.enc-metrics,.opt-step-grid,.opt-detail-grid,.opt-stage-board,.opt-policy-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.navbar-nav{overflow-x:auto;max-width:100%}}
 </style>
 </head>
 <body>
@@ -273,6 +283,11 @@ body{margin:0;background:#F5F6F8;color:#263238;font-family:-apple-system,BlinkMa
               <div class="metric"><div class="metric-value" id="oReward">--</div><div class="metric-label">本次奖励</div></div>
               <div class="metric"><div class="metric-value" id="oGain">--</div><div class="metric-label">安全强度</div></div>
             </div>
+            <div class="mt-3">
+              <label class="small-text muted">&#33258;&#23450;&#20041;&#39118;&#38505;&#20998;&#25968; <b id="oSliderTxt">0.50</b></label>
+              <input id="optRiskSlider" type="range" min="0" max="1" step="0.01" value="0.50" class="form-range" oninput="updateOptSliderLabel()">
+              <button class="btn-lightx" onclick="runOptCustom()"><i class="fas fa-bolt"></i> &#25353;&#24403;&#21069;&#39118;&#38505;&#20248;&#21270;</button>
+            </div>
             <div class="d-flex flex-wrap gap-2 mt-3">
               <button class="btn-lightx" onclick="runOptScenario(0.12)">低风险</button>
               <button class="btn-lightx" onclick="runOptScenario(0.36)">中风险</button>
@@ -318,7 +333,24 @@ body{margin:0;background:#F5F6F8;color:#263238;font-family:-apple-system,BlinkMa
         <div class="panel">
           <div class="panel-head">优化过程与历史</div>
           <div class="panel-body">
-            <div class="flow mb-3" id="oFlow"><span>风险输入</span><span>策略选择</span><span>参数调整</span><span>奖励反馈</span></div>
+            <div class="flow mb-3" id="oFlow"><span>??????</span><span>??????</span><span>??????</span><span>??????</span></div>
+            <div class="opt-stage-board mb-3">
+              <div class="opt-stage-card" id="optStageRisk"><b>&#9312; &#39118;&#38505;&#36755;&#20837;</b><span id="optStageRiskTxt">--</span></div>
+              <div class="opt-stage-card" id="optStagePolicy"><b>&#9313; &#31574;&#30053;&#36873;&#25321;</b><span id="optStagePolicyTxt">--</span></div>
+              <div class="opt-stage-card" id="optStageParam"><b>&#9314; &#21442;&#25968;&#35843;&#25972;</b><span id="optStageParamTxt">--</span></div>
+              <div class="opt-stage-card" id="optStageReward"><b>&#9315; &#22870;&#21169;&#21453;&#39304;</b><span id="optStageRewardTxt">--</span></div>
+            </div>
+            <div class="row g-3 mb-3">
+              <div class="col-md-7"><div class="chart-box"><canvas id="optTrendCh"></canvas></div></div>
+              <div class="col-md-5"><div class="chart-box"><canvas id="optRewardCh"></canvas></div></div>
+            </div>
+            <div class="opt-policy-grid mb-3">
+              <div class="opt-policy-item"><b>&#20302;&#39118;&#38505;</b>1024bit / 10&#36718;&#65292;&#20248;&#20808;&#25928;&#29575;</div>
+              <div class="opt-policy-item"><b>&#20013;&#39118;&#38505;</b>2048bit / 10&#36718;&#65292;&#20445;&#25345;&#24179;&#34913;</div>
+              <div class="opt-policy-item"><b>&#39640;&#39118;&#38505;</b>2048bit / 12&#36718;&#65292;&#22686;&#21152;&#20313;&#37327;</div>
+              <div class="opt-policy-item"><b>&#21361;&#38505;</b>4096bit / 12&#36718;&#65292;&#24378;&#21270;&#38450;&#25252;</div>
+            </div>
+            <div class="opt-legend mb-2"><span>&#26354;&#32447;: &#39118;&#38505;/&#23433;&#20840;&#24378;&#24230;/&#25915;&#20987;&#25104;&#21151;&#29575;</span><span>&#26609;&#29366;: &#23433;&#20840;&#25910;&#30410;/&#25928;&#29575;&#20195;&#20215;/&#36866;&#37197;&#22870;&#21169;</span></div>
             <div class="table-responsive">
               <table class="table table-sm"><thead><tr><th>&#26102;&#38388;</th><th>&#39118;&#38505;</th><th>&#39118;&#38505;&#20998;&#25968;</th><th>&#21442;&#25968;&#21464;&#21270;</th><th>&#25191;&#34892;</th><th>&#22870;&#21169;&#25286;&#20998;</th><th>&#21407;&#22240;</th></tr></thead><tbody id="oTB"></tbody></table>
             </div>
@@ -332,19 +364,19 @@ body{margin:0;background:#F5F6F8;color:#263238;font-family:-apple-system,BlinkMa
     <div class="panel">
       <div class="panel-head"><i class="fas fa-shield-alt text-primary"></i> 安全防护 - 事件看板</div>
       <div class="panel-body">
-        <p class="muted small-text">上方展示需要关注的安全告警，并按来源 IP、风险等级和事件类型聚合；普通页面访问记录在下方单独展示，避免把正常访问误计为告警。</p>
+        <p class="muted small-text">上方是安全告警摘要：按来源 IP、风险等级和事件类型聚合，只展示需要关注的结论、原因和处理建议。下方是访问流水明细，用于查看每一次页面访问。</p>
         <div class="metric-grid">
-          <div class="metric"><div class="metric-value" id="secTotal">0</div><div class="metric-label">需关注告警</div></div>
-          <div class="metric"><div class="metric-value text-danger" id="secHigh">0</div><div class="metric-label">高风险来源</div></div>
-          <div class="metric"><div class="metric-value text-warning" id="secMed">0</div><div class="metric-label">中风险来源</div></div>
-          <div class="metric"><div class="metric-value text-success" id="secLow">0</div><div class="metric-label">低风险记录</div></div>
+          <div class="metric"><div class="metric-value" id="secTotal">0</div><div class="metric-label">告警摘要</div></div>
+          <div class="metric"><div class="metric-value text-danger" id="secHigh">0</div><div class="metric-label">高风险告警</div></div>
+          <div class="metric"><div class="metric-value text-warning" id="secMed">0</div><div class="metric-label">中风险告警</div></div>
+          <div class="metric"><div class="metric-value text-success" id="secLow">0</div><div class="metric-label">系统事件</div></div>
         </div>
         <button class="btn-main mt-3" onclick="loadSec()">刷新事件</button>
         <span class="muted small-text ms-2" id="secEventBreakdown"></span>
         <div class="table-responsive mt-3 event-scroll">
-          <table class="table table-sm" id="secTable"><thead><tr><th>时间</th><th>风险</th><th>来源 IP</th><th>归属地</th><th>事件类型</th><th>最新路径</th><th>次数</th><th>客户端</th><th>原因</th><th>处理意见</th><th>TraceId</th></tr></thead><tbody id="secBody"></tbody></table>
+          <table class="table table-sm" id="secTable"><thead><tr><th>最后时间</th><th>风险</th><th>告警类型</th><th>影响范围</th><th>触发原因</th><th>处理建议</th></tr></thead><tbody id="secBody"></tbody></table>
         </div>
-        <div id="secEmpty" class="notice">暂无中高风险安全事件。普通页面访问记录请查看下方“最近访问记录”。</div>
+        <div id="secEmpty" class="notice">暂无需要关注的中高风险告警。页面访问流水请查看下方“最近访问记录”。</div>
         <div id="secError" class="notice bad" style="display:none">安全事件加载失败。</div>
       </div>
     </div>
@@ -413,7 +445,7 @@ function get(url,cb){apiFetch(url,{method:'GET'},cb)}
 function post(url,body,cb){apiFetch(url,{method:'POST',body:body},cb)}
 
 var nodeIcons={hospital:'fa-hospital',bank:'fa-university',insurance:'fa-shield-alt',government:'fa-landmark'};
-var trChart=null,fedChart=null,fedHistChart=null,encChart=null,optTimer=null,autoOn=false,secTimer=null;
+var trChart=null,fedChart=null,fedHistChart=null,encChart=null,optTrendChart=null,optRewardChart=null,optTimer=null,autoOn=false,secTimer=null,lastOptDecision={};
 var OPT_INTERVAL_MS=20000;
 
 function showPage(pg){
@@ -648,11 +680,13 @@ function buildDetectionSummary(rows,d){
 function loadOpt(){
   get('/api/optimization/status',function(d){
     d=safeObject(d);
+    lastOptDecision=safeObject(d.last_decision);
     updateOptSummary(d);
-    renderOptDecision(safeObject(d.last_decision),safeObject(d.last_signal));
+    renderOptDecision(lastOptDecision,safeObject(d.last_signal));
+    renderOptStages(lastOptDecision,safeObject(d.last_signal));
   });
   get('/api/optimization/history',function(d){
-    var rows=safeArray(d.history).slice(-12).reverse();
+    var rows=safeArray(d.history).slice(-16).reverse();
     document.getElementById('oTB').innerHTML=rows.length?rows.map(function(r){
       r=safeObject(r);
       var reward=formatRewardParts(r);
@@ -660,9 +694,12 @@ function loadOpt(){
       var exec=stageText(r.stage,r.applied);
       return '<tr><td>'+escapeHtml(r.timestamp?new Date(r.timestamp*1000).toLocaleTimeString():'--')+'</td><td>'+escapeHtml(r.risk_level||'--')+'</td><td>'+escapeHtml(r.risk_score??'--')+'</td><td>'+param+'</td><td>'+escapeHtml(exec)+'</td><td>'+escapeHtml(reward)+'</td><td>'+escapeHtml(r.reason_detail||r.reason||'--')+'</td></tr>'
     }).join(''):'<tr><td colspan="7" class="muted">\u6682\u65e0\u4f18\u5316\u5386\u53f2\uff0c\u8bf7\u70b9\u51fb\u98ce\u9669\u6309\u94ae\u751f\u6210\u8fc7\u7a0b\u8bb0\u5f55\u3002</td></tr>';
+    renderOptCharts(rows.slice().reverse(),lastOptDecision);
   });
 }
 function setOptText(id,value){var el=document.getElementById(id);if(el)el.textContent=value;}
+function updateOptSliderLabel(){var el=document.getElementById('optRiskSlider');setOptText('oSliderTxt',Number(el&&el.value||0).toFixed(2));}
+function runOptCustom(){var el=document.getElementById('optRiskSlider');runOptScenario(Number(el&&el.value||0.5));}
 function policyText(v){
   if(v==='q_learning')return 'Q-learning';
   if(v==='risk_rule_fallback')return '\u98ce\u9669\u89c4\u5219\u515c\u5e95';
@@ -680,8 +717,7 @@ function pct(v){var n=Number(v);return isFinite(n)?(n*100).toFixed(1)+'%':'--';}
 function signed(v){var n=Number(v);return isFinite(n)?(n>=0?'+':'')+n.toFixed(2):'--';}
 function formatRewardParts(d){
   d=safeObject(d);
-  var sec=signed(d.reward_security),eff=signed(d.reward_efficiency),ad=signed(d.reward_adaptability);
-  return '\u5b89\u5168 '+sec+' / \u6548\u7387 '+eff+' / \u9002\u914d '+ad;
+  return '\u5b89\u5168 '+signed(d.reward_security)+' / \u6548\u7387 '+signed(d.reward_efficiency)+' / \u9002\u914d '+signed(d.reward_adaptability);
 }
 function updateOptSummary(d){
   d=safeObject(d);
@@ -702,7 +738,7 @@ function updateOptSummary(d){
     setOptText('oBefore',(d.current_key_length||'--')+'bit / '+(d.current_rounds||'--')+'\u8f6e');
     setOptText('oAfter','\u7b49\u5f85\u98ce\u9669\u8f93\u5165');
     setOptText('oEffect','\u672a\u89e6\u53d1');
-    setOptText('oEffectDesc','\u70b9\u51fb\u4f4e/\u4e2d/\u9ad8/\u5371\u9669\u98ce\u9669\u6309\u94ae\uff0c\u67e5\u770b\u7b56\u7565\u5982\u4f55\u9009\u62e9\u53c2\u6570\u5e76\u8ba1\u7b97\u5956\u52b1\u3002');
+    setOptText('oEffectDesc','\u70b9\u51fb\u98ce\u9669\u6309\u94ae\u6216\u62d6\u52a8\u6ed1\u6761\uff0c\u67e5\u770b\u7b56\u7565\u5982\u4f55\u9009\u62e9\u53c2\u6570\u5e76\u8ba1\u7b97\u5956\u52b1\u3002');
   }
   var risk=d.risk_level||'low',score=Number(d.current_risk_score||0);
   var w={low:'20%',medium:'45%',high:'70%',critical:'95%'};
@@ -730,14 +766,10 @@ function formatCostDelta(v){
 function renderOptDecision(decision,signal){
   decision=safeObject(decision);signal=safeObject(signal);
   if(!Object.keys(decision).length){return}
-  updateOptSummary({
-    current_key_length:decision.key_length,
-    current_rounds:decision.rounds,
-    risk_level:decision.risk_level,
-    current_risk_score:decision.risk_score,
-    security_strength:decision.security_strength,
-    last_decision:decision
-  });
+  lastOptDecision=decision;
+  updateOptSummary({current_key_length:decision.key_length,current_rounds:decision.rounds,risk_level:decision.risk_level,current_risk_score:decision.risk_score,security_strength:decision.security_strength,last_decision:decision});
+  renderOptStages(decision,signal);
+  renderOptCharts([],decision);
   var strength=formatSecurityStrength(decision);
   var costText=formatCostDelta(decision.cost_delta_percent);
   var before=(decision.old_key_length||'--')+'bit / '+(decision.old_rounds||'--')+'\u8f6e';
@@ -757,13 +789,49 @@ function renderOptDecision(decision,signal){
     '<br><span class="muted">'+escapeHtml(decision.change_detail||decision.reason||'')+'</span>';
   document.getElementById('oDecision').innerHTML=txt;
 }
+function renderOptStages(decision,signal){
+  decision=safeObject(decision);signal=safeObject(signal);
+  ['Risk','Policy','Param','Reward'].forEach(function(x){var el=document.getElementById('optStage'+x);if(el)el.classList.remove('active')});
+  var active='Reward';
+  if(!decision.key_length)active='Risk';else if(decision.stage==='cooldown')active='Policy';else if(decision.stage==='threshold_blocked')active='Policy';else if(decision.applied)active='Reward';else active='Param';
+  var el=document.getElementById('optStage'+active);if(el)el.classList.add('active');
+  setOptText('optStageRiskTxt','score '+(signal.anomaly_score??decision.risk_score??'--')+', level '+(decision.risk_level||'--'));
+  setOptText('optStagePolicyTxt',policyText(decision.policy_source)+' / action '+(decision.q_action??'--'));
+  setOptText('optStageParamTxt',(decision.old_key_length||'--')+'bit -> '+(decision.key_length||'--')+'bit, '+stageText(decision.stage,decision.applied));
+  setOptText('optStageRewardTxt','reward '+(decision.reward??'--')+', attack '+pct(decision.estimated_attack_success_prob));
+}
+function renderOptCharts(history,decision){
+  history=safeArray(history).map(safeObject);
+  decision=safeObject(decision);
+  var trendCtx=document.getElementById('optTrendCh');
+  var rewardCtx=document.getElementById('optRewardCh');
+  if(trendCtx){
+    var rows=history.length?history:[];
+    if(!rows.length&&decision.key_length)rows=[decision];
+    var labels=rows.map(function(r,i){return r.timestamp?new Date(r.timestamp*1000).toLocaleTimeString():'T'+(i+1)});
+    var risk=rows.map(function(r){return Number(r.risk_score)||0});
+    var sec=rows.map(function(r){return (Number(r.security_strength)||0)/100});
+    var attack=rows.map(function(r){return Number(r.estimated_attack_success_prob)||0});
+    if(optTrendChart)optTrendChart.destroy();
+    optTrendChart=new Chart(trendCtx,{type:'line',data:{labels:labels,datasets:[
+      {label:'\u98ce\u9669\u5206\u6570',data:risk,borderColor:'#E67E22',backgroundColor:'#E67E22',fill:false,tension:.25,pointRadius:3},
+      {label:'\u5b89\u5168\u5f3a\u5ea6',data:sec,borderColor:'#4F76A7',backgroundColor:'#4F76A7',fill:false,tension:.25,pointRadius:3},
+      {label:'\u4f30\u8ba1\u653b\u51fb\u6210\u529f\u7387',data:attack,borderColor:'#B71C1C',backgroundColor:'#B71C1C',fill:false,tension:.25,pointRadius:3}
+    ]},options:{responsive:true,maintainAspectRatio:false,plugins:{title:{display:true,text:'\u98ce\u9669-\u9632\u62a4\u8d8b\u52bf'},legend:{position:'bottom'}},scales:{y:{min:0,max:1}}}});
+  }
+  if(rewardCtx){
+    if(optRewardChart)optRewardChart.destroy();
+    var secR=Number(decision.reward_security)||0,effR=Number(decision.reward_efficiency)||0,adR=Number(decision.reward_adaptability)||0,total=Number(decision.reward)||0;
+    optRewardChart=new Chart(rewardCtx,{type:'bar',data:{labels:['\u5b89\u5168\u6536\u76ca','\u6548\u7387\u4ee3\u4ef7','\u9002\u914d\u5956\u52b1','\u603b\u5956\u52b1'],datasets:[{label:'\u5956\u52b1\u5206\u89e3',data:[secR,effR,adR,total],backgroundColor:['rgba(79,118,167,.72)','rgba(183,28,28,.66)','rgba(124,179,66,.72)','rgba(47,95,147,.85)']}]},options:{responsive:true,maintainAspectRatio:false,plugins:{title:{display:true,text:'\u672c\u6b21\u5956\u52b1\u62c6\u5206'},legend:{display:false}},scales:{y:{beginAtZero:false}}}});
+  }
+}
 function buildOptEffectText(decision){
   decision=safeObject(decision);
   if(decision.stage==='threshold_blocked')return {title:'\u4fdd\u6301\u53c2\u6570',desc:'\u98ce\u9669\u53d8\u5316\u672a\u8fbe\u9608\u503c\uff0c\u7cfb\u7edf\u53ea\u8bb0\u5f55\u63a8\u8350\uff0c\u4e0d\u7acb\u5373\u8c03\u6574\u3002'};
   if(decision.stage==='cooldown')return {title:'\u51b7\u5374\u4e2d',desc:'\u4e3a\u9632\u6b62\u53c2\u6570\u9891\u7e41\u6296\u52a8\uff0c\u81ea\u52a8\u8c03\u6574\u8bbe\u6709\u51b7\u5374\u95f4\u9694\u3002'};
   var oldKey=Number(decision.old_key_length),newKey=Number(decision.key_length);
   var oldRounds=Number(decision.old_rounds),newRounds=Number(decision.rounds);
-  var cost=Number(decision.cost_delta_percent),strength=Number(decision.security_delta);
+  var cost=Number(decision.cost_delta_percent),strength=Number(decision.security_delta),attack=Number(decision.estimated_attack_success_prob);
   var title='\u4fdd\u6301\u5e73\u8861';
   var desc='\u5f53\u524d\u7b56\u7565\u5728\u5b89\u5168\u6027\u548c\u8ba1\u7b97\u5f00\u9500\u4e4b\u95f4\u4fdd\u6301\u5e73\u8861\u3002';
   if(isFinite(newKey)&&isFinite(oldKey)&&newKey>oldKey){title='\u589e\u5f3a\u9632\u62a4';desc='\u98ce\u9669\u5347\u9ad8\u65f6\u63d0\u5347\u5bc6\u94a5\u957f\u5ea6\uff0c\u964d\u4f4e\u4f30\u8ba1\u653b\u51fb\u6210\u529f\u7387\u3002';}
@@ -772,9 +840,11 @@ function buildOptEffectText(decision){
   else if(isFinite(newRounds)&&isFinite(oldRounds)&&newRounds<oldRounds){title='\u964d\u4f4e\u5f00\u9500';desc='\u98ce\u9669\u964d\u4f4e\u65f6\u51cf\u5c11\u8f6e\u6570\uff0c\u63d0\u9ad8\u5904\u7406\u6548\u7387\u3002';}
   if(isFinite(strength)&&Math.abs(strength)>0.1)desc+=' \u5b89\u5168\u5f3a\u5ea6\u53d8\u5316 '+strength.toFixed(1)+'%\u3002';
   if(isFinite(cost)&&Math.abs(cost)>0.1)desc+=' \u5f00\u9500\u53d8\u5316 '+cost.toFixed(1)+'%\u3002';
+  if(isFinite(attack))desc+=' \u4f30\u8ba1\u653b\u51fb\u6210\u529f\u7387 '+(attack*100).toFixed(1)+'%\u3002';
   return {title:title,desc:desc};
 }
 function runOptScenario(score){
+  var slider=document.getElementById('optRiskSlider');if(slider){slider.value=score;updateOptSliderLabel();}
   post('/api/optimization/auto',{anomaly_score:score,force:true},function(d,err){
     if(err){toast(err,false);return}
     renderOptDecision(d,d);
@@ -826,18 +896,22 @@ function loadSec(){
     var alertEvents=securityEvents.filter(isSecurityAlertEvent);
     document.getElementById('secError').style.display=err?'block':'none';
     document.getElementById('secTotal').textContent=alertEvents.length;
-    var high=0,med=0,low=0,typeCount={};securityEvents.forEach(function(e){var r=e.risk_level||'low';if(r==='high'||r==='critical')high++;else if(r==='medium')med++;else low++;typeCount[e.event_type||'unknown']=(typeCount[e.event_type||'unknown']||0)+1});
-    document.getElementById('secHigh').textContent=high;document.getElementById('secMed').textContent=med;document.getElementById('secLow').textContent=low;
+    var high=0,med=0,systemCount=0,typeCount={};
+    securityEvents.forEach(function(e){
+      var r=e.risk_level||'low';
+      if(r==='high'||r==='critical')high++;
+      else if(r==='medium')med++;
+      if(e.event_type!=='site_visit')systemCount++;
+      typeCount[e.event_type||'unknown']=(typeCount[e.event_type||'unknown']||0)+1;
+    });
+    document.getElementById('secHigh').textContent=high;document.getElementById('secMed').textContent=med;document.getElementById('secLow').textContent=systemCount;
     var now=new Date().toLocaleTimeString();
     var summary=Object.keys(typeCount).map(function(k){return friendlyValue(k,'未识别事件')+': '+typeCount[k]}).join(' | ');
     document.getElementById('secEventBreakdown').textContent=(summary?summary+' | ':'')+'已刷新 '+now;
     document.getElementById('secEmpty').style.display=alertEvents.length?'none':'block';document.getElementById('secTable').style.display=alertEvents.length?'table':'none';
     document.getElementById('secBody').innerHTML=alertEvents.map(function(e){
-      e=safeObject(e);var extra=safeObject(e.extra);var geo=safeObject(extra.geo);
-      var client=formatClient(extra);
-      var count=Number(extra.occurrences||1);
-      var pathCount=safeArray(extra.paths).length||1;
-      return '<tr><td>'+escapeHtml((e.timestamp||'-').substring(0,19).replace('T',' '))+'</td><td class="risk-'+escapeHtml(e.risk_level||'info')+'">'+escapeHtml(e.risk_level||'-')+'</td><td>'+escapeHtml(friendlyValue(e.ip,'-'))+'</td><td>'+escapeHtml(formatGeo(geo))+'</td><td>'+escapeHtml(friendlyValue(e.event_type,'-'))+'</td><td>'+escapeHtml(friendlyValue(e.path,'-'))+'</td><td>'+escapeHtml(count+' 次 / '+pathCount+' 路径')+'</td><td>'+escapeHtml(client)+'</td><td>'+escapeHtml(formatSecurityReason(e))+'</td><td>'+escapeHtml(formatSecurityAdvice(e))+'</td><td>'+escapeHtml((e.trace_id||'-').substring(0,18))+'</td></tr>'
+      e=safeObject(e);
+      return '<tr><td>'+escapeHtml((e.timestamp||'-').substring(0,19).replace('T',' '))+'</td><td class="risk-'+escapeHtml(e.risk_level||'info')+'">'+escapeHtml(e.risk_level||'-')+'</td><td>'+escapeHtml(formatAlertType(e))+'</td><td>'+escapeHtml(formatAlertScope(e))+'</td><td>'+escapeHtml(formatSecurityReason(e))+'</td><td>'+escapeHtml(formatSecurityAdvice(e))+'</td></tr>'
     }).join('');
   });
   loadVisits();
@@ -890,6 +964,28 @@ function formatSecurityReason(e){
     return repeat+'接口耗时超过慢接口阈值。耗时 '+(extra.duration_ms??'-')+'ms，阈值 '+(extra.threshold_ms??'-')+'ms。';
   }
   return repeat+(e.message||formatRiskReasons(extra));
+}
+function formatAlertType(e){
+  e=safeObject(e);
+  var t=e.event_type||'unknown';
+  if(t==='site_visit')return '可疑访问摘要';
+  if(t==='rate_limit_triggered')return '接口限流触发';
+  if(t==='slow_api_detected')return '慢接口事件';
+  if(t==='blocked_request')return '请求阻断事件';
+  return friendlyValue(t,'未识别事件');
+}
+function formatAlertScope(e){
+  e=safeObject(e);var extra=safeObject(e.extra);var geo=safeObject(extra.geo);
+  var count=Number(extra.occurrences||1);
+  var paths=safeArray(extra.paths);
+  var pathCount=paths.length||1;
+  var latest=friendlyValue(e.path,'-');
+  var ip=friendlyValue(e.ip,'-');
+  var geoText=formatGeo(geo);
+  if(e.event_type==='site_visit'){
+    return '来源 '+ip+'（'+geoText+'），近 200 条记录中出现 '+count+' 次，涉及 '+pathCount+' 个路径；最新路径 '+latest;
+  }
+  return '来源 '+ip+'，最新路径 '+latest+'，聚合 '+count+' 次';
 }
 function formatSecurityAdvice(e){
   e=safeObject(e);var extra=safeObject(e.extra);var t=e.event_type||'unknown';var r=e.risk_level||'info';
