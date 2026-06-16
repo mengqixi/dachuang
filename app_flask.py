@@ -151,7 +151,7 @@ class AttackDetectionModel:
             'Brute Force': {
                 'low': '增加登录失败次数限制',
                 'medium': '启用验证码机制',
-                'high': '临时封禁IP，加强防火墙规则'
+                'high': '加强访问频率控制与来源核查'
             },
             'Dictionary Attack': {
                 'low': '提示用户使用强密码',

@@ -102,7 +102,7 @@ body{margin:0;background:#F5F6F8;color:#263238;font-family:-apple-system,BlinkMa
         <div class="metric-grid">
           <div class="metric"><div class="metric-value" id="ovDataset">--</div><div class="metric-label">数据源状态</div></div>
           <div class="metric"><div class="metric-value" id="ovNodes">--</div><div class="metric-label">联邦节点</div></div>
-          <div class="metric"><div class="metric-value" id="ovSecurity">--</div><div class="metric-label">安全事件</div></div>
+          <div class="metric"><div class="metric-value" id="ovSecurity">--</div><div class="metric-label">需关注告警</div></div>
           <div class="metric"><div class="metric-value" id="ovHealth">--</div><div class="metric-label">系统健康</div></div>
         </div>
         <div class="notice mt-3">
@@ -332,7 +332,7 @@ body{margin:0;background:#F5F6F8;color:#263238;font-family:-apple-system,BlinkMa
     <div class="panel">
       <div class="panel-head"><i class="fas fa-shield-alt text-primary"></i> 安全防护 - 事件看板</div>
       <div class="panel-body">
-        <p class="muted small-text">上方展示需要关注的安全告警，并按来源 IP、访问路径和事件类型聚合；普通访问记录在下方单独展示。</p>
+        <p class="muted small-text">上方展示需要关注的安全告警，并按来源 IP、风险等级和事件类型聚合；普通页面访问记录在下方单独展示，避免把正常访问误计为告警。</p>
         <div class="metric-grid">
           <div class="metric"><div class="metric-value" id="secTotal">0</div><div class="metric-label">需关注告警</div></div>
           <div class="metric"><div class="metric-value text-danger" id="secHigh">0</div><div class="metric-label">高风险来源</div></div>
@@ -342,7 +342,7 @@ body{margin:0;background:#F5F6F8;color:#263238;font-family:-apple-system,BlinkMa
         <button class="btn-main mt-3" onclick="loadSec()">刷新事件</button>
         <span class="muted small-text ms-2" id="secEventBreakdown"></span>
         <div class="table-responsive mt-3 event-scroll">
-          <table class="table table-sm" id="secTable"><thead><tr><th>时间</th><th>风险</th><th>事件类型</th><th>路径</th><th>方法</th><th>原因</th><th>处理意见</th><th>TraceId</th></tr></thead><tbody id="secBody"></tbody></table>
+          <table class="table table-sm" id="secTable"><thead><tr><th>时间</th><th>风险</th><th>来源 IP</th><th>归属地</th><th>事件类型</th><th>最新路径</th><th>次数</th><th>客户端</th><th>原因</th><th>处理意见</th><th>TraceId</th></tr></thead><tbody id="secBody"></tbody></table>
         </div>
         <div id="secEmpty" class="notice">暂无中高风险安全事件。普通页面访问记录请查看下方“最近访问记录”。</div>
         <div id="secError" class="notice bad" style="display:none">安全事件加载失败。</div>
@@ -351,7 +351,7 @@ body{margin:0;background:#F5F6F8;color:#263238;font-family:-apple-system,BlinkMa
     <div class="panel">
       <div class="panel-head"><i class="fas fa-map-marker-alt text-primary"></i> 最近访问记录</div>
       <div class="panel-body">
-        <p class="muted small-text">记录页面访问的 IP、归属地、设备机型、系统、浏览器、请求方式、端口、来源和 TraceId。归属地来自本地离线库；未配置离线库时仅区分 local/private/unknown。</p>
+        <p class="muted small-text">记录页面访问的 IP、归属地、设备机型、系统、浏览器、请求方式、端口、来源和 TraceId。归属地来自本地离线库；未配置离线库时显示为“未配置离线库”。</p>
         <div class="table-responsive visit-scroll">
           <table class="table table-sm" id="visitTable">
             <thead><tr><th>时间</th><th>风险</th><th>IP</th><th>归属地</th><th>ISP</th><th>设备</th><th>机型</th><th>系统</th><th>浏览器</th><th>方法</th><th>端口</th><th>耗时</th><th>路径</th><th>来源</th><th>TraceId</th></tr></thead>
@@ -442,7 +442,14 @@ function loadOverview(){
   get('/api/system/health',function(d,err){document.getElementById('ovHealth').textContent=err?'异常':'运行中'});
   get('/api/dataset/unsw/status',function(d){d=safeObject(d);document.getElementById('ovDataset').textContent=d.exists?(d.ready_for_federated?'已处理':'可处理'):'缺失'});
   get('/api/federated/nodes',function(d){var ready=safeArray(safeGet(d,'nodes',[])).filter(function(n){return n.ready}).length;document.getElementById('ovNodes').textContent=ready+'/4'});
-  get('/api/security/events/recent?limit=200',function(d){document.getElementById('ovSecurity').textContent=safeArray(safeGet(d,'events',[])).filter(isSecurityEventForDashboard).length});
+  get(cacheUrl('/api/security/events/recent?limit=200'),function(d){
+    var alerts=aggregateSecurityEvents(safeArray(safeGet(d,'events',[])).filter(isSecurityEventForDashboard)).filter(isSecurityAlertEvent);
+    document.getElementById('ovSecurity').textContent=alerts.length;
+  });
+}
+
+function cacheUrl(url){
+  return url+(url.indexOf('?')>=0?'&':'?')+'_ts='+(Date.now());
 }
 
 function isSecurityEventForDashboard(e){
@@ -813,17 +820,25 @@ function updEnc(){
 }
 
 function loadSec(){
-  get('/api/security/events/recent?limit=200',function(d,err){
+  get(cacheUrl('/api/security/events/recent?limit=200'),function(d,err){
     var events=safeArray(safeGet(d,'events',[]));
     var securityEvents=aggregateSecurityEvents(events.filter(isSecurityEventForDashboard));
     var alertEvents=securityEvents.filter(isSecurityAlertEvent);
     document.getElementById('secError').style.display=err?'block':'none';
-    document.getElementById('secTotal').textContent=securityEvents.length;
+    document.getElementById('secTotal').textContent=alertEvents.length;
     var high=0,med=0,low=0,typeCount={};securityEvents.forEach(function(e){var r=e.risk_level||'low';if(r==='high'||r==='critical')high++;else if(r==='medium')med++;else low++;typeCount[e.event_type||'unknown']=(typeCount[e.event_type||'unknown']||0)+1});
     document.getElementById('secHigh').textContent=high;document.getElementById('secMed').textContent=med;document.getElementById('secLow').textContent=low;
-    document.getElementById('secEventBreakdown').textContent=Object.keys(typeCount).map(function(k){return k+': '+typeCount[k]}).join(' | ');
+    var now=new Date().toLocaleTimeString();
+    var summary=Object.keys(typeCount).map(function(k){return friendlyValue(k,'未识别事件')+': '+typeCount[k]}).join(' | ');
+    document.getElementById('secEventBreakdown').textContent=(summary?summary+' | ':'')+'已刷新 '+now;
     document.getElementById('secEmpty').style.display=alertEvents.length?'none':'block';document.getElementById('secTable').style.display=alertEvents.length?'table':'none';
-    document.getElementById('secBody').innerHTML=alertEvents.map(function(e){return '<tr><td>'+escapeHtml((e.timestamp||'-').substring(0,19).replace('T',' '))+'</td><td class="risk-'+escapeHtml(e.risk_level||'info')+'">'+escapeHtml(e.risk_level||'-')+'</td><td>'+escapeHtml(e.event_type||'-')+'</td><td>'+escapeHtml(e.path||'-')+'</td><td>'+escapeHtml(e.method||'-')+'</td><td>'+escapeHtml(formatSecurityReason(e))+'</td><td>'+escapeHtml(formatSecurityAdvice(e))+'</td><td>'+escapeHtml((e.trace_id||'-').substring(0,18))+'</td></tr>'}).join('');
+    document.getElementById('secBody').innerHTML=alertEvents.map(function(e){
+      e=safeObject(e);var extra=safeObject(e.extra);var geo=safeObject(extra.geo);
+      var client=formatClient(extra);
+      var count=Number(extra.occurrences||1);
+      var pathCount=safeArray(extra.paths).length||1;
+      return '<tr><td>'+escapeHtml((e.timestamp||'-').substring(0,19).replace('T',' '))+'</td><td class="risk-'+escapeHtml(e.risk_level||'info')+'">'+escapeHtml(e.risk_level||'-')+'</td><td>'+escapeHtml(friendlyValue(e.ip,'-'))+'</td><td>'+escapeHtml(formatGeo(geo))+'</td><td>'+escapeHtml(friendlyValue(e.event_type,'-'))+'</td><td>'+escapeHtml(friendlyValue(e.path,'-'))+'</td><td>'+escapeHtml(count+' 次 / '+pathCount+' 路径')+'</td><td>'+escapeHtml(client)+'</td><td>'+escapeHtml(formatSecurityReason(e))+'</td><td>'+escapeHtml(formatSecurityAdvice(e))+'</td><td>'+escapeHtml((e.trace_id||'-').substring(0,18))+'</td></tr>'
+    }).join('');
   });
   loadVisits();
 }
@@ -887,14 +902,30 @@ function formatSecurityAdvice(e){
 }
 function formatGeo(geo){
   geo=safeObject(geo);
-  var parts=[geo.country,geo.region,geo.city].filter(function(v){return v&&v!=='unknown'});
+  var parts=[geo.country,geo.region,geo.city].filter(function(v){return v&&String(v).toLowerCase()!=='unknown'});
   if(parts.length)return parts.join(' / ');
-  if(geo.source==='unknown'&&geo.configured===false)return 'unknown（未配置离线库）';
-  return geo.source||'unknown';
+  if(geo.source==='local'||geo.source==='private')return geo.source;
+  if(geo.configured===false)return '未配置离线库';
+  return friendlyValue(geo.source,'未识别归属地');
+}
+function friendlyValue(value,fallback){
+  if(value===undefined||value===null)return fallback||'-';
+  var text=String(value).trim();
+  if(!text||text.toLowerCase()==='unknown'||text.toLowerCase()==='undefined'||text.toLowerCase()==='null')return fallback||'-';
+  return text;
 }
 function withVersion(name,version){
-  name=name||'-';version=version||'unknown';
-  return version&&version!=='unknown'?name+' '+version:name;
+  name=friendlyValue(name,'未识别');
+  version=friendlyValue(version,'');
+  return version?name+' '+version:name;
+}
+function formatClient(extra){
+  extra=safeObject(extra);
+  var device=friendlyValue(extra.device_type,'未识别设备');
+  var model=friendlyValue(extra.device_model,'未识别机型');
+  var browser=withVersion(extra.browser,extra.browser_version);
+  var os=withVersion(extra.os,extra.os_version);
+  return device+' / '+model+' / '+os+' / '+browser;
 }
 function formatPorts(extra){
   extra=safeObject(extra);
@@ -907,7 +938,7 @@ function formatSource(extra){
   if(extra.forwarded_for)return 'XFF: '+extra.forwarded_for;
   if(extra.real_ip)return 'X-Real-IP: '+extra.real_ip;
   if(extra.host)return 'Host: '+extra.host;
-  return extra.ip_source||'-';
+  return friendlyValue(extra.ip_source,'-');
 }
 function describeRiskReason(raw){
   raw=String(raw||'');
@@ -931,7 +962,7 @@ function formatRiskReasons(extra){
   return '普通页面访问，未命中可疑路径、扫描器 User-Agent 或注入探测特征。';
 }
 function loadVisits(){
-  get('/api/security/events/recent?limit=200&event_type=site_visit',function(d){
+  get(cacheUrl('/api/security/events/recent?limit=200&event_type=site_visit'),function(d){
     var visits=safeArray(safeGet(d,'events',[]));
     document.getElementById('visitEmpty').style.display=visits.length?'none':'block';
     document.getElementById('visitTable').style.display=visits.length?'table':'none';
@@ -939,7 +970,7 @@ function loadVisits(){
       e=safeObject(e);var extra=safeObject(e.extra);
       var risk=e.risk_level||'info';
       var geo=safeObject(extra.geo);
-      return '<tr><td>'+escapeHtml((e.timestamp||'-').substring(0,19).replace('T',' '))+'</td><td class="risk-'+escapeHtml(risk)+'">'+escapeHtml(risk)+'</td><td>'+escapeHtml(e.ip||'-')+'</td><td>'+escapeHtml(formatGeo(geo))+'</td><td>'+escapeHtml(geo.isp||'-')+'</td><td>'+escapeHtml(extra.device_type||'-')+'</td><td>'+escapeHtml(extra.device_model||'-')+'</td><td>'+escapeHtml(withVersion(extra.os,extra.os_version))+'</td><td>'+escapeHtml(withVersion(extra.browser,extra.browser_version))+'</td><td>'+escapeHtml(e.method||'-')+'</td><td>'+escapeHtml(formatPorts(extra))+'</td><td>'+escapeHtml(extra.duration_ms??'-')+'ms</td><td>'+escapeHtml(e.path||'-')+'</td><td>'+escapeHtml(formatSource(extra))+'</td><td>'+escapeHtml((e.trace_id||'-').substring(0,18))+'</td></tr>';
+      return '<tr><td>'+escapeHtml((e.timestamp||'-').substring(0,19).replace('T',' '))+'</td><td class="risk-'+escapeHtml(risk)+'">'+escapeHtml(risk)+'</td><td>'+escapeHtml(friendlyValue(e.ip,'-'))+'</td><td>'+escapeHtml(formatGeo(geo))+'</td><td>'+escapeHtml(friendlyValue(geo.isp,'未识别'))+'</td><td>'+escapeHtml(friendlyValue(extra.device_type,'未识别'))+'</td><td>'+escapeHtml(friendlyValue(extra.device_model,'未识别'))+'</td><td>'+escapeHtml(withVersion(extra.os,extra.os_version))+'</td><td>'+escapeHtml(withVersion(extra.browser,extra.browser_version))+'</td><td>'+escapeHtml(friendlyValue(e.method,'-'))+'</td><td>'+escapeHtml(formatPorts(extra))+'</td><td>'+escapeHtml(extra.duration_ms??'-')+'ms</td><td>'+escapeHtml(friendlyValue(e.path,'-'))+'</td><td>'+escapeHtml(formatSource(extra))+'</td><td>'+escapeHtml((e.trace_id||'-').substring(0,18))+'</td></tr>';
     }).join('');
   });
 }

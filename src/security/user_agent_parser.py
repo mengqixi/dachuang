@@ -24,10 +24,32 @@ def _match(pattern, text):
 
 
 def _is_bot(low):
-    return any(token in low for token in (
-        "bot", "spider", "crawler", "slurp", "bingpreview",
-        "curl/", "python-requests", "wget/",
-    ))
+    return _bot_name(low) != "unknown"
+
+
+def _bot_name(low):
+    checks = (
+        ("CensysInspect", ("censysinspect", "censys")),
+        ("Shodan", ("shodan",)),
+        ("ZGrab", ("zgrab",)),
+        ("Go HTTP client", ("go-http-client",)),
+        ("Nmap", ("nmap",)),
+        ("Masscan", ("masscan",)),
+        ("sqlmap", ("sqlmap",)),
+        ("Nikto", ("nikto",)),
+        ("Nessus", ("nessus",)),
+        ("Acunetix", ("acunetix",)),
+        ("Palo Alto Cortex Xpanse", ("cortex-xpanse", "palo alto networks")),
+        ("httpx", ("httpx",)),
+        ("curl", ("curl/",)),
+        ("python-requests", ("python-requests",)),
+        ("wget", ("wget/",)),
+        ("Search crawler", ("bot", "spider", "crawler", "slurp", "bingpreview")),
+    )
+    for name, tokens in checks:
+        if any(token in low for token in tokens):
+            return name
+    return "unknown"
 
 
 def _device_type(low):
@@ -89,13 +111,8 @@ def _device_model(ua, low):
         return "Android"
 
     if _is_bot(low):
-        if "curl/" in low:
-            return "curl client"
-        if "python-requests" in low:
-            return "python-requests client"
-        if "wget/" in low:
-            return "wget client"
-        return "bot"
+        name = _bot_name(low)
+        return name if name != "unknown" else "automated client"
     return "unknown"
 
 
@@ -111,6 +128,7 @@ def _browser(ua, low):
         ("Firefox", r"Firefox/([0-9.]+)"),
         ("Chrome", r"Chrome/([0-9.]+)"),
         ("Safari", r"Version/([0-9.]+).*Safari/"),
+        ("Go HTTP client", r"Go-http-client/([0-9.]+)"),
         ("curl", r"curl/([0-9.]+)"),
         ("python-requests", r"python-requests/([0-9.]+)"),
         ("wget", r"Wget/([0-9.]+)"),
@@ -121,6 +139,9 @@ def _browser(ua, low):
             return name, version
     if "safari/" in low and "chrome/" not in low:
         return "Safari", "unknown"
+    bot = _bot_name(low)
+    if bot != "unknown":
+        return bot, "unknown"
     return "unknown", "unknown"
 
 
