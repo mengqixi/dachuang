@@ -50,7 +50,7 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
 .node-card i{font-size:22px;color:#2F5F93;margin-bottom:6px}
 .sample-preview{max-height:300px;overflow:auto}
 .sample-preview table{min-width:900px}
-.report-box{background:#263238;color:#EAF2F7;border-radius:10px;padding:14px;white-space:pre-wrap;min-height:260px;max-height:520px;overflow:auto;font-size:13px;line-height:1.65}
+.report-box{background:#fff;color:#263238;border:1px solid #DDE7F0;border-radius:10px;padding:16px;white-space:pre-wrap;min-height:260px;max-height:520px;overflow:auto;font-size:14px;line-height:1.75;box-shadow:inset 0 0 0 1px rgba(255,255,255,.35)}
 .toastx{position:fixed;top:60px;right:18px;z-index:9999;color:#fff;border-radius:8px;padding:10px 15px;font-size:13px;box-shadow:0 6px 20px rgba(0,0,0,.15)}
 @media(max-width:980px){.metric-grid,.two-col,.three-col,.node-grid{grid-template-columns:1fr}.navbar-nav{overflow-x:auto;max-width:100%}}
 </style>
@@ -98,7 +98,7 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
         <div class="row g-3 align-items-end">
           <div class="col-md-4">
             <label class="form-label small-text">记录数</label>
-            <input type="range" class="form-range" id="sampleCount" min="20" max="1000" step="20" value="200" oninput="sampleCountText.textContent=this.value+' 条'">
+            <input type="range" class="form-range" id="sampleCount" min="20" max="2000" step="20" value="200" oninput="sampleCountText.textContent=this.value+' 条'">
             <div id="sampleCountText" class="fw-bold">200 条</div>
           </div>
           <div class="col-md-4">
@@ -111,8 +111,8 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
           </div>
         </div>
         <div class="two-col mt-3">
-          <div class="panel mb-0"><div class="panel-head">明文样本预览</div><div class="panel-body sample-preview" id="plainPreview">暂无生成记录。</div></div>
-          <div class="panel mb-0"><div class="panel-head">密态样本预览</div><div class="panel-body sample-preview" id="encryptedPreview">暂无生成记录。</div></div>
+          <div class="panel mb-0"><div class="panel-head">明文样本预览 <span class="muted small-text">生成后会自动作为当前提交用于风险检测</span></div><div class="panel-body sample-preview" id="plainPreview">暂无生成记录。</div></div>
+          <div class="panel mb-0"><div class="panel-head">密态样本预览 <span class="muted small-text">显示接口返回的全部密态记录</span></div><div class="panel-body sample-preview" id="encryptedPreview">暂无生成记录。</div></div>
         </div>
       </div>
     </div>
@@ -322,6 +322,34 @@ function renderTable(rows, targetId, maxCols){
   html+='</tbody></table>';
   $(targetId).innerHTML=html;
 }
+function rowsToCsv(rows){
+  rows=arr(rows);
+  if(!rows.length)return '';
+  var cols=Object.keys(rows[0]);
+  var lines=[cols.join(',')].concat(rows.map(function(r){
+    return cols.map(function(c){
+      var v=String(r[c]??'').replace(/"/g,'""');
+      return /[",\n]/.test(v)?'"'+v+'"':v;
+    }).join(',');
+  }));
+  return lines.join('\n');
+}
+async function uploadGeneratedRowsAsSubmission(){
+  if(!generatedRows.length)return null;
+  var csv=rowsToCsv(generatedRows);
+  var fd=new FormData();
+  fd.append('file', new Blob([csv], {type:'text/csv;charset=utf-8'}), 'generated_samples.csv');
+  $('currentSubmission').innerHTML='本地样本已生成，正在加密归档为当前提交...';
+  var r=await api('/api/user/datasets/upload',{method:'POST',body:fd});
+  if(!r.ok){
+    $('currentSubmission').innerHTML='<span class="text-danger">本地样本生成成功，但归档失败：'+esc(r.error)+'</span>';
+    return null;
+  }
+  currentSubmissionId=r.data.id;
+  renderCurrentSubmission(r.data);
+  $('goDetectBtn').disabled=false;$('analyzeBtn').disabled=false;
+  return r.data;
+}
 
 async function uploadUserData(){
   var file=$('userFile').files[0];
@@ -353,13 +381,12 @@ async function generateLocalSamples(){
   renderTable(generatedRows,'plainPreview',14);
   renderTable(arr(r.data.encrypted),'encryptedPreview',10);
   $('downloadCsvBtn').disabled=!generatedRows.length;
-  toast('本地样本已生成');
+  var submission=await uploadGeneratedRowsAsSubmission();
+  toast(submission?'本地样本已生成，并可直接风险检测':'本地样本已生成');
 }
 function downloadGeneratedCsv(){
   if(!generatedRows.length)return;
-  var cols=Object.keys(generatedRows[0]);
-  var lines=[cols.join(',')].concat(generatedRows.map(function(r){return cols.map(function(c){var v=String(r[c]??'').replace(/"/g,'""');return /[",\n]/.test(v)?'"'+v+'"':v}).join(',')}));
-  var blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8'});
+  var blob=new Blob([rowsToCsv(generatedRows)],{type:'text/csv;charset=utf-8'});
   var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='generated_samples.csv';a.click();URL.revokeObjectURL(a.href);
 }
 
@@ -461,7 +488,32 @@ async function runAdminFederatedTrain(){
   $('trainSources').innerHTML='用户归档来源：'+arr(r.data.sources).map(function(s){return esc(s.filename)+'('+esc(s.samples)+'条)'}).join('，');
 }
 function geoText(extra){extra=obj(extra);var g=obj(extra.geo);var parts=[g.country,g.region,g.city].filter(function(x){return x&&x!=='unknown'});return parts.length?parts.join(' '):(g.source||'unknown')}
-function eventSuggestion(e){var t=e.event_type||'';if(t==='rate_limit_triggered')return '关注访问频率并检查同源请求。';if(t==='slow_api_detected')return '检查接口耗时和数据处理任务。';if(t==='site_visit')return '页面访问记录，无需处理。';return '结合路径、IP 和 TraceId 复核。'}
+function eventReason(e){
+  var t=e.event_type||'', ex=obj(e.extra), ip=e.ip||'-', path=e.path||'-';
+  if(t==='rate_limit_triggered'){
+    var count=ex.current_count||ex.count||'-', limit=ex.limit_per_minute||ex.limit||'-';
+    return '同一访问来源 '+ip+' 在路径 '+path+' 的请求次数达到 '+count+' 次，超过或接近每分钟限制 '+limit+'，系统已记录为访问频率异常。';
+  }
+  if(t==='slow_api_detected'){
+    var duration=ex.duration_ms||e.duration_ms||'-', threshold=ex.threshold_ms||'-';
+    return '接口 '+path+' 本次响应耗时 '+duration+' ms，超过慢接口阈值 '+threshold+' ms，可能与数据处理、模型推理或服务器负载有关。';
+  }
+  if(t==='security_error'){
+    return '安全模块处理请求时出现异常，TraceId='+(e.trace_id||'-')+'，需要结合后端日志确认具体调用链。';
+  }
+  if(t==='site_visit'){
+    return '页面访问流水，来源 IP 为 '+ip+'，设备和浏览器信息由 User-Agent 解析。';
+  }
+  return (e.message&&e.message!=='-'?e.message+'；':'')+'事件来源为 '+(t||'unknown')+'，路径 '+path+'，建议结合 IP、时间和 TraceId 进一步确认。';
+}
+function eventSuggestion(e){
+  var t=e.event_type||'', ex=obj(e.extra), path=e.path||'-';
+  if(t==='rate_limit_triggered')return '检查该 IP 在同一路径的连续访问频率；若为正常业务访问，可调整限流阈值；若为异常脚本访问，可加入访问控制策略。';
+  if(t==='slow_api_detected')return '优先检查 '+path+' 的数据量、模型推理耗时和服务器资源；必要时优化接口缓存或异步处理。';
+  if(t==='security_error')return '查看同一 TraceId 的 security.log 请求链路，确认是否为配置、日志写入或中间件异常。';
+  if(t==='site_visit')return '访问流水用于审计留痕，一般无需处理；如同一 IP 高频访问，再结合告警摘要判断。';
+  return '结合事件类型、访问路径、来源 IP、TraceId 和发生时间复核；确认影响范围后再调整配置或访问策略。';
+}
 async function loadAudit(){
   var visits=await api('/api/admin/audit/events?limit=200&event_type=site_visit');
   var events=await api('/api/admin/audit/events?limit=200');
@@ -470,7 +522,7 @@ async function loadAudit(){
   var med=es.filter(function(e){return String(e.risk_level).toLowerCase()==='medium'}).length;
   var low=es.length-high-med;
   $('auditTotal').textContent=es.length;$('auditHigh').textContent=high;$('auditMedium').textContent=med;$('auditLow').textContent=low;
-  $('eventTable').innerHTML=es.length?es.slice(0,100).map(function(e){return '<tr><td>'+esc(e.timestamp)+'</td><td class="'+riskClass(e.risk_level)+'">'+riskText(e.risk_level)+'</td><td>'+esc(e.event_type)+'</td><td>'+esc(e.path)+'</td><td>'+esc(e.message||'-')+'</td><td>'+esc(eventSuggestion(e))+'</td></tr>'}).join(''):'<tr><td colspan="6" class="muted">暂无需要关注的安全事件。</td></tr>';
+  $('eventTable').innerHTML=es.length?es.slice(0,100).map(function(e){return '<tr><td>'+esc(e.timestamp)+'</td><td class="'+riskClass(e.risk_level)+'">'+riskText(e.risk_level)+'</td><td>'+esc(e.event_type)+'</td><td>'+esc(e.path)+'</td><td>'+esc(eventReason(e))+'</td><td>'+esc(eventSuggestion(e))+'</td></tr>'}).join(''):'<tr><td colspan="6" class="muted">暂无需要关注的安全事件。</td></tr>';
   var vs=arr(obj(visits.data).events);
   $('visitTable').innerHTML=vs.length?vs.map(function(e){var ex=obj(e.extra);return '<tr><td>'+esc(e.timestamp)+'</td><td>'+esc(e.ip)+'</td><td>'+esc(geoText(ex))+'</td><td>'+esc(ex.device_type)+'</td><td>'+esc((ex.os||'-')+' '+(ex.os_version||''))+'</td><td>'+esc((ex.browser||'-')+' '+(ex.browser_version||''))+'</td><td>'+esc(e.method)+'</td><td>'+esc(ex.server_port||'-')+'</td><td>'+esc(e.path)+'</td><td>'+esc(e.trace_id)+'</td></tr>'}).join(''):'<tr><td colspan="10" class="muted">暂无访问记录。</td></tr>';
 }
