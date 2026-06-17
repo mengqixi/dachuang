@@ -436,7 +436,7 @@ async function loadSystemDataset(){
     '<br><b>样本/特征：</b>'+esc(d.samples||0)+' / '+esc(d.features||0)+
     '<br><b>标签列：</b>'+esc(d.label_column||'-')+
     '<br><b>联邦节点状态：</b>'+(d.ready_for_federated?'已处理':'未处理')+
-    '<br><span class="muted">若 source_type 为 local_generated，表示正在使用 data/generated/train.csv 作为初始训练数据源。</span>';
+    '<br><span class="muted">'+(d.source_type==='local_generated'?'当前优先使用系统已有训练数据 data/generated/train.csv；点击处理后会划分为四个联邦节点。':'当前未命中系统已有训练数据，正在使用可发现的公开/本地 CSV 数据源。')+'</span>';
 }
 async function processSystemDataset(){
   $('systemDataset').innerHTML='正在处理数据源并划分四个联邦节点...';

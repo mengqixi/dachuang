@@ -220,6 +220,20 @@ def _csv_row_count(filepath, max_rows=None):
 def _find_dataset_source():
     """Find the best available dataset source without downloading anything."""
     candidates = []
+
+    # The management portal should use the project's existing generated
+    # training data first. These files are the current built-in dataset for
+    # local training and federated-node splitting.
+    generated_train = os.path.join("data", "generated", "train.csv")
+    generated_test = os.path.join("data", "generated", "test.csv")
+    if os.path.exists(generated_train):
+        candidates.append({
+            "path": generated_train,
+            "test_path": generated_test if os.path.exists(generated_test) else None,
+            "source": "data/generated/train.csv",
+            "source_type": "local_generated",
+        })
+
     preferred = [
         os.path.join(UNSW_DIR, "UNSW_NB15_training-set.csv"),
         os.path.join(UNSW_DIR, "UNSW_NB15_testing-set.csv"),
@@ -237,16 +251,6 @@ def _find_dataset_source():
                 "source": os.path.basename(path),
                 "source_type": "UNSW-NB15",
             })
-
-    generated_train = os.path.join("data", "generated", "train.csv")
-    generated_test = os.path.join("data", "generated", "test.csv")
-    if os.path.exists(generated_train):
-        candidates.append({
-            "path": generated_train,
-            "test_path": generated_test if os.path.exists(generated_test) else None,
-            "source": "data/generated/train.csv",
-            "source_type": "local_generated",
-        })
 
     if os.path.isdir("data"):
         for name in sorted(os.listdir("data")):
