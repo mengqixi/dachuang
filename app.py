@@ -24,6 +24,7 @@ from src.dataset_manager import dataset_manager, save_training_record, get_train
 from src.data_generator import generate_and_prepare, ensure_data_generated, FEATURE_NAMES as GEN_FEATURES
 from src.utils.data_storage import db
 from src.utils.model_manager import model_manager
+from src.user_submission_manager import user_submission_manager
 
 # ─── 日志配置 ───
 logger.remove()
@@ -954,6 +955,181 @@ def optimization_auto():
 
 
 # ─── API: 数据集管理 ───
+
+# ─── API: 用户端风险分析 + 管理端加密训练平台 ───
+
+@app.route("/api/user/datasets/upload", methods=["POST"])
+def user_dataset_upload():
+    """Upload a user CSV/JSON file and store it as an encrypted archive."""
+    if "file" not in request.files:
+        return jsonify(api_response(code=400, msg="请选择 CSV/JSON 文件"))
+    file = request.files["file"]
+    if not file or not file.filename:
+        return jsonify(api_response(code=400, msg="文件名为空"))
+    ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
+    if ext not in ("csv", "json"):
+        return jsonify(api_response(code=400, msg="仅支持 CSV/JSON 格式"))
+
+    temp_name = "user_%s_%s" % (datetime.now().strftime("%Y%m%d%H%M%S"), os.path.basename(file.filename))
+    temp_path = os.path.join(app.config["UPLOAD_FOLDER"], temp_name)
+    try:
+        file.save(temp_path)
+        info = user_submission_manager.create_submission(temp_path, file.filename)
+        return jsonify(api_response(msg="上传成功，文件已加密归档", data=info))
+    except Exception as e:
+        logger.exception("User dataset upload failed")
+        return jsonify(api_response(code=500, msg="上传失败: %s" % e))
+    finally:
+        try:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+        except Exception:
+            pass
+
+
+@app.route("/api/user/datasets/<submission_id>/analyze", methods=["POST"])
+def user_dataset_analyze(submission_id):
+    """Run data profiling and risk detection for one uploaded submission."""
+    try:
+        from src.detection.ensemble_detector import ensemble_detector
+        req = request.get_json(silent=True) or {}
+        limit = max(1, min(int(req.get("limit") or 500), 5000))
+        analysis = user_submission_manager.analyze(submission_id, detector=ensemble_detector, limit=limit)
+        if analysis is None:
+            return jsonify(api_response(code=404, msg="提交记录不存在"))
+        return jsonify(api_response(msg="分析完成", data=analysis))
+    except Exception as e:
+        logger.exception("User dataset analyze failed")
+        return jsonify(api_response(code=500, msg="分析失败: %s" % e))
+
+
+@app.route("/api/user/reports/<submission_id>", methods=["GET"])
+def user_report_get(submission_id):
+    report = user_submission_manager.get_report(submission_id)
+    if report is None:
+        return jsonify(api_response(code=404, msg="报告不存在"))
+    return jsonify(api_response(msg="success", data=report))
+
+
+@app.route("/api/admin/submissions", methods=["GET"])
+def admin_submissions():
+    items = user_submission_manager.list_submissions()
+    return jsonify(api_response(msg="success", data={"submissions": items, "total": len(items)}))
+
+
+@app.route("/api/admin/submissions/<submission_id>", methods=["GET"])
+def admin_submission_detail(submission_id):
+    item = user_submission_manager.get_submission(submission_id, include_preview=True)
+    if item is None:
+        return jsonify(api_response(code=404, msg="提交记录不存在"))
+    return jsonify(api_response(msg="success", data=item))
+
+
+@app.route("/api/admin/submissions/<submission_id>/archive", methods=["POST"])
+def admin_submission_archive(submission_id):
+    item = user_submission_manager.set_status(submission_id, review_status="已归档")
+    if item is None:
+        return jsonify(api_response(code=404, msg="提交记录不存在"))
+    return jsonify(api_response(msg="已归档", data=item))
+
+
+@app.route("/api/admin/submissions/<submission_id>/mark-trainable", methods=["POST"])
+def admin_submission_mark_trainable(submission_id):
+    item = user_submission_manager.set_status(submission_id, review_status="可训练", trainable=True)
+    if item is None:
+        return jsonify(api_response(code=404, msg="提交记录不存在"))
+    return jsonify(api_response(msg="已标记为可训练", data=item))
+
+
+@app.route("/api/admin/training/local", methods=["POST"])
+def admin_training_local():
+    """Train the ensemble detector with admin-approved encrypted submissions."""
+    try:
+        from src.detection.ensemble_detector import ensemble_detector
+        req = request.get_json(silent=True) or {}
+        ids = req.get("submission_ids") or None
+        limit = max(10, min(int(req.get("limit") or 10000), 50000))
+        X, y, meta = user_submission_manager.load_trainable_features(ids=ids, limit=limit)
+        if len(X) < 10:
+            return jsonify(api_response(code=400, msg="没有足够的可训练归档数据，请先标记用户提交为可训练"))
+
+        seq_count = max(0, min(len(X) - 10, 1000))
+        X_seq = np.array([X[i:i + 10] for i in range(seq_count)]) if seq_count else None
+        result = ensemble_detector.fit(X[:min(len(X), 5000)], y[:min(len(y), 5000)], X_seq[:500] if X_seq is not None else None)
+        record = {
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "model_type": "admin_local_ensemble",
+            "dataset_name": "encrypted_user_submissions",
+            "accuracy": round(float(result.get("accuracy", 0)), 4),
+            "samples": int(len(X)),
+            "epochs": 1,
+            "model_version": datetime.now().strftime("v%Y%m%d%H%M%S"),
+        }
+        save_training_record(record)
+        return jsonify(api_response(msg="本地训练完成", data={**record, **meta, "fit_result": result}))
+    except Exception as e:
+        logger.exception("Admin local training failed")
+        return jsonify(api_response(code=500, msg="训练失败: %s" % e))
+
+
+@app.route("/api/admin/training/federated", methods=["POST"])
+def admin_training_federated():
+    """Split approved encrypted submissions into four nodes and run one FedAvg round."""
+    try:
+        from src.preprocess.federated_splitter import save_federated_data, NODE_NAMES, FEDERATED_DIR
+        from src.federated.client import FederatedClient
+        from src.federated.aggregator import fedavg_server
+
+        req = request.get_json(silent=True) or {}
+        ids = req.get("submission_ids") or None
+        limit = max(10, min(int(req.get("limit") or 10000), 50000))
+        epochs = max(1, min(int(req.get("epochs") or 3), 20))
+        X, y, meta = user_submission_manager.load_trainable_features(ids=ids, limit=limit)
+        if len(X) < 20:
+            return jsonify(api_response(code=400, msg="没有足够的可训练归档数据，至少需要 20 条样本"))
+
+        saved = save_federated_data(X, y)
+        results = []
+        for name in NODE_NAMES:
+            client = FederatedClient(name, os.path.join(FEDERATED_DIR, name))
+            if client.load_data():
+                results.append(client.train_local(global_weights=fedavg_server.global_weights, epochs=epochs))
+        fedavg_server.aggregate(results)
+
+        data = {
+            "nodes": [{"name": n, "samples": int(c), "ready": True} for n, c in saved],
+            "round": fedavg_server.round,
+            "clients": [{
+                "name": r.get("name"),
+                "accuracy": r.get("accuracy", 0),
+                "loss": r.get("loss", 0),
+                "samples": r.get("samples", 0),
+            } for r in results],
+            "avg_accuracy": round(float(np.mean([r.get("accuracy", 0) for r in results])), 4) if results else 0,
+            "history": fedavg_server.get_history(),
+            **meta,
+        }
+        return jsonify(api_response(msg="联邦训练完成", data=data))
+    except Exception as e:
+        logger.exception("Admin federated training failed")
+        return jsonify(api_response(code=500, msg="联邦训练失败: %s" % e))
+
+
+@app.route("/api/admin/audit/events", methods=["GET"])
+def admin_audit_events():
+    """Read security events through an admin-oriented endpoint."""
+    try:
+        from src.security.security_logger import SECURITY_EVENTS_LOG_PATH
+        from src.security.events_api import normalize_limit, read_events
+        limit = normalize_limit(request.args.get("limit", 100), default=100, max_limit=200)
+        event_type = request.args.get("event_type")
+        risk_level = request.args.get("risk_level")
+        events = read_events(SECURITY_EVENTS_LOG_PATH, limit=limit, event_type=event_type, risk_level=risk_level)
+        return jsonify(api_response(msg="success", data={"events": events, "total": len(events), "limit": limit}))
+    except Exception as e:
+        logger.warning("Admin audit query failed: %s", e)
+        return jsonify(api_response(data={"events": [], "total": 0, "warning": "audit log unavailable"}))
+
 
 @app.route("/api/datasets/upload", methods=["POST"])
 def datasets_upload():
