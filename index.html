@@ -3,18 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>用户风险分析与加密训练管理平台</title>
+<title>密码攻击检测与加密数据训练平台</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
 *{box-sizing:border-box}
 body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}
 .navbar{background:#fff;border-bottom:1px solid #D8DEE9;padding:9px 0}
 .navbar-brand{font-size:15px;font-weight:800;color:#2F5F93}
-.nav-link{font-size:14px;color:#455A64;padding:7px 12px;border-radius:8px;margin-left:4px}
+.nav-link{font-size:14px;color:#455A64;padding:7px 12px;border-radius:8px;margin-left:4px;border:1px solid transparent}
 .nav-link:hover{background:#EEF2F6;color:#263238}
-.nav-link.active{background:#2F5F93;color:#fff}
+.navbar .nav-link.active{background:#E3F2FD;color:#1E5C9A!important;border-color:#9BB7D6;font-weight:800}
 .page{display:none}
 .page.active{display:block}
 .panel{background:#fff;border:1px solid #E1E7EF;border-radius:12px;margin-bottom:16px;box-shadow:0 2px 12px rgba(20,30,50,.05)}
@@ -26,7 +25,6 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
 .btn-main:hover{background:#264E7A;color:#fff}
 .btn-main:disabled{opacity:.55;cursor:not-allowed}
 .btn-lightx{background:#EEF2F6;color:#263238;border:0;border-radius:8px;padding:8px 14px;font-size:14px}
-.btn-dangerx{background:#B71C1C;color:#fff;border:0;border-radius:8px;padding:8px 14px;font-size:14px}
 .status-pill{display:inline-block;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:700}
 .ok{background:#E8F5E9;color:#2E7D32}
 .warn{background:#FFF8E1;color:#8A6200}
@@ -36,61 +34,57 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
 .metric{background:#fff;border:1px solid #E6ECF2;border-radius:10px;padding:14px;text-align:center}
 .metric-value{font-size:26px;font-weight:900;color:#2F5F93;word-break:break-all}
 .metric-label{font-size:12px;color:#607D8B;margin-top:4px}
-.flow{display:flex;flex-wrap:wrap;gap:8px}
-.flow span{background:#EEF2F6;border-radius:999px;padding:6px 10px;font-size:13px}
 .notice{background:#F8FAFC;border:1px dashed #C7D2DE;border-radius:10px;padding:12px 14px;color:#455A64;font-size:13px;line-height:1.65}
 .two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .three-col{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .table-sm th{font-size:12px;color:#455A64;font-weight:800}
 .table-sm td{font-size:12px;vertical-align:middle}
-.scroll-box{max-height:330px;overflow:auto;border:1px solid #E6ECF2;border-radius:10px}
+.scroll-box{max-height:340px;overflow:auto;border:1px solid #E6ECF2;border-radius:10px}
 .scroll-box table{margin-bottom:0}
-.chart-box{height:260px}
+.preview-card{border:1px solid #E6ECF2;border-radius:10px;padding:12px;background:#FAFBFC}
 .risk-low{color:#2E7D32;font-weight:800}
 .risk-medium{color:#8A6200;font-weight:800}
 .risk-high,.risk-critical{color:#B71C1C;font-weight:800}
-.code-box{background:#263238;color:#EAF2F7;border-radius:10px;padding:12px;white-space:pre-wrap;max-height:360px;overflow:auto;font-size:12px}
-.preview-card{border:1px solid #E6ECF2;border-radius:10px;padding:12px;background:#FAFBFC}
-.step-list{margin:0;padding-left:18px;line-height:1.8}
+.node-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.node-card{border:1px solid #E6ECF2;border-radius:10px;padding:14px;text-align:center;background:#fff}
+.node-card i{font-size:22px;color:#2F5F93;margin-bottom:6px}
+.sample-preview{max-height:300px;overflow:auto}
+.sample-preview table{min-width:900px}
+.report-box{background:#263238;color:#EAF2F7;border-radius:10px;padding:14px;white-space:pre-wrap;min-height:260px;max-height:520px;overflow:auto;font-size:13px;line-height:1.65}
 .toastx{position:fixed;top:60px;right:18px;z-index:9999;color:#fff;border-radius:8px;padding:10px 15px;font-size:13px;box-shadow:0 6px 20px rgba(0,0,0,.15)}
-@media(max-width:980px){.metric-grid,.two-col,.three-col{grid-template-columns:1fr}.navbar-nav{overflow-x:auto;max-width:100%}}
+@media(max-width:980px){.metric-grid,.two-col,.three-col,.node-grid{grid-template-columns:1fr}.navbar-nav{overflow-x:auto;max-width:100%}}
 </style>
 </head>
 <body>
 <nav class="navbar navbar-expand-lg sticky-top">
   <div class="container-fluid">
-    <span class="navbar-brand"><i class="fas fa-shield-alt"></i> 用户风险分析与加密训练管理平台</span>
+    <span class="navbar-brand" id="brand"><i class="fas fa-shield-alt"></i> 密码攻击检测系统</span>
     <div class="navbar-nav d-flex flex-row ms-auto" id="nav">
-      <a class="nav-link active" href="#" data-page="user">用户风险分析</a>
-      <a class="nav-link" href="#" data-page="admin">管理端数据</a>
+      <a class="nav-link active" href="#" data-page="upload">上传数据</a>
+      <a class="nav-link" href="#" data-page="detect">风险检测</a>
+      <a class="nav-link" href="#" data-page="report">分析报告</a>
+      <a class="nav-link" href="#" data-page="dataAdmin">数据管理</a>
       <a class="nav-link" href="#" data-page="training">训练中心</a>
       <a class="nav-link" href="#" data-page="audit">系统审计</a>
-      <a class="nav-link" href="#" data-page="about">系统说明</a>
     </div>
   </div>
 </nav>
 
 <main class="container-fluid px-3 py-3">
-  <section class="page active" id="pg-user">
+  <section class="page active" id="pg-upload">
     <div class="panel">
-      <div class="panel-head"><i class="fas fa-upload text-primary"></i> 用户端：提交数据并获取风险报告</div>
+      <div class="panel-head"><i class="fas fa-upload text-primary"></i> 上传数据 - 用户数据接入</div>
       <div class="panel-body">
-        <div class="notice mb-3">
-          用户上传 CSV/JSON 后，系统会完成数据体检、风险检测、原因解释和建议输出。原始文件会加密归档，管理端默认只能查看摘要和脱敏预览。
-        </div>
+        <div class="notice mb-3">上传 CSV/JSON 后，系统会加密归档原始文件。用户端展示当前提交摘要，管理端默认只看摘要和脱敏预览。</div>
         <div class="two-col">
           <div>
-            <h6>1. 上传数据</h6>
+            <h6>上传 CSV/JSON</h6>
             <input class="form-control mb-2" type="file" id="userFile" accept=".csv,.json">
-            <div class="d-flex gap-2 flex-wrap">
-              <button class="btn-main" onclick="uploadUserData()"><i class="fas fa-cloud-upload-alt"></i> 上传并加密归档</button>
-              <button class="btn-lightx" onclick="analyzeCurrentSubmission()" id="analyzeBtn" disabled><i class="fas fa-search"></i> 执行风险分析</button>
-              <button class="btn-lightx" onclick="downloadCurrentReport()" id="reportBtn" disabled><i class="fas fa-file-lines"></i> 下载 Markdown 报告</button>
-            </div>
-            <p class="muted small-text mt-2">支持 CSV/JSON。第一版无账号系统，适合作为单机原型或受控内网工具使用。</p>
+            <button class="btn-main" onclick="uploadUserData()"><i class="fas fa-cloud-upload-alt"></i> 上传并加密归档</button>
+            <button class="btn-lightx ms-2" onclick="goPage('detect')" id="goDetectBtn" disabled>进入风险检测</button>
           </div>
           <div>
-            <h6>2. 当前提交</h6>
+            <h6>当前提交</h6>
             <div id="currentSubmission" class="preview-card muted">尚未上传数据。</div>
           </div>
         </div>
@@ -98,9 +92,40 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
     </div>
 
     <div class="panel">
-      <div class="panel-head"><i class="fas fa-chart-pie text-primary"></i> 风险分析结果</div>
+      <div class="panel-head"><i class="fas fa-flask text-primary"></i> 生成本地样本 - 快速测试输入</div>
       <div class="panel-body">
-        <div class="metric-grid mb-3">
+        <div class="notice mb-3">当没有外部 CSV 时，可生成本地样本并下载为 CSV，再通过上方上传入口走完整分析流程。</div>
+        <div class="row g-3 align-items-end">
+          <div class="col-md-4">
+            <label class="form-label small-text">记录数</label>
+            <input type="range" class="form-range" id="sampleCount" min="20" max="1000" step="20" value="200" oninput="sampleCountText.textContent=this.value+' 条'">
+            <div id="sampleCountText" class="fw-bold">200 条</div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small-text">处理方式</label>
+            <select class="form-select" id="sampleAlgo"><option value="paillier">Paillier</option><option value="aes">AES-256</option></select>
+          </div>
+          <div class="col-md-4">
+            <button class="btn-main" onclick="generateLocalSamples()"><i class="fas fa-wand-magic-sparkles"></i> 生成本地样本</button>
+            <button class="btn-lightx ms-2" onclick="downloadGeneratedCsv()" id="downloadCsvBtn" disabled>下载 CSV</button>
+          </div>
+        </div>
+        <div class="two-col mt-3">
+          <div class="panel mb-0"><div class="panel-head">明文样本预览</div><div class="panel-body sample-preview" id="plainPreview">暂无生成记录。</div></div>
+          <div class="panel mb-0"><div class="panel-head">密态样本预览</div><div class="panel-body sample-preview" id="encryptedPreview">暂无生成记录。</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="page" id="pg-detect">
+    <div class="panel">
+      <div class="panel-head"><i class="fas fa-magnifying-glass-chart text-primary"></i> 风险检测 - 当前提交分析</div>
+      <div class="panel-body">
+        <div class="notice mb-3">检测会读取当前上传提交，输出风险摘要、重点风险样本原因和处理建议。结果是辅助分析，仍需结合业务背景复核。</div>
+        <button class="btn-main" onclick="analyzeCurrentSubmission()" id="analyzeBtn" disabled><i class="fas fa-search"></i> 执行风险检测</button>
+        <button class="btn-lightx ms-2" onclick="goPage('report')" id="goReportBtn" disabled>查看报告</button>
+        <div class="metric-grid my-3">
           <div class="metric"><div class="metric-value" id="riskTotal">--</div><div class="metric-label">分析样本数</div></div>
           <div class="metric"><div class="metric-value text-danger" id="riskHigh">--</div><div class="metric-label">高风险/危险</div></div>
           <div class="metric"><div class="metric-value text-warning" id="riskMedium">--</div><div class="metric-label">中风险</div></div>
@@ -108,11 +133,11 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
         </div>
         <div class="two-col">
           <div>
-            <h6>风险样本原因</h6>
+            <h6>重点风险样本原因</h6>
             <div class="scroll-box">
               <table class="table table-sm">
                 <thead><tr><th>样本</th><th>风险</th><th>原因</th><th>建议</th></tr></thead>
-                <tbody id="reasonTable"><tr><td colspan="4" class="muted">上传并分析后显示。</td></tr></tbody>
+                <tbody id="reasonTable"><tr><td colspan="4" class="muted">上传并检测后显示。</td></tr></tbody>
               </table>
             </div>
           </div>
@@ -125,14 +150,44 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
     </div>
   </section>
 
-  <section class="page" id="pg-admin">
+  <section class="page" id="pg-report">
     <div class="panel">
-      <div class="panel-head"><i class="fas fa-folder-lock text-primary"></i> 管理端：用户提交与加密归档</div>
+      <div class="panel-head"><i class="fas fa-file-lines text-primary"></i> 分析报告 - 结果留存</div>
       <div class="panel-body">
-        <div class="notice mb-3">
-          管理端查看的是提交摘要、风险摘要和脱敏预览。原始上传文件以 AES 加密形式归档，当前界面不提供明文下载。
+        <div class="d-flex gap-2 flex-wrap mb-3">
+          <button class="btn-main" onclick="loadCurrentReport()" id="loadReportBtn" disabled><i class="fas fa-sync"></i> 加载报告</button>
+          <button class="btn-lightx" onclick="downloadCurrentReport()" id="downloadReportBtn" disabled>下载 Markdown 报告</button>
         </div>
-        <button class="btn-main mb-3" onclick="loadSubmissions()"><i class="fas fa-sync"></i> 刷新提交列表</button>
+        <div class="report-box" id="reportBox">完成风险检测后可查看报告。</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="page" id="pg-dataAdmin">
+    <div class="panel">
+      <div class="panel-head"><i class="fas fa-database text-primary"></i> 数据管理 - 系统数据源与用户提交</div>
+      <div class="panel-body">
+        <div class="two-col">
+          <div>
+            <h6>系统内置数据源</h6>
+            <div id="systemDataset" class="notice">正在读取数据源状态...</div>
+            <div class="mt-2">
+              <button class="btn-main" onclick="processSystemDataset()"><i class="fas fa-cogs"></i> 处理为联邦节点数据</button>
+              <button class="btn-lightx ms-2" onclick="loadAdminData()">刷新状态</button>
+            </div>
+          </div>
+          <div>
+            <h6>四个联邦节点</h6>
+            <div class="node-grid" id="nodeGrid"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><i class="fas fa-folder-lock text-primary"></i> 用户提交记录</div>
+      <div class="panel-body">
+        <div class="notice mb-3">管理端只展示摘要和脱敏预览。需要进入训练中心的数据，先标记为可训练。</div>
         <div class="scroll-box">
           <table class="table table-sm">
             <thead><tr><th>提交编号</th><th>文件名</th><th>时间</th><th>样本</th><th>字段</th><th>标签列</th><th>风险摘要</th><th>状态</th><th>操作</th></tr></thead>
@@ -144,23 +199,19 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
 
     <div class="panel">
       <div class="panel-head"><i class="fas fa-eye-slash text-primary"></i> 脱敏预览与详情</div>
-      <div class="panel-body" id="submissionDetail">
-        <div class="muted">点击提交记录中的“详情”查看。</div>
-      </div>
+      <div class="panel-body" id="submissionDetail"><div class="muted">点击提交记录中的“详情”查看。</div></div>
     </div>
   </section>
 
   <section class="page" id="pg-training">
     <div class="panel">
-      <div class="panel-head"><i class="fas fa-brain text-primary"></i> 训练中心：本地训练与四节点联邦训练</div>
+      <div class="panel-head"><i class="fas fa-brain text-primary"></i> 训练中心 - 本地训练与四节点联邦训练</div>
       <div class="panel-body">
-        <div class="notice mb-3">
-          训练中心只使用管理员标记为“可训练”的加密归档数据。系统内部在受控流程中解密读取特征；前端不展示原始明文。联邦训练展示四节点划分和 FedAvg 聚合过程。
-        </div>
+        <div class="notice mb-3">训练数据来源分两类：系统内置数据源处理后的联邦节点数据、管理员标记为可训练的用户加密归档数据。</div>
         <div class="d-flex gap-2 flex-wrap mb-3">
-          <button class="btn-main" onclick="runAdminLocalTrain()"><i class="fas fa-play"></i> 使用可训练数据本地训练</button>
-          <button class="btn-main" onclick="runAdminFederatedTrain()"><i class="fas fa-network-wired"></i> 使用可训练数据联邦训练</button>
-          <button class="btn-lightx" onclick="loadSubmissions()"><i class="fas fa-list"></i> 查看可训练数据</button>
+          <button class="btn-main" onclick="runAdminLocalTrain()"><i class="fas fa-play"></i> 使用可训练用户数据本地训练</button>
+          <button class="btn-main" onclick="runAdminFederatedTrain()"><i class="fas fa-network-wired"></i> 使用可训练用户数据联邦训练</button>
+          <button class="btn-lightx" onclick="loadAdminData()">刷新训练数据状态</button>
         </div>
         <div class="metric-grid mb-3">
           <div class="metric"><div class="metric-value" id="trainSamples">--</div><div class="metric-label">训练样本</div></div>
@@ -170,7 +221,7 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
         </div>
         <div class="two-col">
           <div>
-            <h6>四节点结果</h6>
+            <h6>四节点训练结果</h6>
             <div class="scroll-box">
               <table class="table table-sm">
                 <thead><tr><th>节点</th><th>样本</th><th>精度</th><th>损失</th></tr></thead>
@@ -180,7 +231,7 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
           </div>
           <div>
             <h6>训练来源</h6>
-            <div id="trainSources" class="notice">请先在管理端标记可训练数据。</div>
+            <div id="trainSources" class="notice">请先在数据管理页处理内置数据源，或标记用户提交为可训练。</div>
           </div>
         </div>
       </div>
@@ -189,69 +240,33 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
 
   <section class="page" id="pg-audit">
     <div class="panel">
-      <div class="panel-head"><i class="fas fa-clipboard-list text-primary"></i> 系统审计：访问记录与安全事件</div>
+      <div class="panel-head"><i class="fas fa-shield-alt text-primary"></i> 系统审计 - 告警摘要</div>
       <div class="panel-body">
-        <div class="notice mb-3">
-          审计页用于查看访问 IP、设备、浏览器、请求路径、TraceId，以及慢接口、限流等安全事件。归属地依赖本地离线库；未配置时显示 local/private/unknown。
+        <div class="notice mb-3">上方汇总需要关注的访问和安全事件，下方展示访问流水。该页面用于运维观察，不改变检测或训练逻辑。</div>
+        <div class="metric-grid mb-3">
+          <div class="metric"><div class="metric-value" id="auditTotal">0</div><div class="metric-label">告警摘要</div></div>
+          <div class="metric"><div class="metric-value text-danger" id="auditHigh">0</div><div class="metric-label">高风险告警</div></div>
+          <div class="metric"><div class="metric-value text-warning" id="auditMedium">0</div><div class="metric-label">中风险告警</div></div>
+          <div class="metric"><div class="metric-value text-success" id="auditLow">0</div><div class="metric-label">低风险/系统事件</div></div>
         </div>
         <button class="btn-main mb-3" onclick="loadAudit()"><i class="fas fa-sync"></i> 刷新审计</button>
-        <div class="two-col">
-          <div>
-            <h6>最近访问记录</h6>
-            <div class="scroll-box">
-              <table class="table table-sm">
-                <thead><tr><th>时间</th><th>IP</th><th>归属地</th><th>设备</th><th>系统</th><th>浏览器</th><th>路径</th></tr></thead>
-                <tbody id="visitTable"><tr><td colspan="7" class="muted">正在加载...</td></tr></tbody>
-              </table>
-            </div>
-          </div>
-          <div>
-            <h6>安全事件</h6>
-            <div class="scroll-box">
-              <table class="table table-sm">
-                <thead><tr><th>时间</th><th>风险</th><th>类型</th><th>路径</th><th>说明</th></tr></thead>
-                <tbody id="eventTable"><tr><td colspan="5" class="muted">正在加载...</td></tr></tbody>
-              </table>
-            </div>
-          </div>
+        <div class="scroll-box">
+          <table class="table table-sm">
+            <thead><tr><th>时间</th><th>风险</th><th>类型</th><th>路径</th><th>原因</th><th>建议</th></tr></thead>
+            <tbody id="eventTable"><tr><td colspan="6" class="muted">正在加载...</td></tr></tbody>
+          </table>
         </div>
       </div>
     </div>
-  </section>
-
-  <section class="page" id="pg-about">
     <div class="panel">
-      <div class="panel-head"><i class="fas fa-circle-info text-primary"></i> 系统说明与边界</div>
+      <div class="panel-head"><i class="fas fa-location-dot text-primary"></i> 最近访问记录</div>
       <div class="panel-body">
-        <div class="three-col">
-          <div class="preview-card">
-            <h6>用户端价值</h6>
-            <ol class="step-list">
-              <li>上传业务或网络安全样本数据。</li>
-              <li>获得风险检测、原因解释和处理建议。</li>
-              <li>生成可留存的分析报告。</li>
-            </ol>
-          </div>
-          <div class="preview-card">
-            <h6>管理端价值</h6>
-            <ol class="step-list">
-              <li>接收加密归档的用户提交。</li>
-              <li>查看摘要和脱敏预览。</li>
-              <li>将授权数据用于模型训练和联邦训练。</li>
-            </ol>
-          </div>
-          <div class="preview-card">
-            <h6>安全边界</h6>
-            <ol class="step-list">
-              <li>第一版无完整账号系统，适合受控环境。</li>
-              <li>加密存储不等于直接密文训练。</li>
-              <li>检测结果需要结合业务背景复核。</li>
-            </ol>
-          </div>
-        </div>
-        <div class="notice mt-3">
-          正确的数据流是：用户上传 → 临时解析分析 → AES 加密归档 → 管理端查看摘要/脱敏预览 → 管理员确认可训练 → 系统内部读取归档数据训练 → 审计访问和安全事件。
-          Paillier 可用于联邦聚合保护，不应描述为“直接使用密文训练完整模型”。
+        <div class="notice mb-3">记录页面访问的 IP、归属地、设备、系统、浏览器、请求方式、端口、路径和 TraceId。</div>
+        <div class="scroll-box">
+          <table class="table table-sm">
+            <thead><tr><th>时间</th><th>IP</th><th>归属地</th><th>设备</th><th>系统</th><th>浏览器</th><th>方法</th><th>端口</th><th>路径</th><th>TraceId</th></tr></thead>
+            <tbody id="visitTable"><tr><td colspan="10" class="muted">正在加载...</td></tr></tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -260,9 +275,10 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
 
 <script>
 var currentSubmissionId=null;
-var latestReport=null;
+var generatedRows=[];
+var latestReport='';
 var APP_MODE=(window.location.port==='5001')?'admin':'user';
-var MODE_PAGES={user:['user','about'],admin:['admin','training','audit','about']};
+var MODE_PAGES={user:['upload','detect','report'],admin:['dataAdmin','training','audit']};
 function $(id){return document.getElementById(id)}
 function esc(v){return String(v==null?'-':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 function arr(v){return Array.isArray(v)?v:[]}
@@ -278,27 +294,34 @@ async function api(url, options){
     return {ok:true,data:data.data||{},msg:data.msg||'success'};
   }catch(e){return {ok:false,error:e.message||String(e)}}
 }
+function goPage(pg){showPage(pg)}
 function showPage(pg){
   if(MODE_PAGES[APP_MODE].indexOf(pg)<0){pg=MODE_PAGES[APP_MODE][0]}
   document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active')});
   var el=$('pg-'+pg); if(el)el.classList.add('active');
   document.querySelectorAll('#nav a').forEach(function(a){a.classList.toggle('active',a.dataset.page===pg)});
-  if(pg==='admin')loadSubmissions();
+  if(pg==='dataAdmin')loadAdminData();
   if(pg==='audit')loadAudit();
+  if(pg==='report' && currentSubmissionId)loadCurrentReport(false);
 }
 document.getElementById('nav').addEventListener('click',function(e){var a=e.target.closest('a');if(a&&a.dataset.page){e.preventDefault();showPage(a.dataset.page)}});
 function initPortalMode(){
-  document.querySelectorAll('#nav a').forEach(function(a){
-    a.style.display=MODE_PAGES[APP_MODE].indexOf(a.dataset.page)>=0?'':'none';
-  });
-  var brand=document.querySelector('.navbar-brand');
-  if(brand){brand.innerHTML='<i class="fas fa-shield-alt"></i> '+(APP_MODE==='admin'?'管理端 - 加密数据训练与系统审计':'用户端 - 数据风险分析与报告');}
+  document.querySelectorAll('#nav a').forEach(function(a){a.style.display=MODE_PAGES[APP_MODE].indexOf(a.dataset.page)>=0?'':'none'});
+  $('brand').innerHTML='<i class="fas fa-shield-alt"></i> '+(APP_MODE==='admin'?'管理端 - 数据训练与系统审计':'用户端 - 数据风险分析');
   showPage(MODE_PAGES[APP_MODE][0]);
 }
-
 function riskClass(level){level=String(level||'').toLowerCase();return level==='critical'?'risk-critical':level==='high'?'risk-high':level==='medium'?'risk-medium':'risk-low'}
 function riskText(level){return {critical:'危险',high:'高风险',medium:'中风险',low:'低风险',info:'信息'}[String(level||'').toLowerCase()]||level||'-'}
 function summaryText(s){s=obj(s);return '高/危险 '+((s.high||0)+(s.critical||0))+'，中 '+(s.medium||0)+'，低 '+(s.low||0)}
+function renderTable(rows, targetId, maxCols){
+  rows=arr(rows);
+  if(!rows.length){$(targetId).innerHTML='暂无数据。';return}
+  var cols=Object.keys(rows[0]).slice(0,maxCols||12);
+  var html='<table class="table table-sm"><thead><tr>'+cols.map(function(c){return '<th>'+esc(c)+'</th>'}).join('')+'</tr></thead><tbody>';
+  html+=rows.map(function(r){return '<tr>'+cols.map(function(c){return '<td>'+esc(r[c])+'</td>'}).join('')+'</tr>'}).join('');
+  html+='</tbody></table>';
+  $(targetId).innerHTML=html;
+}
 
 async function uploadUserData(){
   var file=$('userFile').files[0];
@@ -309,8 +332,7 @@ async function uploadUserData(){
   if(!r.ok){$('currentSubmission').innerHTML='<span class="text-danger">'+esc(r.error)+'</span>';toast(r.error,true);return}
   currentSubmissionId=r.data.id;
   renderCurrentSubmission(r.data);
-  $('analyzeBtn').disabled=false;
-  $('reportBtn').disabled=true;
+  $('goDetectBtn').disabled=false;$('analyzeBtn').disabled=false;
   toast('上传成功');
 }
 function renderCurrentSubmission(d){
@@ -323,15 +345,32 @@ function renderCurrentSubmission(d){
     '<b>加密状态：</b>'+(d.encrypted?'已加密归档':'未归档')
   ].join('<br>');
 }
+async function generateLocalSamples(){
+  var n=Number($('sampleCount').value)||200;
+  var r=await api('/api/generate_dataset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({n_records:n,algorithm:$('sampleAlgo').value})});
+  if(!r.ok){toast(r.error,true);return}
+  generatedRows=arr(r.data.plaintext);
+  renderTable(generatedRows,'plainPreview',14);
+  renderTable(arr(r.data.encrypted),'encryptedPreview',10);
+  $('downloadCsvBtn').disabled=!generatedRows.length;
+  toast('本地样本已生成');
+}
+function downloadGeneratedCsv(){
+  if(!generatedRows.length)return;
+  var cols=Object.keys(generatedRows[0]);
+  var lines=[cols.join(',')].concat(generatedRows.map(function(r){return cols.map(function(c){var v=String(r[c]??'').replace(/"/g,'""');return /[",\n]/.test(v)?'"'+v+'"':v}).join(',')}));
+  var blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='generated_samples.csv';a.click();URL.revokeObjectURL(a.href);
+}
+
 async function analyzeCurrentSubmission(){
   if(!currentSubmissionId){toast('请先上传数据',true);return}
   $('reasonTable').innerHTML='<tr><td colspan="4" class="muted">正在分析...</td></tr>';
   var r=await api('/api/user/datasets/'+encodeURIComponent(currentSubmissionId)+'/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:1000})});
   if(!r.ok){$('reasonTable').innerHTML='<tr><td colspan="4" class="text-danger">'+esc(r.error)+'</td></tr>';toast(r.error,true);return}
   renderAnalysis(r.data);
-  latestReport=null;
-  $('reportBtn').disabled=false;
-  toast('分析完成');
+  $('goReportBtn').disabled=false;$('loadReportBtn').disabled=false;$('downloadReportBtn').disabled=false;
+  toast('检测完成');
 }
 function renderAnalysis(d){
   d=obj(d);var s=obj(d.risk_summary);
@@ -340,18 +379,50 @@ function renderAnalysis(d){
   $('riskMedium').textContent=s.medium||0;
   $('riskLow').textContent=s.low||0;
   var reasons=arr(d.high_risk_reasons);
-  $('reasonTable').innerHTML=reasons.length?reasons.map(function(x){return '<tr><td>'+esc(x.id)+'</td><td class="'+riskClass(x.risk_level)+'">'+riskText(x.risk_level)+'</td><td>'+esc(x.reason)+'</td><td>'+esc(x.suggestion)+'</td></tr>'}).join(''):'<tr><td colspan="4" class="muted">未发现高风险样本。</td></tr>';
+  $('reasonTable').innerHTML=reasons.length?reasons.map(function(x){return '<tr><td>'+esc(x.id)+'</td><td class="'+riskClass(x.risk_level)+'">'+riskText(x.risk_level)+'</td><td>'+esc(x.reason)+'</td><td>'+esc(x.suggestion)+'</td></tr>'}).join(''):'<tr><td colspan="4" class="muted">未发现需要重点关注的样本。</td></tr>';
   $('suggestions').innerHTML=arr(d.suggestions).map(function(x){return '<div>• '+esc(x)+'</div>'}).join('') || '暂无建议。';
 }
-async function downloadCurrentReport(){
-  if(!currentSubmissionId)return;
+async function loadCurrentReport(showToast){
+  if(!currentSubmissionId){$('reportBox').textContent='请先上传并完成风险检测。';return}
   var r=await api('/api/user/reports/'+encodeURIComponent(currentSubmissionId));
-  if(!r.ok){toast(r.error,true);return}
-  latestReport=r.data.report_markdown||'# 风险分析报告\n暂无内容';
+  if(!r.ok){$('reportBox').textContent=r.error;return}
+  latestReport=r.data.report_markdown||'暂无报告内容';
+  $('reportBox').textContent=latestReport;
+  if(showToast!==false)toast('报告已加载');
+}
+async function downloadCurrentReport(){
+  if(!latestReport)await loadCurrentReport(false);
+  if(!latestReport)return;
   var blob=new Blob([latestReport],{type:'text/markdown;charset=utf-8'});
-  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='risk-report-'+currentSubmissionId+'.md';a.click();URL.revokeObjectURL(a.href);
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='risk-report-'+(currentSubmissionId||'current')+'.md';a.click();URL.revokeObjectURL(a.href);
 }
 
+async function loadAdminData(){
+  await Promise.all([loadSystemDataset(),loadNodes(),loadSubmissions()]);
+}
+async function loadSystemDataset(){
+  var r=await api('/api/dataset/unsw/status');
+  if(!r.ok){$('systemDataset').innerHTML='<span class="text-danger">'+esc(r.error)+'</span>';return}
+  var d=obj(r.data);
+  $('systemDataset').innerHTML='<b>数据源：</b>'+esc(d.source||'未找到')+
+    '<br><b>类型：</b>'+esc(d.source_type||'-')+
+    '<br><b>样本/特征：</b>'+esc(d.samples||0)+' / '+esc(d.features||0)+
+    '<br><b>标签列：</b>'+esc(d.label_column||'-')+
+    '<br><b>联邦节点状态：</b>'+(d.ready_for_federated?'已处理':'未处理')+
+    '<br><span class="muted">若 source_type 为 local_generated，表示正在使用 data/generated/train.csv 作为初始训练数据源。</span>';
+}
+async function processSystemDataset(){
+  $('systemDataset').innerHTML='正在处理数据源并划分四个联邦节点...';
+  var r=await api('/api/dataset/unsw/process',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:50000})});
+  if(!r.ok){$('systemDataset').innerHTML='<span class="text-danger">'+esc(r.error)+'</span>';toast(r.error,true);return}
+  toast('数据源处理完成');
+  await loadAdminData();
+}
+async function loadNodes(){
+  var r=await api('/api/federated/nodes');
+  var nodes=arr(obj(r.data).nodes);
+  $('nodeGrid').innerHTML=nodes.length?nodes.map(function(n){return '<div class="node-card"><i class="fas fa-building-columns"></i><div class="fw-bold">'+esc(n.name)+'</div><div class="muted small-text">'+esc(n.samples||0)+' 条</div><span class="status-pill '+(n.ready?'ok':'warn')+'">'+(n.ready?'ready':'not ready')+'</span></div>'}).join(''):'<div class="muted">暂无节点数据。</div>';
+}
 async function loadSubmissions(){
   var r=await api('/api/admin/submissions');
   if(!r.ok){$('submissionTable').innerHTML='<tr><td colspan="9" class="text-danger">'+esc(r.error)+'</td></tr>';return}
@@ -359,7 +430,7 @@ async function loadSubmissions(){
   $('submissionTable').innerHTML=items.length?items.map(function(x){return '<tr>'+
     '<td><code>'+esc(x.id)+'</code></td><td>'+esc(x.filename)+'</td><td>'+esc(x.upload_time)+'</td><td>'+esc(x.row_count)+'</td><td>'+esc(x.column_count)+'</td><td>'+esc(x.label_column||'-')+'</td>'+
     '<td>'+esc(summaryText(x.risk_summary))+'</td><td>'+esc(x.review_status||x.status)+'</td>'+
-    '<td><button class="btn-lightx btn-sm" onclick="loadSubmissionDetail(\''+esc(x.id)+'\')">详情</button> <button class="btn-lightx btn-sm" onclick="archiveSubmission(\''+esc(x.id)+'\')">归档</button> <button class="btn-main btn-sm" onclick="markTrainable(\''+esc(x.id)+'\')">可训练</button></td></tr>'}).join(''):'<tr><td colspan="9" class="muted">暂无用户提交。</td></tr>';
+    '<td><button class="btn-lightx btn-sm" onclick="loadSubmissionDetail(\''+esc(x.id)+'\')">详情</button> <button class="btn-main btn-sm" onclick="markTrainable(\''+esc(x.id)+'\')">可训练</button></td></tr>'}).join(''):'<tr><td colspan="9" class="muted">暂无用户提交。</td></tr>';
 }
 async function loadSubmissionDetail(id){
   var r=await api('/api/admin/submissions/'+encodeURIComponent(id));
@@ -369,17 +440,14 @@ async function loadSubmissionDetail(id){
     (rows.length?rows.map(function(row){return '<tr>'+cols.slice(0,12).map(function(c){return '<td>'+esc(row[c])+'</td>'}).join('')+'</tr>'}).join(''):'<tr><td class="muted">无预览</td></tr>')+'</tbody></table></div>';
   $('submissionDetail').innerHTML='<div class="notice mb-3"><b>'+esc(d.filename)+'</b><br>摘要：'+esc(summaryText(d.risk_summary))+'；加密：'+esc(d.encryption||'-')+'；状态：'+esc(d.review_status||'-')+'</div>'+table;
 }
-async function archiveSubmission(id){var r=await api('/api/admin/submissions/'+encodeURIComponent(id)+'/archive',{method:'POST'});toast(r.ok?'已归档':r.error,!r.ok);loadSubmissions()}
 async function markTrainable(id){var r=await api('/api/admin/submissions/'+encodeURIComponent(id)+'/mark-trainable',{method:'POST'});toast(r.ok?'已标记为可训练':r.error,!r.ok);loadSubmissions()}
-
 async function runAdminLocalTrain(){
   $('trainSources').textContent='正在执行本地训练...';
   var r=await api('/api/admin/training/local',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:20000})});
   if(!r.ok){$('trainSources').innerHTML='<span class="text-danger">'+esc(r.error)+'</span>';toast(r.error,true);return}
   $('trainSamples').textContent=r.data.samples||0;
   $('trainAccuracy').textContent=((Number(r.data.accuracy||0))*100).toFixed(1)+'%';
-  $('trainSources').innerHTML='来源：'+arr(r.data.sources).map(function(s){return esc(s.filename)+'('+esc(s.samples)+'条)'}).join('，');
-  toast('本地训练完成');
+  $('trainSources').innerHTML='用户归档来源：'+arr(r.data.sources).map(function(s){return esc(s.filename)+'('+esc(s.samples)+'条)'}).join('，');
 }
 async function runAdminFederatedTrain(){
   $('fedClientTable').innerHTML='<tr><td colspan="4" class="muted">正在执行联邦训练...</td></tr>';
@@ -390,23 +458,21 @@ async function runAdminFederatedTrain(){
   $('trainSamples').textContent=r.data.samples||0;
   var clients=arr(r.data.clients);
   $('fedClientTable').innerHTML=clients.length?clients.map(function(c){return '<tr><td>'+esc(c.name)+'</td><td>'+esc(c.samples)+'</td><td>'+((Number(c.accuracy||0))*100).toFixed(1)+'%</td><td>'+esc(c.loss)+'</td></tr>'}).join(''):'<tr><td colspan="4" class="muted">无节点结果。</td></tr>';
-  $('trainSources').innerHTML='来源：'+arr(r.data.sources).map(function(s){return esc(s.filename)+'('+esc(s.samples)+'条)'}).join('，');
-  toast('联邦训练完成');
+  $('trainSources').innerHTML='用户归档来源：'+arr(r.data.sources).map(function(s){return esc(s.filename)+'('+esc(s.samples)+'条)'}).join('，');
 }
-
-function geoText(extra){
-  extra=obj(extra);var g=obj(extra.geo);
-  var parts=[g.country,g.region,g.city].filter(function(x){return x&&x!=='unknown'});
-  if(parts.length)return parts.join(' ');
-  return g.source==='private'?'private':g.source==='local'?'local':'unknown';
-}
+function geoText(extra){extra=obj(extra);var g=obj(extra.geo);var parts=[g.country,g.region,g.city].filter(function(x){return x&&x!=='unknown'});return parts.length?parts.join(' '):(g.source||'unknown')}
+function eventSuggestion(e){var t=e.event_type||'';if(t==='rate_limit_triggered')return '关注访问频率并检查同源请求。';if(t==='slow_api_detected')return '检查接口耗时和数据处理任务。';if(t==='site_visit')return '页面访问记录，无需处理。';return '结合路径、IP 和 TraceId 复核。'}
 async function loadAudit(){
   var visits=await api('/api/admin/audit/events?limit=200&event_type=site_visit');
-  var events=await api('/api/admin/audit/events?limit=100');
+  var events=await api('/api/admin/audit/events?limit=200');
+  var es=arr(obj(events.data).events).filter(function(e){return e.event_type!=='site_visit'});
+  var high=es.filter(function(e){return ['high','critical'].indexOf(String(e.risk_level).toLowerCase())>=0}).length;
+  var med=es.filter(function(e){return String(e.risk_level).toLowerCase()==='medium'}).length;
+  var low=es.length-high-med;
+  $('auditTotal').textContent=es.length;$('auditHigh').textContent=high;$('auditMedium').textContent=med;$('auditLow').textContent=low;
+  $('eventTable').innerHTML=es.length?es.slice(0,100).map(function(e){return '<tr><td>'+esc(e.timestamp)+'</td><td class="'+riskClass(e.risk_level)+'">'+riskText(e.risk_level)+'</td><td>'+esc(e.event_type)+'</td><td>'+esc(e.path)+'</td><td>'+esc(e.message||'-')+'</td><td>'+esc(eventSuggestion(e))+'</td></tr>'}).join(''):'<tr><td colspan="6" class="muted">暂无需要关注的安全事件。</td></tr>';
   var vs=arr(obj(visits.data).events);
-  $('visitTable').innerHTML=vs.length?vs.map(function(e){var ex=obj(e.extra);return '<tr><td>'+esc(e.timestamp)+'</td><td>'+esc(e.ip)+'</td><td>'+esc(geoText(ex))+'</td><td>'+esc(ex.device_type)+'</td><td>'+esc((ex.os||'-')+' '+(ex.os_version||''))+'</td><td>'+esc((ex.browser||'-')+' '+(ex.browser_version||''))+'</td><td>'+esc(e.path)+'</td></tr>'}).join(''):'<tr><td colspan="7" class="muted">暂无访问记录。</td></tr>';
-  var es=arr(obj(events.data).events).filter(function(e){return e.event_type!=='site_visit'}).slice(0,80);
-  $('eventTable').innerHTML=es.length?es.map(function(e){return '<tr><td>'+esc(e.timestamp)+'</td><td class="'+riskClass(e.risk_level)+'">'+riskText(e.risk_level)+'</td><td>'+esc(e.event_type)+'</td><td>'+esc(e.path)+'</td><td>'+esc(e.message)+'</td></tr>'}).join(''):'<tr><td colspan="5" class="muted">暂无安全事件。</td></tr>';
+  $('visitTable').innerHTML=vs.length?vs.map(function(e){var ex=obj(e.extra);return '<tr><td>'+esc(e.timestamp)+'</td><td>'+esc(e.ip)+'</td><td>'+esc(geoText(ex))+'</td><td>'+esc(ex.device_type)+'</td><td>'+esc((ex.os||'-')+' '+(ex.os_version||''))+'</td><td>'+esc((ex.browser||'-')+' '+(ex.browser_version||''))+'</td><td>'+esc(e.method)+'</td><td>'+esc(ex.server_port||'-')+'</td><td>'+esc(e.path)+'</td><td>'+esc(e.trace_id)+'</td></tr>'}).join(''):'<tr><td colspan="10" class="muted">暂无访问记录。</td></tr>';
 }
 initPortalMode();
 </script>
