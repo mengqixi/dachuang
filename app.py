@@ -2008,7 +2008,6 @@ def _pretrain_on_startup():
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
     host = os.environ.get("HOST", "0.0.0.0")
 
     # 启动后台预训练线程
@@ -2016,6 +2015,25 @@ if __name__ == "__main__":
     t.start()
     logger.info("后台预训练已启动")
 
-    logger.info("启动服务器: http://%s:%d" % (host, port))
     logger.info("系统功能: 看板 | 数据加密 | 联邦训练 | 加密对比 | 攻击检测 | 自适应优化 | IP访客 | 数据集管理")
-    app.run(debug=False, host=host, port=port, threaded=True)
+    if os.environ.get("PORT"):
+        port = int(os.environ.get("PORT", 5000))
+        logger.info("启动单端口服务: http://%s:%d" % (host, port))
+        app.run(debug=False, host=host, port=port, threaded=True)
+    else:
+        from werkzeug.serving import make_server
+
+        ports = [5000, 5001]
+        servers = []
+        for port in ports:
+            server = make_server(host, port, app, threaded=True)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            servers.append(server)
+            logger.info("启动服务: http://%s:%d" % (host, port))
+        try:
+            while True:
+                time.sleep(3600)
+        except KeyboardInterrupt:
+            for server in servers:
+                server.shutdown()

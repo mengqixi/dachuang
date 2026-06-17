@@ -261,6 +261,8 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
 <script>
 var currentSubmissionId=null;
 var latestReport=null;
+var APP_MODE=(window.location.port==='5001')?'admin':'user';
+var MODE_PAGES={user:['user','about'],admin:['admin','training','audit','about']};
 function $(id){return document.getElementById(id)}
 function esc(v){return String(v==null?'-':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 function arr(v){return Array.isArray(v)?v:[]}
@@ -277,6 +279,7 @@ async function api(url, options){
   }catch(e){return {ok:false,error:e.message||String(e)}}
 }
 function showPage(pg){
+  if(MODE_PAGES[APP_MODE].indexOf(pg)<0){pg=MODE_PAGES[APP_MODE][0]}
   document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active')});
   var el=$('pg-'+pg); if(el)el.classList.add('active');
   document.querySelectorAll('#nav a').forEach(function(a){a.classList.toggle('active',a.dataset.page===pg)});
@@ -284,6 +287,14 @@ function showPage(pg){
   if(pg==='audit')loadAudit();
 }
 document.getElementById('nav').addEventListener('click',function(e){var a=e.target.closest('a');if(a&&a.dataset.page){e.preventDefault();showPage(a.dataset.page)}});
+function initPortalMode(){
+  document.querySelectorAll('#nav a').forEach(function(a){
+    a.style.display=MODE_PAGES[APP_MODE].indexOf(a.dataset.page)>=0?'':'none';
+  });
+  var brand=document.querySelector('.navbar-brand');
+  if(brand){brand.innerHTML='<i class="fas fa-shield-alt"></i> '+(APP_MODE==='admin'?'管理端 - 加密数据训练与系统审计':'用户端 - 数据风险分析与报告');}
+  showPage(MODE_PAGES[APP_MODE][0]);
+}
 
 function riskClass(level){level=String(level||'').toLowerCase();return level==='critical'?'risk-critical':level==='high'?'risk-high':level==='medium'?'risk-medium':'risk-low'}
 function riskText(level){return {critical:'危险',high:'高风险',medium:'中风险',low:'低风险',info:'信息'}[String(level||'').toLowerCase()]||level||'-'}
@@ -397,7 +408,7 @@ async function loadAudit(){
   var es=arr(obj(events.data).events).filter(function(e){return e.event_type!=='site_visit'}).slice(0,80);
   $('eventTable').innerHTML=es.length?es.map(function(e){return '<tr><td>'+esc(e.timestamp)+'</td><td class="'+riskClass(e.risk_level)+'">'+riskText(e.risk_level)+'</td><td>'+esc(e.event_type)+'</td><td>'+esc(e.path)+'</td><td>'+esc(e.message)+'</td></tr>'}).join(''):'<tr><td colspan="5" class="muted">暂无安全事件。</td></tr>';
 }
-loadSubmissions();
+initPortalMode();
 </script>
 </body>
 </html>
