@@ -5,6 +5,7 @@
 """
 
 import os
+import json
 import sqlite3
 import threading
 import time
@@ -145,6 +146,67 @@ class DataStorage:
                         result_summary TEXT DEFAULT ''
                     );
                     CREATE INDEX IF NOT EXISTS idx_dh_ts ON detection_history(timestamp);
+
+                    CREATE TABLE IF NOT EXISTS user_submissions (
+                        id TEXT PRIMARY KEY,
+                        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        filename TEXT DEFAULT '',
+                        row_count INTEGER DEFAULT 0,
+                        column_count INTEGER DEFAULT 0,
+                        label_column TEXT DEFAULT '',
+                        encrypted INTEGER DEFAULT 0,
+                        trainable INTEGER DEFAULT 0,
+                        risk_summary TEXT DEFAULT '{}',
+                        metadata TEXT DEFAULT '{}'
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_user_submissions_ts ON user_submissions(timestamp);
+
+                    CREATE TABLE IF NOT EXISTS analysis_reports (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        submission_id TEXT DEFAULT '',
+                        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        total INTEGER DEFAULT 0,
+                        risk_summary TEXT DEFAULT '{}',
+                        report_path TEXT DEFAULT '',
+                        metadata TEXT DEFAULT '{}'
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_analysis_reports_sid ON analysis_reports(submission_id);
+
+                    CREATE TABLE IF NOT EXISTS training_tasks (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        task_type TEXT DEFAULT '',
+                        source TEXT DEFAULT '',
+                        samples INTEGER DEFAULT 0,
+                        accuracy REAL DEFAULT 0,
+                        status TEXT DEFAULT '',
+                        metadata TEXT DEFAULT '{}'
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_training_tasks_ts ON training_tasks(timestamp);
+
+                    CREATE TABLE IF NOT EXISTS model_versions (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        version TEXT DEFAULT '',
+                        model_type TEXT DEFAULT '',
+                        source TEXT DEFAULT '',
+                        samples INTEGER DEFAULT 0,
+                        accuracy REAL DEFAULT 0,
+                        metadata TEXT DEFAULT '{}'
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_model_versions_ts ON model_versions(timestamp);
+
+                    CREATE TABLE IF NOT EXISTS audit_events (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        event_type TEXT DEFAULT '',
+                        risk_level TEXT DEFAULT '',
+                        ip TEXT DEFAULT '',
+                        path TEXT DEFAULT '',
+                        trace_id TEXT DEFAULT '',
+                        metadata TEXT DEFAULT '{}'
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_audit_events_ts ON audit_events(timestamp);
                 """)
                 conn.commit()
             finally:
@@ -240,6 +302,111 @@ class DataStorage:
                     (since,)
                 ).fetchone()["c"]
                 return {"total": total, "detected": detected, "rate": (detected / total * 100) if total else 100}
+            finally:
+                conn.close()
+
+    # ─── User submission / report / training persistence ───
+
+    @staticmethod
+    def _json(data: Any) -> str:
+        try:
+            return json.dumps(data or {}, ensure_ascii=False)
+        except Exception:
+            return "{}"
+
+    def upsert_user_submission(self, data: Dict[str, Any]):
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO user_submissions
+                    (id, timestamp, filename, row_count, column_count, label_column,
+                     encrypted, trainable, risk_summary, metadata)
+                    VALUES (?, COALESCE((SELECT timestamp FROM user_submissions WHERE id=?), CURRENT_TIMESTAMP),
+                            ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        data.get("id"), data.get("id"), data.get("filename", ""),
+                        int(data.get("row_count", 0) or 0), int(data.get("column_count", 0) or 0),
+                        data.get("label_column") or "", 1 if data.get("encrypted") else 0,
+                        1 if data.get("trainable") else 0, self._json(data.get("risk_summary", {})),
+                        self._json(data),
+                    )
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+    def save_analysis_report_record(self, data: Dict[str, Any]):
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                conn.execute(
+                    "INSERT INTO analysis_reports (submission_id, total, risk_summary, report_path, metadata) VALUES (?, ?, ?, ?, ?)",
+                    (
+                        data.get("submission_id", ""), int(data.get("total", 0) or 0),
+                        self._json(data.get("risk_summary", {})), data.get("report_path", ""),
+                        self._json(data),
+                    )
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+    def save_training_task_record(self, data: Dict[str, Any]):
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                conn.execute(
+                    "INSERT INTO training_tasks (task_type, source, samples, accuracy, status, metadata) VALUES (?, ?, ?, ?, ?, ?)",
+                    (
+                        data.get("task_type", ""), data.get("source", ""),
+                        int(data.get("samples", 0) or 0), float(data.get("accuracy", 0) or 0),
+                        data.get("status", ""), self._json(data),
+                    )
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+    def save_model_version_record(self, data: Dict[str, Any]):
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                conn.execute(
+                    "INSERT INTO model_versions (version, model_type, source, samples, accuracy, metadata) VALUES (?, ?, ?, ?, ?, ?)",
+                    (
+                        data.get("version", ""), data.get("model_type", ""),
+                        data.get("source", ""), int(data.get("samples", 0) or 0),
+                        float(data.get("accuracy", 0) or 0), self._json(data),
+                    )
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+    def get_training_tasks(self, limit: int = 50) -> List[Dict]:
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                rows = conn.execute(
+                    "SELECT * FROM training_tasks ORDER BY id DESC LIMIT ?",
+                    (int(limit),)
+                ).fetchall()
+                return [dict(r) for r in rows]
+            finally:
+                conn.close()
+
+    def get_model_versions(self, limit: int = 50) -> List[Dict]:
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                rows = conn.execute(
+                    "SELECT * FROM model_versions ORDER BY id DESC LIMIT ?",
+                    (int(limit),)
+                ).fetchall()
+                return [dict(r) for r in rows]
             finally:
                 conn.close()
 

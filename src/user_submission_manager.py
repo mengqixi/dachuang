@@ -199,6 +199,58 @@ def _masked_preview(rows: List[Dict]) -> List[Dict]:
     return preview
 
 
+def _password_strength(value) -> int:
+    text = str(value or "")
+    if not text:
+        return 0
+    score = 1
+    if len(text) >= 8:
+        score += 1
+    if re.search(r"[A-Z]", text) and re.search(r"[a-z]", text):
+        score += 1
+    if re.search(r"\d", text):
+        score += 1
+    if re.search(r"[^A-Za-z0-9]", text):
+        score += 1
+    return min(score, 5)
+
+
+def _sanitize_sensitive_rows(rows: List[Dict]) -> Tuple[List[Dict], List[str]]:
+    sanitized = []
+    sensitive_columns = []
+    password_names = {"password", "passwd", "pwd", "user_password", "login_password"}
+    for row in rows:
+        new_row = dict(row)
+        for key in list(row.keys()):
+            if str(key).strip().lower() in password_names:
+                sensitive_columns.append(key)
+                raw = row.get(key)
+                new_row["password_present"] = 1 if raw not in (None, "") else 0
+                new_row["password_length"] = len(str(raw or ""))
+                new_row["password_strength"] = _password_strength(raw)
+                new_row.pop(key, None)
+        sanitized.append(new_row)
+    return sanitized, sorted(set(sensitive_columns))
+
+
+def _write_rows(path: str, filename: str, rows: List[Dict]) -> List[str]:
+    columns = []
+    for row in rows:
+        for key in row.keys():
+            if key not in columns:
+                columns.append(key)
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "csv"
+    if ext == "json":
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(rows, f, ensure_ascii=False, indent=2)
+    else:
+        with open(path, "w", encoding="utf-8", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=columns)
+            writer.writeheader()
+            writer.writerows(rows)
+    return columns
+
+
 def _profile_rows(rows: List[Dict], columns: List[str]) -> Dict:
     missing = 0
     total_cells = max(len(rows) * max(len(columns), 1), 1)
@@ -279,6 +331,89 @@ def _suggestions(summary: Dict) -> List[str]:
     return suggestions
 
 
+def _num(row: Dict, *keys: str, default: float = 0.0) -> float:
+    for key in keys:
+        if key in row:
+            try:
+                return float(row.get(key) or default)
+            except Exception:
+                return default
+    return default
+
+
+def _trigger_features(row: Optional[Dict]) -> List[str]:
+    if not row:
+        return []
+    triggers = []
+    failed = _num(row, "failed_attempts", "ct_dst_src_ltm")
+    freq = _num(row, "request_frequency", "rate")
+    response = _num(row, "response_time", "dur")
+    session = _num(row, "session_duration", "connection_duration", "dur")
+    password_strength = _num(row, "password_strength", default=3)
+    unusual_hour = _num(row, "unusual_hour")
+    login_success = _num(row, "login_success", default=1)
+    if failed >= 5:
+        triggers.append("失败次数偏高")
+    if freq >= 80:
+        triggers.append("请求频率偏高")
+    if response >= 1200:
+        triggers.append("响应时间异常")
+    if session >= 1800:
+        triggers.append("会话时长异常")
+    if password_strength and password_strength <= 2:
+        triggers.append("密码强度偏低")
+    if unusual_hour >= 1:
+        triggers.append("异常时间段访问")
+    if login_success == 0 and failed >= 3:
+        triggers.append("多次失败登录")
+    missing = sum(1 for v in row.values() if v in (None, ""))
+    if missing >= max(3, len(row) // 4):
+        triggers.append("缺失字段较多")
+    return triggers[:5]
+
+
+def _clean_reason_for_detection(det: Dict, row: Optional[Dict] = None) -> str:
+    score = float(det.get("risk_score", det.get("score", 0)) or 0)
+    reasons = []
+    if score >= 0.75:
+        reasons.append("风险分数处于高区间")
+    elif score >= 0.45:
+        reasons.append("风险分数处于中等区间")
+    if det.get("is_attack"):
+        reasons.append("模型判断为异常或攻击样本")
+    triggers = _trigger_features(row)
+    if triggers:
+        reasons.append("触发特征：" + "、".join(triggers))
+    return "；".join(reasons[:3]) or "未发现明显异常特征，建议结合业务场景复核"
+
+
+def _clean_suggestion_for_detection(det: Dict, row: Optional[Dict] = None) -> str:
+    triggers = set(_trigger_features(row))
+    if "失败次数偏高" in triggers or "多次失败登录" in triggers or "密码强度偏低" in triggers:
+        return "建议核验账号登录行为，必要时要求用户重置密码并启用二次验证。"
+    if "请求频率偏高" in triggers:
+        return "建议关注同一来源的访问频率，结合限流策略和业务白名单进行复核。"
+    if "异常时间段访问" in triggers or "会话时长异常" in triggers:
+        return "建议复核访问时间、设备和账号历史行为，确认是否为本人操作。"
+    if det.get("risk_level") in ("high", "critical"):
+        return "建议优先人工复核该样本，并结合来源 IP、设备和业务标签判断。"
+    return "建议持续观察同类样本，作为后续模型训练和策略优化的参考。"
+
+
+def _clean_suggestions(summary: Dict) -> List[str]:
+    suggestions = []
+    high = summary.get("high", 0) + summary.get("critical", 0)
+    medium = summary.get("medium", 0)
+    if high:
+        suggestions.append("优先复核高风险样本，重点查看失败登录、请求频率、异常时间段和设备变化。")
+        suggestions.append("对高风险来源加强访问频率监测，并保留检测报告用于后续追踪。")
+    if medium:
+        suggestions.append("中风险样本建议结合访问时间、来源 IP、设备类型和业务字段进一步核验。")
+    suggestions.append("上传数据已进行 AES 加密归档；训练前应由管理员确认数据质量和授权范围。")
+    suggestions.append("如需进入训练中心，应先完成归档确认并标记为可训练。")
+    return suggestions
+
+
 def _update_submission(submission_id: str, patch: Dict) -> Optional[Dict]:
     data = _read_index()
     for i, item in enumerate(data["submissions"]):
@@ -305,6 +440,9 @@ class UserSubmissionManager:
         shutil.copy2(src_path, plain_path)
 
         rows, columns = _load_rows(plain_path, safe, limit=500)
+        rows, sensitive_columns = _sanitize_sensitive_rows(rows)
+        if sensitive_columns:
+            columns = _write_rows(plain_path, safe, rows)
         profile = _profile_rows(rows, columns)
         label_col = _detect_label_column(columns)
         enc_info = _encrypt_file(plain_path, enc_path)
@@ -329,6 +467,8 @@ class UserSubmissionManager:
             "label_column": label_col,
             "profile": profile,
             "masked_preview": _masked_preview(rows),
+            "sensitive_columns": sensitive_columns,
+            "privacy_notice": "password fields are converted to derived strength features before archive storage" if sensitive_columns else "",
             "risk_summary": {},
             "report_path": None,
             "source": "用户上传数据",
@@ -354,6 +494,8 @@ class UserSubmissionManager:
             "label_column": item.get("label_column"),
             "risk_summary": item.get("risk_summary", {}),
             "masked_preview": item.get("masked_preview", []),
+            "sensitive_columns": item.get("sensitive_columns", []),
+            "privacy_notice": item.get("privacy_notice", ""),
             "source": item.get("source", "用户上传数据"),
         }
 
@@ -453,12 +595,16 @@ class UserSubmissionManager:
         reasons = []
         row_by_id = {i + 1: row for i, row in enumerate(rows)}
         for det in high_items[:20]:
+            row = row_by_id.get(det.get("id")) or {}
             reasons.append({
                 "id": det.get("id"),
+                "username": _mask_value(row.get("username") or row.get("user") or row.get("account") or ""),
+                "ip": row.get("ip") or row.get("srcip") or row.get("source_ip") or "",
                 "risk_score": det.get("risk_score"),
                 "risk_level": det.get("risk_level"),
-                "reason": _reason_for_detection(det, row_by_id.get(det.get("id"))),
-                "suggestion": "建议优先核验该样本来源、访问频率、失败尝试和业务标签是否一致。",
+                "trigger_features": _trigger_features(row),
+                "reason": _clean_reason_for_detection(det, row),
+                "suggestion": _clean_suggestion_for_detection(det, row),
             })
 
         analysis = {
@@ -470,11 +616,13 @@ class UserSubmissionManager:
             "attack_types": attack_types,
             "detections": detections[:200],
             "high_risk_reasons": reasons,
-            "suggestions": _suggestions(summary),
-            "boundary": "本系统输出为机器学习辅助分析结果，需结合业务背景和人工复核使用。",
+            "suggestions": _clean_suggestions(summary),
+            "sensitive_columns": item.get("sensitive_columns", []),
+            "privacy_notice": item.get("privacy_notice", ""),
+            "boundary": "?????????????????????????????????",
             "analyzed_at": _now(),
         }
-        report_path = self._write_report(item, analysis)
+        report_path = self._write_clean_report(item, analysis)
         _update_submission(submission_id, {
             "status": "已分析",
             "analysis": analysis,
@@ -485,6 +633,64 @@ class UserSubmissionManager:
             "columns": columns[:80],
         })
         return analysis
+
+    def _write_clean_report(self, item: Dict, analysis: Dict) -> str:
+        path = os.path.join(REPORT_DIR, item["id"] + ".md")
+        summary = analysis.get("risk_summary", {})
+        lines = [
+            "# 用户数据风险分析报告",
+            "",
+            "## 数据概况",
+            "",
+            "- 提交编号：%s" % item.get("id"),
+            "- 文件名称：%s" % item.get("filename"),
+            "- 上传时间：%s" % item.get("upload_time"),
+            "- 样本数量：%s" % analysis.get("total", 0),
+            "- 标签列：%s" % (analysis.get("label_column") or "未识别"),
+            "- 加密归档：AES-256-GCM",
+            "",
+            "## 风险摘要",
+            "",
+            "- 高风险：%s" % (summary.get("high", 0) + summary.get("critical", 0)),
+            "- 中风险：%s" % summary.get("medium", 0),
+            "- 低风险：%s" % summary.get("low", 0),
+            "",
+            "## 高风险样本原因",
+            "",
+        ]
+        reasons = analysis.get("high_risk_reasons", [])[:10]
+        if reasons:
+            for reason in reasons:
+                triggers = "、".join(reason.get("trigger_features", []) or ["无明显触发特征"])
+                lines.append(
+                    "- 样本 %s：%s；触发特征：%s；建议：%s" % (
+                        reason.get("id"), reason.get("reason"), triggers, reason.get("suggestion")
+                    )
+                )
+        else:
+            lines.append("- 当前数据未发现需要优先关注的中高风险样本。")
+
+        lines.extend(["", "## 处理建议", ""])
+        for suggestion in analysis.get("suggestions", []):
+            lines.append("- " + suggestion)
+
+        sensitive_columns = analysis.get("sensitive_columns", [])
+        lines.extend([
+            "",
+            "## 隐私保护说明",
+            "",
+            "- 原始上传文件由系统使用 AES 加密归档。",
+            "- 管理端默认展示摘要和脱敏预览，不直接展示原始明文数据。",
+            "- 如存在 password 等敏感字段，系统会转换为密码长度、强度等派生特征后再归档。",
+            "- Paillier 用于敏感数值字段密态展示和安全聚合方向说明，不用于直接密文训练完整模型。",
+        ])
+        if sensitive_columns:
+            lines.append("- 本次识别并处理的敏感字段：%s。" % "、".join(sensitive_columns))
+
+        lines.extend(["", "## 系统边界", "", analysis.get("boundary", "")])
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines))
+        return path
 
     def _write_report(self, item: Dict, analysis: Dict) -> str:
         path = os.path.join(REPORT_DIR, item["id"] + ".md")

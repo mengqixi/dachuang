@@ -11,7 +11,7 @@ import threading
 from datetime import datetime
 
 import numpy as np
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, session
 from loguru import logger
 
 try:
@@ -35,6 +35,7 @@ os.makedirs("logs", exist_ok=True)
 
 # ─── Flask App ───
 app = Flask(__name__, static_folder=".", static_url_path="")
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dachuang-dev-secret-change-me")
 app.config["UPLOAD_FOLDER"] = "uploads/"
 app.config["ALLOWED_EXTENSIONS"] = {"csv", "json", "txt"}
 app.config["DATA_FOLDER"] = "data"
@@ -190,6 +191,32 @@ def api_response(code=200, msg="操作成功", data=None):
     return {"code": code, "msg": msg, "data": data or {}}
 
 
+def _admin_credentials():
+    return (
+        os.environ.get("ADMIN_USERNAME", "admin"),
+        os.environ.get("ADMIN_PASSWORD", "admin123"),
+    )
+
+
+def _is_admin_logged_in():
+    return bool(session.get("admin_logged_in"))
+
+
+def _admin_required_response():
+    return jsonify(api_response(code=401, msg="请先登录管理端", data={"login_required": True}))
+
+
+@app.before_request
+def admin_api_guard():
+    if request.path.startswith("/api/admin/") and request.path not in (
+        "/api/admin/login",
+        "/api/admin/session",
+        "/api/admin/logout",
+    ):
+        if not _is_admin_logged_in():
+            return _admin_required_response()
+
+
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in app.config["ALLOWED_EXTENSIONS"]
 
@@ -293,6 +320,63 @@ def generate_sensitive_dataset(n_records=100):
         }
         dataset.append(record)
     return dataset
+
+
+def generate_login_security_dataset(n_records=100):
+    browsers = ["Chrome", "Edge", "Firefox", "Safari", "Chrome", "Edge"]
+    systems = ["Windows", "macOS", "Linux", "Android", "iOS"]
+    devices = ["desktop", "desktop", "desktop", "mobile", "tablet"]
+    rows = []
+    for i in range(n_records):
+        attack = random.random() < 0.22
+        failed_attempts = random.randint(8, 45) if attack else random.randint(0, 4)
+        request_frequency = random.randint(130, 320) if attack else random.randint(5, 80)
+        response_time = round(random.uniform(0.7, 3.5) if attack else random.uniform(0.03, 0.45), 3)
+        payload_size = random.randint(4000, 60000) if attack else random.randint(300, 3800)
+        unusual_hour = 1 if (attack and random.random() < 0.6) else random.choice([0, 0, 0, 1])
+        rows.append({
+            "id": i + 1,
+            "username": "user_%04d" % (1000 + i),
+            "password_strength": random.choice([2, 3, 4]) if attack else random.choice([3, 4, 5]),
+            "ip": "203.0.%d.%d" % (random.randint(10, 220), random.randint(1, 254)) if attack else "10.%d.%d.%d" % (random.randint(0, 255), random.randint(0, 255), random.randint(1, 254)),
+            "user_agent": "%s/%d.0 (%s)" % (random.choice(browsers), random.randint(90, 130), random.choice(systems)),
+            "device_type": random.choice(devices),
+            "browser": random.choice(browsers),
+            "os": random.choice(systems),
+            "login_success": 0 if failed_attempts > 10 and random.random() < 0.8 else 1,
+            "failed_attempts": failed_attempts,
+            "request_frequency": request_frequency,
+            "response_time": response_time,
+            "payload_size": payload_size,
+            "connection_duration": round(random.uniform(80, 900) if attack else random.uniform(5, 80), 2),
+            "session_duration": round(random.uniform(1, 120) if attack else random.uniform(60, 900), 2),
+            "request_size_variance": round(random.uniform(220, 1200) if attack else random.uniform(10, 160), 2),
+            "cpu_usage": round(random.uniform(0.55, 0.95) if attack else random.uniform(0.1, 0.45), 3),
+            "memory_usage": round(random.uniform(0.55, 0.9) if attack else random.uniform(0.15, 0.5), 3),
+            "unusual_hour": unusual_hour,
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "label": 1 if attack else 0,
+        })
+    return rows
+
+
+def _encrypt_privacy_rows(dataset):
+    p = get_paillier()
+    if p is not None:
+        try:
+            encrypted = []
+            for record in dataset:
+                encrypted.append({
+                    "id": record["id"],
+                    "phone_encrypted": str(p.encrypt(int(record["phone"][-8:])))[:40],
+                    "salary_encrypted": str(p.encrypt(record["salary"]))[:40],
+                    "credit_score_encrypted": str(p.encrypt(record["credit_score"]))[:40],
+                    "algorithm": "Paillier-1024",
+                })
+            return encrypted, "Paillier-1024"
+        except Exception as e:
+            logger.warning("Paillier encrypt failed: %s" % e)
+    return _mock_encrypt(dataset), "mock"
 
 
 def ensure_detector_trained():
@@ -439,31 +523,51 @@ def api_generate_dataset():
     logger.info("生成数据集: n_records=%d" % n_records)
     dataset = generate_sensitive_dataset(n_records)
 
-    p = get_paillier()
-    if p is not None:
-        try:
-            encrypted = []
-            for record in dataset:
-                enc_record = {
-                    "id": record["id"],
-                    "phone_encrypted": str(p.encrypt(int(record["phone"][-8:])))[:20],
-                    "salary_encrypted": str(p.encrypt(record["salary"]))[:20],
-                    "credit_score_encrypted": str(p.encrypt(record["credit_score"]))[:20],
-                    "is_fraud": record["is_fraud"],
-                    "label": record["label"],
-                }
-                encrypted.append(enc_record)
-        except Exception as e:
-            logger.warning("加密失败: %s" % e)
-            encrypted = _mock_encrypt(dataset)
-    else:
-        encrypted = _mock_encrypt(dataset)
+    encrypted, method = _encrypt_privacy_rows(dataset)
 
     return jsonify(api_response(data={
         "plaintext": dataset,
         "encrypted": encrypted,
         "n_records": n_records,
-        "encryption_method": "Paillier-1024" if p else "mock",
+        "encryption_method": method,
+    }))
+
+
+@app.route("/api/generate_login_security_dataset", methods=["POST"])
+def api_generate_login_security_dataset():
+    data = request.get_json() or {}
+    try:
+        n_records = int(data.get("n_records", 200))
+    except Exception:
+        n_records = 200
+    n_records = max(10, min(n_records, 5000))
+    rows = generate_login_security_dataset(n_records)
+    return jsonify(api_response(data={
+        "records": rows,
+        "dataset": rows,
+        "n_records": len(rows),
+        "dataset_type": "login_security",
+        "description": "登录安全行为样本，可直接用于风险检测",
+    }))
+
+
+@app.route("/api/generate_privacy_dataset", methods=["POST"])
+def api_generate_privacy_dataset():
+    data = request.get_json() or {}
+    try:
+        n_records = int(data.get("n_records", 200))
+    except Exception:
+        n_records = 200
+    n_records = max(10, min(n_records, 5000))
+    rows = generate_sensitive_dataset(n_records)
+    encrypted, method = _encrypt_privacy_rows(rows)
+    return jsonify(api_response(data={
+        "plaintext": rows,
+        "encrypted": encrypted,
+        "n_records": len(rows),
+        "encryption_method": method,
+        "dataset_type": "privacy_encryption",
+        "description": "隐私字段密态展示样本，不直接作为攻击检测输入",
     }))
 
 
@@ -962,6 +1066,34 @@ def optimization_auto():
 
 # ─── API: 用户端风险分析 + 管理端加密训练平台 ───
 
+@app.route("/api/admin/login", methods=["POST"])
+def admin_login():
+    req = request.get_json(silent=True) or {}
+    username = str(req.get("username", "")).strip()
+    password = str(req.get("password", ""))
+    expected_user, expected_password = _admin_credentials()
+    if username == expected_user and password == expected_password:
+        session["admin_logged_in"] = True
+        session["admin_username"] = username
+        return jsonify(api_response(msg="登录成功", data={"username": username}))
+    return jsonify(api_response(code=401, msg="管理员账号或密码错误"))
+
+
+@app.route("/api/admin/logout", methods=["POST"])
+def admin_logout():
+    session.pop("admin_logged_in", None)
+    session.pop("admin_username", None)
+    return jsonify(api_response(msg="已退出登录"))
+
+
+@app.route("/api/admin/session", methods=["GET"])
+def admin_session():
+    return jsonify(api_response(data={
+        "logged_in": _is_admin_logged_in(),
+        "username": session.get("admin_username"),
+    }))
+
+
 @app.route("/api/user/datasets/upload", methods=["POST"])
 def user_dataset_upload():
     """Upload a user CSV/JSON file and store it as an encrypted archive."""
@@ -979,6 +1111,10 @@ def user_dataset_upload():
     try:
         file.save(temp_path)
         info = user_submission_manager.create_submission(temp_path, file.filename)
+        try:
+            db.upsert_user_submission(info)
+        except Exception as persist_error:
+            logger.warning("Persist user submission failed: %s", persist_error)
         return jsonify(api_response(msg="上传成功，文件已加密归档", data=info))
     except Exception as e:
         logger.exception("User dataset upload failed")
@@ -1001,6 +1137,12 @@ def user_dataset_analyze(submission_id):
         analysis = user_submission_manager.analyze(submission_id, detector=ensemble_detector, limit=limit)
         if analysis is None:
             return jsonify(api_response(code=404, msg="提交记录不存在"))
+        try:
+            item = user_submission_manager.get_submission(submission_id, include_preview=False) or {}
+            db.upsert_user_submission(item)
+            db.save_analysis_report_record(analysis)
+        except Exception as persist_error:
+            logger.warning("Persist analysis report failed: %s", persist_error)
         return jsonify(api_response(msg="分析完成", data=analysis))
     except Exception as e:
         logger.exception("User dataset analyze failed")
@@ -1034,6 +1176,10 @@ def admin_submission_archive(submission_id):
     item = user_submission_manager.set_status(submission_id, review_status="已归档")
     if item is None:
         return jsonify(api_response(code=404, msg="提交记录不存在"))
+    try:
+        db.upsert_user_submission(item)
+    except Exception as persist_error:
+        logger.warning("Persist archive status failed: %s", persist_error)
     return jsonify(api_response(msg="已归档", data=item))
 
 
@@ -1042,6 +1188,10 @@ def admin_submission_mark_trainable(submission_id):
     item = user_submission_manager.set_status(submission_id, review_status="可训练", trainable=True)
     if item is None:
         return jsonify(api_response(code=404, msg="提交记录不存在"))
+    try:
+        db.upsert_user_submission(item)
+    except Exception as persist_error:
+        logger.warning("Persist trainable status failed: %s", persist_error)
     return jsonify(api_response(msg="已标记为可训练", data=item))
 
 
@@ -1062,14 +1212,29 @@ def admin_training_local():
         result = ensemble_detector.fit(X[:min(len(X), 5000)], y[:min(len(y), 5000)], X_seq[:500] if X_seq is not None else None)
         record = {
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "task_type": "local",
+            "source": "encrypted_user_submissions",
             "model_type": "admin_local_ensemble",
             "dataset_name": "encrypted_user_submissions",
             "accuracy": round(float(result.get("accuracy", 0)), 4),
             "samples": int(len(X)),
             "epochs": 1,
+            "status": "completed",
             "model_version": datetime.now().strftime("v%Y%m%d%H%M%S"),
         }
         save_training_record(record)
+        try:
+            db.save_training_task_record(record)
+            db.save_model_version_record({
+                "version": record["model_version"],
+                "model_type": record["model_type"],
+                "source": record["source"],
+                "samples": record["samples"],
+                "accuracy": record["accuracy"],
+                "metadata": record,
+            })
+        except Exception as persist_error:
+            logger.warning("Persist local training task failed: %s", persist_error)
         return jsonify(api_response(msg="本地训练完成", data={**record, **meta, "fit_result": result}))
     except Exception as e:
         logger.exception("Admin local training failed")
@@ -1101,6 +1266,9 @@ def admin_training_federated():
         fedavg_server.aggregate(results)
 
         data = {
+            "task_type": "federated",
+            "source": "encrypted_user_submissions",
+            "status": "completed",
             "nodes": [{"name": n, "samples": int(c), "ready": True} for n, c in saved],
             "round": fedavg_server.round,
             "clients": [{
@@ -1113,10 +1281,49 @@ def admin_training_federated():
             "history": fedavg_server.get_history(),
             **meta,
         }
+        try:
+            version = datetime.now().strftime("fed%Y%m%d%H%M%S")
+            db.save_training_task_record({
+                "task_type": "federated",
+                "source": "encrypted_user_submissions",
+                "samples": int(len(X)),
+                "accuracy": data["avg_accuracy"],
+                "status": "completed",
+                "version": version,
+                "metadata": data,
+            })
+            db.save_model_version_record({
+                "version": version,
+                "model_type": "federated_fedavg",
+                "source": "encrypted_user_submissions",
+                "samples": int(len(X)),
+                "accuracy": data["avg_accuracy"],
+                "metadata": data,
+            })
+        except Exception as persist_error:
+            logger.warning("Persist federated training task failed: %s", persist_error)
         return jsonify(api_response(msg="联邦训练完成", data=data))
     except Exception as e:
         logger.exception("Admin federated training failed")
         return jsonify(api_response(code=500, msg="联邦训练失败: %s" % e))
+
+
+@app.route("/api/admin/training/tasks", methods=["GET"])
+def admin_training_tasks():
+    limit = max(1, min(int(request.args.get("limit", 50) or 50), 200))
+    return jsonify(api_response(msg="success", data={
+        "tasks": db.get_training_tasks(limit),
+        "limit": limit,
+    }))
+
+
+@app.route("/api/admin/model-versions", methods=["GET"])
+def admin_model_versions():
+    limit = max(1, min(int(request.args.get("limit", 50) or 50), 200))
+    return jsonify(api_response(msg="success", data={
+        "versions": db.get_model_versions(limit),
+        "limit": limit,
+    }))
 
 
 @app.route("/api/admin/audit/events", methods=["GET"])
