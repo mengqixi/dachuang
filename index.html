@@ -41,6 +41,13 @@ body{margin:0;background:#F5F6F8;color:#263238;font-family:-apple-system,BlinkMa
 .node-name{font-weight:700;font-size:13px}
 .node-count{font-size:12px;color:#607D8B}
 .chart-box{height:210px}
+.fed-layout>[class*="col-"]{display:flex}
+.fed-layout .panel{width:100%;height:100%;display:flex;flex-direction:column}
+.fed-layout .panel-body{display:flex;flex-direction:column}
+.fed-layout .chart-box{height:240px}
+.fed-actions{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
+.fed-actions .round-input{width:180px}
+.fed-chart-row{margin-top:auto}
 .table-sm th{font-size:12px;color:#455A64;font-weight:700}
 .table-sm td{font-size:12px;vertical-align:middle}
 .event-scroll,.visit-scroll{max-height:280px;overflow-y:auto;border:1px solid #E6ECF2;border-radius:10px}
@@ -113,7 +120,7 @@ body{margin:0;background:#F5F6F8;color:#263238;font-family:-apple-system,BlinkMa
       <div class="panel-head"><i class="fas fa-compass text-primary"></i> 总览 - 系统入口</div>
       <div class="panel-body">
         <h5 class="mb-2">基于机器学习的密码攻击检测与加密算法自适应优化系统</h5>
-        <p class="muted small-text mb-3">系统围绕公开攻击数据集接入、联邦节点划分、攻击检测、参数优化和安全可观测能力组织答辩流程。</p>
+        <p class="muted small-text mb-3">系统围绕公开攻击数据集接入、联邦节点划分、攻击检测、参数优化和安全可观测能力组织技术流程。</p>
         <div class="flow mb-3">
           <span>数据处理</span><span>联邦训练</span><span>攻击检测</span><span>自适应优化</span><span>安全防护</span><span>实验报告</span>
         </div>
@@ -127,8 +134,8 @@ body{margin:0;background:#F5F6F8;color:#263238;font-family:-apple-system,BlinkMa
           <b>推荐操作顺序：</b>检测数据源 → 处理数据集 → 查看四节点划分 → 执行联邦训练 → 从数据集抽样检测 → 查看优化与安全防护。
         </div>
         <div class="notice mt-3">
-          <b>演示流程：</b>数据处理 → 联邦训练 → 攻击检测 → 自适应优化 → 安全防护 → 实验报告。
-          当前系统为大创实验原型，联邦训练、加密优化等能力以演示流程和当前接口返回为准。
+          <b>系统流程：</b>数据处理 → 联邦训练 → 攻击检测 → 自适应优化 → 安全防护 → 实验报告。
+          当前系统为实验原型，联邦训练、加密优化等能力以系统流程和当前接口返回为准。
         </div>
       </div>
     </div>
@@ -204,7 +211,7 @@ body{margin:0;background:#F5F6F8;color:#263238;font-family:-apple-system,BlinkMa
   </section>
 
   <section class="page" id="pg-federated">
-    <div class="row g-3">
+    <div class="row g-3 fed-layout align-items-stretch">
       <div class="col-lg-5">
         <div class="panel">
           <div class="panel-head"><i class="fas fa-brain text-primary"></i> 本地训练</div>
@@ -224,15 +231,15 @@ body{margin:0;background:#F5F6F8;color:#263238;font-family:-apple-system,BlinkMa
           <div class="panel-head"><i class="fas fa-network-wired text-primary"></i> 四节点联邦训练</div>
           <div class="panel-body">
             <p class="muted small-text">当前系统在本地运行四节点联邦训练流程，节点数据来自数据处理页面生成的划分结果。</p>
-            <p class="muted small-text">本地训练用于形成单节点基线，联邦训练用于演示四个模拟节点的聚合流程。</p>
+            <p class="muted small-text">本地训练用于形成单节点基线，联邦训练用于展示四个节点的聚合流程。</p>
             <div class="node-grid mb-3" id="fedNodes"></div>
-            <div class="row g-2 align-items-end">
-              <div class="col-md-3"><label class="form-label small-text">本地轮次</label><input class="form-control form-control-sm" id="fedE" value="3" type="number" min="1" max="20"></div>
-              <div class="col-md-4"><button class="btn-main" id="fedRunBtn" onclick="runFed()"><i class="fas fa-play"></i> 执行一轮</button></div>
+            <div class="fed-actions">
+              <div class="round-input"><label class="form-label small-text">本地轮次</label><input class="form-control form-control-sm" id="fedE" value="3" type="number" min="1" max="20"></div>
+              <button class="btn-main" id="fedRunBtn" onclick="runFed()"><i class="fas fa-play"></i> 执行一轮</button>
             </div>
             <div id="fedRes" class="muted small-text mt-2"></div>
             <div class="notice mt-2">图表使用后端接口返回的真实节点训练结果：柱状图表示四个节点本轮验证精度，折线表示 FedAvg 历史平均精度和平均损失。</div>
-            <div class="row g-3 mt-1">
+            <div class="row g-3 mt-1 fed-chart-row">
               <div class="col-md-6"><div class="chart-box mt-3"><canvas id="fedCh"></canvas></div></div>
               <div class="col-md-6"><div class="chart-box mt-3"><canvas id="fedHistCh"></canvas></div></div>
             </div>
@@ -365,7 +372,7 @@ body{margin:0;background:#F5F6F8;color:#263238;font-family:-apple-system,BlinkMa
           <div class="metric"><div class="metric-value" id="secTotal">0</div><div class="metric-label">告警摘要</div></div>
           <div class="metric"><div class="metric-value text-danger" id="secHigh">0</div><div class="metric-label">高风险告警</div></div>
           <div class="metric"><div class="metric-value text-warning" id="secMed">0</div><div class="metric-label">中风险告警</div></div>
-          <div class="metric"><div class="metric-value text-success" id="secLow">0</div><div class="metric-label">系统事件</div></div>
+          <div class="metric"><div class="metric-value text-success" id="secLow">0</div><div class="metric-label">低风险事件</div></div>
         </div>
         <button class="btn-main mt-3" onclick="loadSec()">刷新事件</button>
         <span class="muted small-text ms-2" id="secEventBreakdown"></span>
@@ -393,10 +400,10 @@ body{margin:0;background:#F5F6F8;color:#263238;font-family:-apple-system,BlinkMa
 
   <section class="page" id="pg-report">
     <div class="panel">
-      <div class="panel-head"><i class="fas fa-file-alt text-primary"></i> 实验报告 - 项目技术路线与答辩总结</div>
+      <div class="panel-head"><i class="fas fa-file-alt text-primary"></i> 实验报告 - 项目技术路线与系统总结</div>
       <div class="panel-body">
         <h6>项目概述</h6>
-        <p class="small-text">本系统是面向密码攻击检测场景的大创原型系统，重点展示公开数据集接入、联邦节点划分、攻击检测、参数优化和安全可观测链路。</p>
+        <p class="small-text">本系统是面向密码攻击检测场景的实验原型系统，重点展示公开数据集接入、联邦节点划分、攻击检测、参数优化和安全可观测链路。</p>
         <h6>技术路线</h6>
         <p class="small-text">公开数据集 → 特征提取 → 四节点划分 → 联邦训练 → 攻击检测 → 参数优化 → 安全事件追踪。</p>
         <h6>当前边界</h6>
@@ -895,15 +902,15 @@ function loadSec(){
     var alertEvents=securityEvents.filter(isSecurityAlertEvent);
     document.getElementById('secError').style.display=err?'block':'none';
     document.getElementById('secTotal').textContent=alertEvents.length;
-    var high=0,med=0,systemCount=0,typeCount={};
+    var high=0,med=0,low=0,typeCount={};
     securityEvents.forEach(function(e){
       var r=e.risk_level||'low';
       if(r==='high'||r==='critical')high++;
       else if(r==='medium')med++;
-      if(e.event_type!=='site_visit')systemCount++;
+      else if(r==='low'||r==='info')low++;
       typeCount[e.event_type||'unknown']=(typeCount[e.event_type||'unknown']||0)+1;
     });
-    document.getElementById('secHigh').textContent=high;document.getElementById('secMed').textContent=med;document.getElementById('secLow').textContent=systemCount;
+    document.getElementById('secHigh').textContent=high;document.getElementById('secMed').textContent=med;document.getElementById('secLow').textContent=low;
     var now=new Date().toLocaleTimeString();
     var summary=Object.keys(typeCount).map(function(k){return friendlyValue(k,'未识别事件')+': '+typeCount[k]}).join(' | ');
     document.getElementById('secEventBreakdown').textContent=(summary?summary+' | ':'')+'已刷新 '+now;
@@ -988,12 +995,12 @@ function formatAlertScope(e){
 }
 function formatSecurityAdvice(e){
   e=safeObject(e);var extra=safeObject(e.extra);var t=e.event_type||'unknown';var r=e.risk_level||'info';
-  if(t==='rate_limit_triggered')return '关注同一 IP 和路径的访问频率；如属于正常业务，可调整阈值或加入白名单。';
-  if(t==='blocked_request')return '检查路径、来源 IP 和请求头；确认不是正常业务后保留阻断策略并加入观察名单。';
+  if(t==='rate_limit_triggered')return '建议复核同一 IP 和路径的访问频率，并根据系统承载情况调整限流阈值。';
+  if(t==='blocked_request')return '建议核查来源 IP、请求路径和请求头，确认规则命中原因后完善访问控制配置。';
   if(t==='slow_api_detected')return '检查接口耗时、数据库查询和模型推理耗时；若频繁出现，优先优化慢接口或降低请求频率。';
-  if(r==='critical'||r==='high')return '建议核查来源 IP、User-Agent 和访问路径；如确认异常，可加入访问控制或限流策略。';
-  if(r==='medium')return '建议持续观察该来源是否重复出现；若频次升高，可提高限流或加入安全事件关注列表。';
-  return '记录留存，暂不需要人工处理。';
+  if(r==='critical'||r==='high')return '建议核查来源 IP、User-Agent 和访问路径，并按风险等级配置访问控制或限流策略。';
+  if(r==='medium')return '建议持续关注该来源的访问频率和路径变化，必要时提高安全规则敏感度。';
+  return '记录留存，用于后续趋势分析。';
 }
 function formatGeo(geo){
   geo=safeObject(geo);
@@ -1045,7 +1052,7 @@ function describeRiskReason(raw){
   var high={'.env':'访问了 .env 配置文件路径，可能在探测环境变量、密钥或数据库连接信息。','wp-login':'访问了 WordPress 登录入口，当前系统不是 WordPress，通常属于批量弱口令或后台探测。','wp-admin':'访问了 WordPress 管理后台路径，当前系统不是 WordPress，通常属于后台探测。','phpmyadmin':'访问了 phpMyAdmin 管理路径，可能在探测数据库管理入口。','/admin':'访问了常见管理后台路径，可能在尝试发现隐藏管理入口。','../':'请求中包含目录穿越特征 ../，可能在尝试读取上级目录文件。','..%2f':'请求中包含 URL 编码后的目录穿越特征 ..%2f，可能在尝试绕过路径过滤。','/etc/passwd':'请求中包含 Linux 敏感文件 /etc/passwd，可能在尝试读取系统账户文件。','select ':'请求参数中包含 SQL SELECT 片段，可能存在 SQL 注入探测。','union ':'请求参数中包含 SQL UNION 片段，可能存在联合查询注入探测。',' or 1=1':'请求参数中包含 or 1=1，常见于 SQL 注入绕过条件探测。','<script':'请求中包含 script 标签，可能存在 XSS 跨站脚本探测。'};
   var medium={'login':'访问了登录相关路径，属于需要关注的入口探测行为。','backup':'访问了备份相关路径，可能在探测备份文件或历史数据泄露。','.git':'访问了 .git 相关路径，可能在探测源码仓库泄露。','config':'访问了配置相关路径，可能在探测配置文件泄露。','debug':'访问了调试相关路径，可能在探测调试接口是否暴露。','console':'访问了控制台相关路径，可能在探测管理控制台入口。','shell':'访问了 shell 相关路径，可能在探测 WebShell 或命令执行入口。','upload':'访问了上传相关路径，可能在探测文件上传入口。'};
   if(code.indexOf('high_')===0)return high[marker]||('访问路径或参数包含高风险特征：'+marker+'，可能是敏感文件、后台入口或注入类探测。');
-  if(code.indexOf('medium_')===0)return medium[marker]||('访问路径或参数包含中风险特征：'+marker+'，建议关注是否为正常业务访问。');
+  if(code.indexOf('medium_')===0)return medium[marker]||('访问路径或参数包含中风险特征：'+marker+'，建议关注访问来源和路径变化。');
   return raw||'-';
 }
 function formatRiskReasons(extra){
