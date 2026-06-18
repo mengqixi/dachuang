@@ -372,6 +372,83 @@ def _trigger_features(row: Optional[Dict]) -> List[str]:
     return triggers[:5]
 
 
+def _risk_breakdown(row: Optional[Dict], det: Dict) -> Dict:
+    row = row or {}
+    score = float(det.get("risk_score", det.get("score", 0)) or 0)
+    failed = _num(row, "failed_attempts", "ct_dst_src_ltm")
+    freq = _num(row, "request_frequency", "rate")
+    response = _num(row, "response_time", "dur")
+    session = _num(row, "session_duration", "connection_duration", "dur")
+    password_strength = _num(row, "password_strength", default=3)
+    unusual_hour = _num(row, "unusual_hour")
+    login_success = _num(row, "login_success", default=1)
+    indicators = [
+        {
+            "name": "失败登录次数",
+            "value": failed,
+            "threshold": ">= 5 触发关注，>= 10 明显异常",
+            "impact": "高" if failed >= 10 else ("中" if failed >= 5 else "低"),
+            "explain": "连续失败登录通常对应撞库、暴力尝试或账号异常使用。",
+        },
+        {
+            "name": "请求频率",
+            "value": freq,
+            "threshold": ">= 80 触发关注，>= 150 明显异常",
+            "impact": "高" if freq >= 150 else ("中" if freq >= 80 else "低"),
+            "explain": "短时间高频请求可能对应自动化脚本、扫描或异常重试。",
+        },
+        {
+            "name": "响应时间",
+            "value": response,
+            "threshold": ">= 1200ms 触发关注",
+            "impact": "中" if response >= 1200 else "低",
+            "explain": "响应时间异常可能说明请求负载偏大或接口被异常访问。",
+        },
+        {
+            "name": "会话时长",
+            "value": session,
+            "threshold": ">= 1800s 触发关注",
+            "impact": "中" if session >= 1800 else "低",
+            "explain": "过长会话需要结合登录地点、设备和历史行为复核。",
+        },
+        {
+            "name": "密码强度派生特征",
+            "value": password_strength,
+            "threshold": "<= 2 触发关注",
+            "impact": "中" if password_strength <= 2 else "低",
+            "explain": "系统不保存明文密码，只使用密码强度派生特征辅助判断。",
+        },
+        {
+            "name": "异常时间段",
+            "value": unusual_hour,
+            "threshold": "= 1 触发关注",
+            "impact": "中" if unusual_hour >= 1 else "低",
+            "explain": "非惯常时间访问需要结合账号历史和设备变化判断。",
+        },
+        {
+            "name": "登录结果",
+            "value": login_success,
+            "threshold": "0 且失败次数偏高时触发关注",
+            "impact": "中" if login_success == 0 and failed >= 3 else "低",
+            "explain": "登录失败本身不一定危险，但和高失败次数组合时风险升高。",
+        },
+    ]
+    if score >= 0.75:
+        level_explain = "高风险：模型分数和规则触发项均较高，建议优先复核。"
+    elif score >= 0.45:
+        level_explain = "中风险：存在若干异常行为特征，建议结合业务上下文确认。"
+    else:
+        level_explain = "低风险：当前样本未表现出明显异常组合。"
+    return {
+        "final_score": round(score, 4),
+        "score_range": "0 到 1，越接近 1 表示模型认为异常概率越高",
+        "level_explain": level_explain,
+        "model_signal": "融合检测模型输出的风险分数",
+        "rule_signal": "登录安全字段触发的规则解释",
+        "indicators": indicators,
+    }
+
+
 def _clean_reason_for_detection(det: Dict, row: Optional[Dict] = None) -> str:
     score = float(det.get("risk_score", det.get("score", 0)) or 0)
     reasons = []
@@ -603,6 +680,7 @@ class UserSubmissionManager:
                 "risk_score": det.get("risk_score"),
                 "risk_level": det.get("risk_level"),
                 "trigger_features": _trigger_features(row),
+                "score_breakdown": _risk_breakdown(row, det),
                 "reason": _clean_reason_for_detection(det, row),
                 "suggestion": _clean_suggestion_for_detection(det, row),
             })
