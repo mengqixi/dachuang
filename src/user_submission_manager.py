@@ -938,7 +938,7 @@ class UserSubmissionManager:
             "suggestions": _clean_suggestions(summary),
             "sensitive_columns": item.get("sensitive_columns", []),
             "privacy_notice": item.get("privacy_notice", ""),
-            "boundary": "?????????????????????????????????",
+            "boundary": "本系统用于登录安全数据的风险分析和隐私训练流程支撑。检测结果来自当前模型、规则解释和上传数据字段，不等同于人工审计结论；涉及处置动作时仍需结合业务上下文复核。",
             "analyzed_at": _now(),
         }
         report_path = self._write_clean_report(item, analysis)
@@ -956,25 +956,31 @@ class UserSubmissionManager:
     def _write_clean_report(self, item: Dict, analysis: Dict) -> str:
         path = os.path.join(REPORT_DIR, item["id"] + ".md")
         summary = analysis.get("risk_summary", {})
+        high_count = summary.get("high", 0) + summary.get("critical", 0)
+        medium_count = summary.get("medium", 0)
+        low_count = summary.get("low", 0)
+        attack_types = analysis.get("attack_types", {})
         lines = [
             "# 用户数据风险分析报告",
             "",
-            "## 数据概况",
+            "## 一、报告摘要",
             "",
             "- 提交编号：%s" % item.get("id"),
             "- 文件名称：%s" % item.get("filename"),
             "- 上传时间：%s" % item.get("upload_time"),
+            "- 分析时间：%s" % analysis.get("analyzed_at", ""),
             "- 样本数量：%s" % analysis.get("total", 0),
             "- 标签列：%s" % (analysis.get("label_column") or "未识别"),
             "- 加密归档：AES-256-GCM",
             "",
-            "## 风险摘要",
+            "## 二、风险摘要",
             "",
-            "- 高风险：%s" % (summary.get("high", 0) + summary.get("critical", 0)),
-            "- 中风险：%s" % summary.get("medium", 0),
-            "- 低风险：%s" % summary.get("low", 0),
+            "- 高风险样本：%s" % high_count,
+            "- 中风险样本：%s" % medium_count,
+            "- 低风险样本：%s" % low_count,
+            "- 主要攻击类型：%s" % ("、".join(attack_types.keys()) or "未发现明显攻击类型"),
             "",
-            "## 高风险样本原因",
+            "## 三、重点样本原因",
             "",
         ]
         reasons = analysis.get("high_risk_reasons", [])[:10]
@@ -989,14 +995,14 @@ class UserSubmissionManager:
         else:
             lines.append("- 当前数据未发现需要优先关注的中高风险样本。")
 
-        lines.extend(["", "## 处理建议", ""])
+        lines.extend(["", "## 四、处理建议", ""])
         for suggestion in analysis.get("suggestions", []):
             lines.append("- " + suggestion)
 
         sensitive_columns = analysis.get("sensitive_columns", [])
         lines.extend([
             "",
-            "## 隐私保护说明",
+            "## 五、隐私保护说明",
             "",
             "- 原始上传文件由系统使用 AES 加密归档。",
             "- 管理端默认展示摘要和脱敏预览，不直接展示原始明文数据。",
@@ -1006,40 +1012,13 @@ class UserSubmissionManager:
         if sensitive_columns:
             lines.append("- 本次识别并处理的敏感字段：%s。" % "、".join(sensitive_columns))
 
-        lines.extend(["", "## 系统边界", "", analysis.get("boundary", "")])
+        lines.extend(["", "## 六、系统边界", "", analysis.get("boundary", "")])
         with open(path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
         return path
 
     def _write_report(self, item: Dict, analysis: Dict) -> str:
-        path = os.path.join(REPORT_DIR, item["id"] + ".md")
-        lines = [
-            "# 用户数据风险分析报告",
-            "",
-            "- 提交编号：%s" % item.get("id"),
-            "- 文件名：%s" % item.get("filename"),
-            "- 上传时间：%s" % item.get("upload_time"),
-            "- 样本数：%s" % analysis.get("total", 0),
-            "- 标签列：%s" % (analysis.get("label_column") or "未识别"),
-            "",
-            "## 风险摘要",
-            "",
-            json.dumps(analysis.get("risk_summary", {}), ensure_ascii=False),
-            "",
-            "## 主要原因",
-            "",
-        ]
-        for reason in analysis.get("high_risk_reasons", [])[:10]:
-            lines.append("- 样本 %s：%s；建议：%s" % (
-                reason.get("id"), reason.get("reason"), reason.get("suggestion")
-            ))
-        lines.extend(["", "## 处理建议", ""])
-        for suggestion in analysis.get("suggestions", []):
-            lines.append("- " + suggestion)
-        lines.extend(["", "## 系统边界", "", analysis.get("boundary", "")])
-        with open(path, "w", encoding="utf-8") as f:
-            f.write("\n".join(lines))
-        return path
+        return self._write_clean_report(item, analysis)
 
     def get_report(self, submission_id: str) -> Optional[Dict]:
         item = next((x for x in _read_index().get("submissions", []) if x.get("id") == submission_id), None)

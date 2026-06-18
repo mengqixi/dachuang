@@ -42,7 +42,9 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
 .node-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
 .node-card{border:1px solid #E6ECF2;border-radius:10px;padding:14px;text-align:center;background:#fff}
 .node-card i{font-size:22px;color:#2F5F93;margin-bottom:6px}
-.report-box{background:#fff;color:#263238;border:1px solid #DDE7F0;border-radius:10px;padding:16px;white-space:pre-wrap;min-height:260px;max-height:520px;overflow:auto;font-size:14px;line-height:1.75}
+.report-box{background:#fff;color:#263238;border:1px solid #DDE7F0;border-radius:10px;padding:18px;white-space:pre-wrap;min-height:260px;max-height:520px;overflow:auto;font-size:14px;line-height:1.85;box-shadow:inset 0 0 0 1px rgba(255,255,255,.65)}
+.report-box.empty{background:#F8FBFE;color:#66788A;border-style:dashed}
+.report-note{border:1px solid #DDE7F0;background:#F8FBFE;border-radius:10px;padding:10px 12px;color:#5D6F82;font-size:13px}
 .chain{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.chain span{background:#EEF6FF;border:1px solid #CFE2F5;color:#1E5C9A;border-radius:999px;padding:6px 10px;font-size:13px;font-weight:700}
 .toastx{position:fixed;top:60px;right:18px;z-index:9999;color:#fff;border-radius:8px;padding:10px 15px;font-size:13px;box-shadow:0 6px 20px rgba(0,0,0,.15)}
 @media(max-width:980px){.metric-grid,.two-col,.three-col,.node-grid{grid-template-columns:1fr}.navbar-nav{overflow-x:auto;max-width:100%}}
@@ -172,7 +174,8 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
             </div>
           </div>
         </div>
-        <div class="report-box mt-3" id="reportBox">完成风险检测后可查看报告。</div>
+        <div class="report-note mt-3">报告内容来自当前提交的风险检测结果，包含数据概况、风险摘要、重点样本原因、处理建议、隐私保护说明和系统边界。</div>
+        <div class="report-box empty mt-3" id="reportBox">完成风险检测后可查看报告。</div>
       </div>
     </div>
   </section>
@@ -595,6 +598,7 @@ async function loadReport(){
   currentAnalysis=obj(res.data.analysis);
   renderReportStructured(res.data);
   reportBox.textContent=currentReport;
+  reportBox.classList.toggle('empty', !res.data.report_markdown);
 }
 function downloadReport(){if(!currentReport){toast('请先加载报告','bad');return}const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([currentReport],{type:'text/markdown;charset=utf-8'}));a.download='risk-report.md';a.click();}
 
