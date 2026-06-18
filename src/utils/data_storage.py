@@ -196,6 +196,13 @@ class DataStorage:
                     );
                     CREATE INDEX IF NOT EXISTS idx_model_versions_ts ON model_versions(timestamp);
 
+                    CREATE TABLE IF NOT EXISTS current_model_versions (
+                        model_type TEXT PRIMARY KEY,
+                        model_version TEXT DEFAULT '',
+                        model_id INTEGER DEFAULT 0,
+                        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                    );
+
                     CREATE TABLE IF NOT EXISTS audit_events (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -374,7 +381,7 @@ class DataStorage:
         with self._lock:
             conn = self._get_conn()
             try:
-                conn.execute(
+                cur = conn.execute(
                     "INSERT INTO model_versions (version, model_type, source, samples, accuracy, metadata) VALUES (?, ?, ?, ?, ?, ?)",
                     (
                         data.get("version", ""), data.get("model_type", ""),
@@ -382,7 +389,22 @@ class DataStorage:
                         float(data.get("accuracy", 0) or 0), self._json(data),
                     )
                 )
+                model_type = data.get("model_type", "")
+                version = data.get("version", "")
+                if data.get("activate", True) and model_type and version:
+                    conn.execute(
+                        """
+                        INSERT INTO current_model_versions (model_type, model_version, model_id, timestamp)
+                        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                        ON CONFLICT(model_type) DO UPDATE SET
+                            model_version=excluded.model_version,
+                            model_id=excluded.model_id,
+                            timestamp=CURRENT_TIMESTAMP
+                        """,
+                        (model_type, version, int(cur.lastrowid or 0)),
+                    )
                 conn.commit()
+                return int(cur.lastrowid or 0)
             finally:
                 conn.close()
 
@@ -403,10 +425,47 @@ class DataStorage:
             conn = self._get_conn()
             try:
                 rows = conn.execute(
-                    "SELECT * FROM model_versions ORDER BY id DESC LIMIT ?",
+                    """
+                    SELECT mv.*,
+                           CASE WHEN cmv.model_id = mv.id THEN 1 ELSE 0 END AS is_current,
+                           cmv.timestamp AS current_since
+                    FROM model_versions mv
+                    LEFT JOIN current_model_versions cmv
+                      ON cmv.model_type = mv.model_type
+                    ORDER BY mv.id DESC
+                    LIMIT ?
+                    """,
                     (int(limit),)
                 ).fetchall()
                 return [dict(r) for r in rows]
+            finally:
+                conn.close()
+
+    def set_current_model_version(self, version_id: int) -> Dict:
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                row = conn.execute(
+                    "SELECT * FROM model_versions WHERE id = ?",
+                    (int(version_id),),
+                ).fetchone()
+                if row is None:
+                    return {}
+                item = dict(row)
+                conn.execute(
+                    """
+                    INSERT INTO current_model_versions (model_type, model_version, model_id, timestamp)
+                    VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                    ON CONFLICT(model_type) DO UPDATE SET
+                        model_version=excluded.model_version,
+                        model_id=excluded.model_id,
+                        timestamp=CURRENT_TIMESTAMP
+                    """,
+                    (item.get("model_type", ""), item.get("version", ""), int(item.get("id", 0))),
+                )
+                conn.commit()
+                item["is_current"] = 1
+                return item
             finally:
                 conn.close()
 

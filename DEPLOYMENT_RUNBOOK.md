@@ -14,6 +14,48 @@
 python3 app.py
 ```
 
+## 管理端登录配置
+
+管理端默认运行在 `5001` 端口。线上环境必须通过环境变量配置管理员密码：
+
+```bash
+export ADMIN_USERNAME=admin
+export ADMIN_PASSWORD='请替换为强密码'
+python3 app.py
+```
+
+如果服务器未设置 `ADMIN_PASSWORD`，管理端登录会被禁用。默认密码 `admin123` 只允许在本机调试时通过以下方式临时启用：
+
+```bash
+export ALLOW_DEFAULT_ADMIN=true
+python3 app.py
+```
+
+不要在线上公网环境使用默认密码。
+
+## 轻量回归检查
+
+服务启动后可以运行标准库 smoke 脚本检查关键页面和 API：
+
+```bash
+python3 scripts/smoke_check.py \
+  --user-base http://127.0.0.1:5000 \
+  --admin-base http://127.0.0.1:5001
+```
+
+如需验证管理端登录：
+
+```bash
+python3 scripts/smoke_check.py \
+  --user-base http://127.0.0.1:5000 \
+  --admin-base http://127.0.0.1:5001 \
+  --check-admin-login \
+  --admin-user "$ADMIN_USERNAME" \
+  --admin-password "$ADMIN_PASSWORD"
+```
+
+脚本默认只做只读检查，不会上传文件或修改训练数据。
+
 当前首页入口：
 
 ```python
@@ -511,4 +553,3 @@ tail -n 100 app.log
 - API 返回结构变化。
 - 页面元素 id 或 JS 函数名被改动。
 - 浏览器缓存仍使用旧脚本。
-

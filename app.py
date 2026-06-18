@@ -191,11 +191,40 @@ def api_response(code=200, msg="操作成功", data=None):
     return {"code": code, "msg": msg, "data": data or {}}
 
 
+DEFAULT_ADMIN_USERNAME = "admin"
+DEFAULT_ADMIN_PASSWORD = "admin123"
+
+
+def _is_local_request():
+    host = (request.host or "").split(":")[0]
+    remote = request.remote_addr or ""
+    return host in ("127.0.0.1", "localhost", "::1") or remote in ("127.0.0.1", "::1")
+
+
 def _admin_credentials():
-    return (
-        os.environ.get("ADMIN_USERNAME", "admin"),
-        os.environ.get("ADMIN_PASSWORD", "admin123"),
-    )
+    return os.environ.get("ADMIN_USERNAME", DEFAULT_ADMIN_USERNAME), os.environ.get("ADMIN_PASSWORD", "")
+
+
+def _admin_auth_config_status():
+    username, password = _admin_credentials()
+    configured = bool(os.environ.get("ADMIN_PASSWORD"))
+    local_default_allowed = _is_local_request() and os.environ.get("ALLOW_DEFAULT_ADMIN", "").lower() in ("1", "true", "yes")
+    if not configured and local_default_allowed:
+        password = DEFAULT_ADMIN_PASSWORD
+    disabled_reason = ""
+    if not configured and not local_default_allowed:
+        disabled_reason = "管理端未配置 ADMIN_PASSWORD，登录已禁用。请在服务器环境变量中设置强密码。"
+    weak_default = password == DEFAULT_ADMIN_PASSWORD
+    if configured and weak_default and not _is_local_request():
+        disabled_reason = "管理端 ADMIN_PASSWORD 仍为默认弱口令，外网登录已禁用。"
+    return {
+        "username": username,
+        "password": password,
+        "configured": configured,
+        "disabled": bool(disabled_reason),
+        "disabled_reason": disabled_reason,
+        "using_default": weak_default,
+    }
 
 
 def _is_admin_logged_in():
@@ -1071,11 +1100,14 @@ def admin_login():
     req = request.get_json(silent=True) or {}
     username = str(req.get("username", "")).strip()
     password = str(req.get("password", ""))
-    expected_user, expected_password = _admin_credentials()
+    auth_status = _admin_auth_config_status()
+    if auth_status["disabled"]:
+        return jsonify(api_response(code=503, msg=auth_status["disabled_reason"], data={"auth_configured": False}))
+    expected_user, expected_password = auth_status["username"], auth_status["password"]
     if username == expected_user and password == expected_password:
         session["admin_logged_in"] = True
         session["admin_username"] = username
-        return jsonify(api_response(msg="登录成功", data={"username": username}))
+        return jsonify(api_response(msg="登录成功", data={"username": username, "using_default": auth_status["using_default"]}))
     return jsonify(api_response(code=401, msg="管理员账号或密码错误"))
 
 
@@ -1088,9 +1120,13 @@ def admin_logout():
 
 @app.route("/api/admin/session", methods=["GET"])
 def admin_session():
+    auth_status = _admin_auth_config_status()
     return jsonify(api_response(data={
         "logged_in": _is_admin_logged_in(),
         "username": session.get("admin_username"),
+        "auth_configured": not auth_status["disabled"],
+        "using_default": auth_status["using_default"],
+        "config_message": auth_status["disabled_reason"],
     }))
 
 
@@ -1195,6 +1231,44 @@ def admin_submission_mark_trainable(submission_id):
     return jsonify(api_response(msg="已标记为可训练", data=item))
 
 
+@app.route("/api/admin/submissions/<submission_id>/reject", methods=["POST"])
+def admin_submission_reject(submission_id):
+    req = request.get_json(silent=True) or {}
+    item = user_submission_manager.set_status(
+        submission_id,
+        review_status="已拒绝",
+        trainable=False,
+        review_note=req.get("note", "管理员确认该提交暂不进入训练池"),
+    )
+    if item is None:
+        return jsonify(api_response(code=404, msg="提交记录不存在"))
+    try:
+        db.upsert_user_submission(item)
+    except Exception as persist_error:
+        logger.warning("Persist rejected status failed: %s", persist_error)
+    return jsonify(api_response(msg="已拒绝进入训练池", data=item))
+
+
+@app.route("/api/admin/submissions/<submission_id>/review-status", methods=["POST"])
+def admin_submission_review_status(submission_id):
+    req = request.get_json(silent=True) or {}
+    status = req.get("review_status")
+    trainable = req.get("trainable")
+    item = user_submission_manager.set_status(
+        submission_id,
+        review_status=status,
+        trainable=trainable if isinstance(trainable, bool) else None,
+        review_note=req.get("note", ""),
+    )
+    if item is None:
+        return jsonify(api_response(code=400, msg="提交记录不存在或审核状态无效"))
+    try:
+        db.upsert_user_submission(item)
+    except Exception as persist_error:
+        logger.warning("Persist review status failed: %s", persist_error)
+    return jsonify(api_response(msg="审核状态已更新", data=item))
+
+
 @app.route("/api/admin/training/local", methods=["POST"])
 def admin_training_local():
     """Train the ensemble detector with admin-approved encrypted submissions."""
@@ -1217,6 +1291,11 @@ def admin_training_local():
             "model_type": "admin_local_ensemble",
             "dataset_name": "encrypted_user_submissions",
             "accuracy": round(float(result.get("accuracy", 0)), 4),
+            "metric_name": "accuracy",
+            "metric_scope": "train",
+            "metric_label": "训练集指标",
+            "metric_note": "当前本地训练接口使用管理员确认的数据完成拟合，并在同一批训练样本上计算指标；该数值用于观察训练流程，不等同于独立验证集效果。",
+            "validation_available": False,
             "samples": int(len(X)),
             "epochs": 1,
             "status": "completed",
@@ -1276,8 +1355,15 @@ def admin_training_federated():
                 "accuracy": r.get("accuracy", 0),
                 "loss": r.get("loss", 0),
                 "samples": r.get("samples", 0),
+                "metric_scope": "node_validation",
+                "metric_label": "节点本地验证指标",
             } for r in results],
             "avg_accuracy": round(float(np.mean([r.get("accuracy", 0) for r in results])), 4) if results else 0,
+            "metric_name": "avg_accuracy",
+            "metric_scope": "node_validation_mean",
+            "metric_label": "四节点本地验证均值",
+            "metric_note": "每个节点在本地训练后使用节点内留出数据计算指标，页面展示的是四个节点验证指标的平均值；它不是独立外部测试集结果。",
+            "validation_available": True,
             "history": fedavg_server.get_history(),
             **meta,
         }
@@ -1288,6 +1374,11 @@ def admin_training_federated():
                 "source": "encrypted_user_submissions",
                 "samples": int(len(X)),
                 "accuracy": data["avg_accuracy"],
+                "metric_name": data["metric_name"],
+                "metric_scope": data["metric_scope"],
+                "metric_label": data["metric_label"],
+                "metric_note": data["metric_note"],
+                "validation_available": data["validation_available"],
                 "status": "completed",
                 "version": version,
                 "metadata": data,
@@ -1326,6 +1417,14 @@ def admin_model_versions():
     }))
 
 
+@app.route("/api/admin/model-versions/<int:version_id>/activate", methods=["POST"])
+def admin_activate_model_version(version_id):
+    item = db.set_current_model_version(version_id)
+    if not item:
+        return jsonify(api_response(code=404, msg="模型版本不存在"))
+    return jsonify(api_response(msg="已切换当前启用模型版本", data=item))
+
+
 @app.route("/api/admin/audit/events", methods=["GET"])
 def admin_audit_events():
     """Read security events through an admin-oriented endpoint."""
@@ -1333,10 +1432,31 @@ def admin_audit_events():
         from src.security.security_logger import SECURITY_EVENTS_LOG_PATH
         from src.security.events_api import normalize_limit, read_events
         limit = normalize_limit(request.args.get("limit", 100), default=100, max_limit=200)
+        try:
+            offset = max(0, int(request.args.get("offset", 0) or 0))
+        except (ValueError, TypeError):
+            offset = 0
         event_type = request.args.get("event_type")
         risk_level = request.args.get("risk_level")
-        events = read_events(SECURITY_EVENTS_LOG_PATH, limit=limit, event_type=event_type, risk_level=risk_level)
-        return jsonify(api_response(msg="success", data={"events": events, "total": len(events), "limit": limit}))
+        ip = request.args.get("ip")
+        path_filter = request.args.get("path")
+        events, total = read_events(
+            SECURITY_EVENTS_LOG_PATH,
+            limit=limit,
+            event_type=event_type,
+            risk_level=risk_level,
+            ip=ip,
+            path=path_filter,
+            offset=offset,
+            return_total=True,
+        )
+        return jsonify(api_response(msg="success", data={
+            "events": events,
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "has_more": offset + len(events) < total,
+        }))
     except Exception as e:
         logger.warning("Admin audit query failed: %s", e)
         return jsonify(api_response(data={"events": [], "total": 0, "warning": "audit log unavailable"}))

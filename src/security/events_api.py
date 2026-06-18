@@ -2,7 +2,6 @@
 
 import json
 import os
-from collections import deque
 
 from loguru import logger
 
@@ -22,7 +21,7 @@ def normalize_limit(limit, default=DEFAULT_LIMIT, max_limit=MAX_LIMIT):
 
 
 def read_events(log_path, limit=DEFAULT_LIMIT, event_type=None, risk_level=None,
-                max_limit=MAX_LIMIT):
+                max_limit=MAX_LIMIT, ip=None, path=None, offset=0, return_total=False):
     """Read recent events from a JSON Lines log file.
 
     Returns newest events first. This function is read-only and never raises for
@@ -33,7 +32,13 @@ def read_events(log_path, limit=DEFAULT_LIMIT, event_type=None, risk_level=None,
     if not os.path.exists(log_path):
         return []
 
-    recent = deque(maxlen=normalized_limit)
+    matches = []
+    ip_query = str(ip or "").strip()
+    path_query = str(path or "").strip().lower()
+    try:
+        normalized_offset = max(0, int(offset or 0))
+    except (ValueError, TypeError):
+        normalized_offset = 0
 
     try:
         with open(log_path, "r", encoding="utf-8") as f:
@@ -51,14 +56,20 @@ def read_events(log_path, limit=DEFAULT_LIMIT, event_type=None, risk_level=None,
                     continue
                 if risk_level and event.get("risk_level") != risk_level:
                     continue
-                recent.append(_normalize_event(event))
+                normalized = _normalize_event(event)
+                if ip_query and ip_query not in normalized.get("ip", ""):
+                    continue
+                if path_query and path_query not in normalized.get("path", "").lower():
+                    continue
+                matches.append(normalized)
     except Exception as e:
         logger.warning("Failed to read security events log: %s", e)
-        return []
+        return ([], 0) if return_total else []
 
-    events = list(recent)
-    events.reverse()
-    return events
+    matches.reverse()
+    total = len(matches)
+    events = matches[normalized_offset:normalized_offset + normalized_limit]
+    return (events, total) if return_total else events
 
 
 def _normalize_event(event):

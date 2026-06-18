@@ -79,6 +79,20 @@ RISK_LEVEL_ZH = {
     "critical": "严重风险",
 }
 
+REVIEW_STATUS = {
+    "pending": "待审核",
+    "archived": "已归档",
+    "trainable": "可训练",
+    "rejected": "已拒绝",
+}
+
+REVIEW_STATUS_NOTE = {
+    REVIEW_STATUS["pending"]: "已加密归档，等待管理员确认是否进入训练池。",
+    REVIEW_STATUS["archived"]: "已确认归档，可继续审核是否允许用于训练。",
+    REVIEW_STATUS["trainable"]: "管理员已确认该数据可进入本地训练和联邦训练流程。",
+    REVIEW_STATUS["rejected"]: "管理员已拒绝该数据进入训练池，仅保留加密归档和风险报告。",
+}
+
 
 def _now() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -671,13 +685,28 @@ class UserSubmissionManager:
         return self.public_summary(item)
 
     def public_summary(self, item: Dict) -> Dict:
+        review_status = item.get("review_status") or REVIEW_STATUS["pending"]
+        trainable = bool(item.get("trainable"))
+        actions = []
+        if review_status == REVIEW_STATUS["pending"]:
+            actions.extend(["archive", "reject"])
+        elif review_status == REVIEW_STATUS["archived"]:
+            actions.extend(["mark_trainable", "reject"])
+        elif review_status == REVIEW_STATUS["trainable"]:
+            actions.extend(["archive", "reject"])
+        elif review_status == REVIEW_STATUS["rejected"]:
+            actions.append("archive")
         return {
             "id": item.get("id"),
             "filename": item.get("filename"),
             "upload_time": item.get("upload_time"),
             "status": item.get("status"),
-            "review_status": item.get("review_status"),
-            "trainable": bool(item.get("trainable")),
+            "review_status": review_status,
+            "review_status_note": REVIEW_STATUS_NOTE.get(review_status, "等待管理员审核。"),
+            "reviewed_at": item.get("reviewed_at"),
+            "trainable": trainable,
+            "training_status": "已进入训练池" if trainable else "未进入训练池",
+            "allowed_actions": actions,
             "archived": bool(item.get("archived")),
             "encrypted": bool(item.get("encrypted")),
             "encryption": item.get("encryption"),
@@ -947,12 +976,41 @@ class UserSubmissionManager:
             "analysis": item.get("analysis", {}),
         }
 
-    def set_status(self, submission_id: str, review_status: str = None, trainable: Optional[bool] = None) -> Optional[Dict]:
+    def set_status(self, submission_id: str, review_status: str = None, trainable: Optional[bool] = None, review_note: str = "") -> Optional[Dict]:
         patch = {}
         if review_status:
+            if review_status not in REVIEW_STATUS_NOTE:
+                return None
             patch["review_status"] = review_status
+            patch["reviewed_at"] = _now()
+            patch["review_note"] = str(review_note or "")[:300]
+            if review_status == REVIEW_STATUS["trainable"]:
+                patch["trainable"] = True
+            elif review_status in (REVIEW_STATUS["archived"], REVIEW_STATUS["pending"], REVIEW_STATUS["rejected"]):
+                patch["trainable"] = False
         if trainable is not None:
             patch["trainable"] = bool(trainable)
+            if trainable:
+                patch["review_status"] = REVIEW_STATUS["trainable"]
+                patch["reviewed_at"] = _now()
+            elif not review_status:
+                patch["review_status"] = REVIEW_STATUS["archived"]
+                patch["reviewed_at"] = _now()
+        if patch:
+            data = _read_index()
+            item = next((x for x in data.get("submissions", []) if x.get("id") == submission_id), None)
+            if item is None:
+                return None
+            history = item.get("review_history", [])
+            if not isinstance(history, list):
+                history = []
+            history.append({
+                "time": _now(),
+                "review_status": patch.get("review_status", item.get("review_status", REVIEW_STATUS["pending"])),
+                "trainable": bool(patch.get("trainable", item.get("trainable", False))),
+                "note": patch.get("review_note", review_note or ""),
+            })
+            patch["review_history"] = history[-20:]
         item = _update_submission(submission_id, patch)
         return self.public_summary(item) if item else None
 
