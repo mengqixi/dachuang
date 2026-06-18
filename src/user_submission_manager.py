@@ -52,6 +52,33 @@ KEY_FILE = os.path.join(KEY_DIR, "user_archive.key")
 MAX_PREVIEW_ROWS = 8
 MAX_TRAIN_ROWS = 20000
 
+PASSWORD_FIELD_HINTS = {
+    "password", "passwd", "pwd", "user_password", "login_password",
+}
+
+CREDENTIAL_FIELD_HINTS = {
+    "token", "access_token", "refresh_token", "api_key", "apikey", "secret",
+    "client_secret", "authorization", "auth", "credential", "session_key",
+    "private_key",
+}
+
+SENSITIVE_FIELD_HINTS = {
+    "username", "user_name", "account", "login_name", "账号", "用户名",
+    "phone", "mobile", "tel", "telephone", "cellphone", "手机号", "电话",
+    "email", "mail", "邮箱",
+    "id_card", "idcard", "identity", "身份证", "证件",
+    "bank_card", "bankcard", "card_no", "card_number", "银行卡", "卡号",
+    "salary", "income", "wage", "pay", "薪资", "工资", "收入",
+    "address", "addr", "住址", "地址",
+}
+
+RISK_LEVEL_ZH = {
+    "low": "低风险",
+    "medium": "中风险",
+    "high": "高风险",
+    "critical": "严重风险",
+}
+
 
 def _now() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -178,10 +205,80 @@ def _load_rows(path: str, filename: str, limit: Optional[int] = None) -> Tuple[L
     raise ValueError("only CSV/JSON files are supported")
 
 
-def _mask_value(value):
+def _normalize_key(key) -> str:
+    return re.sub(r"[^a-z0-9_\u4e00-\u9fff]+", "_", str(key or "").strip().lower())
+
+
+def _field_matches(key, hints) -> bool:
+    normalized = _normalize_key(key)
+    compact = normalized.replace("_", "")
+    for hint in hints:
+        h = _normalize_key(hint)
+        if normalized == h or normalized.endswith("_" + h) or h in normalized or h.replace("_", "") in compact:
+            return True
+    return False
+
+
+def _sensitive_type(key, value=None) -> Optional[str]:
+    normalized_key = _normalize_key(key)
+    if normalized_key in {
+        "password_present", "password_length", "password_strength", "weak_password",
+        "token_present", "token_length", "secret_present", "secret_length",
+        "api_key_present", "api_key_length", "apikey_present", "apikey_length",
+    } or normalized_key.endswith("_present") or normalized_key.endswith("_length"):
+        return None
+    if normalized_key in {
+        "ip", "srcip", "src_ip", "source_ip", "dstip", "dst_ip",
+        "destination_ip", "client_ip", "remote_ip", "ip_address",
+        "user_agent",
+    }:
+        return None
+    if _field_matches(key, PASSWORD_FIELD_HINTS):
+        return "password"
+    if _field_matches(key, CREDENTIAL_FIELD_HINTS):
+        return "credential"
+    if _field_matches(key, SENSITIVE_FIELD_HINTS):
+        return "sensitive"
+    text = str(value or "")
+    if re.fullmatch(r"1[3-9]\d{9}", text):
+        return "sensitive"
+    if re.fullmatch(r"\d{16,19}", text):
+        return "sensitive"
+    if re.fullmatch(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", text):
+        return "sensitive"
+    return None
+
+
+def _safe_feature_name(key: str) -> str:
+    name = re.sub(r"[^A-Za-z0-9_]+", "_", str(key or "secret").strip().lower()).strip("_")
+    return name[:40] or "secret"
+
+
+def _mask_value(value, key=None):
     if value is None:
         return None
     text = str(value)
+    normalized_key = _normalize_key(key)
+    if normalized_key in {
+        "ip", "srcip", "src_ip", "source_ip", "dstip", "dst_ip",
+        "destination_ip", "client_ip", "remote_ip", "ip_address",
+        "user_agent",
+    }:
+        return text
+    kind = _sensitive_type(key or "", text)
+    if kind == "password":
+        return "[password_derived_only]"
+    if kind == "credential":
+        return "[secret_masked]"
+    if kind == "sensitive":
+        if not text:
+            return text
+        if "@" in text:
+            left, _, right = text.partition("@")
+            return (left[:2] + "***@" + right[-18:]) if left else "***@" + right[-18:]
+        if len(text) <= 4:
+            return "*" * len(text)
+        return text[:2] + "***" + text[-2:]
     if len(text) <= 4:
         return text
     if re.fullmatch(r"[\d\s+.-]{6,}", text):
@@ -195,7 +292,7 @@ def _mask_value(value):
 def _masked_preview(rows: List[Dict]) -> List[Dict]:
     preview = []
     for row in rows[:MAX_PREVIEW_ROWS]:
-        preview.append({k: _mask_value(v) for k, v in row.items()})
+        preview.append({k: _mask_value(v, k) for k, v in row.items()})
     return preview
 
 
@@ -218,16 +315,25 @@ def _password_strength(value) -> int:
 def _sanitize_sensitive_rows(rows: List[Dict]) -> Tuple[List[Dict], List[str]]:
     sanitized = []
     sensitive_columns = []
-    password_names = {"password", "passwd", "pwd", "user_password", "login_password"}
     for row in rows:
         new_row = dict(row)
         for key in list(row.keys()):
-            if str(key).strip().lower() in password_names:
-                sensitive_columns.append(key)
-                raw = row.get(key)
+            kind = _sensitive_type(key, row.get(key))
+            if not kind:
+                continue
+            sensitive_columns.append(key)
+            raw = row.get(key)
+            if kind == "password":
                 new_row["password_present"] = 1 if raw not in (None, "") else 0
                 new_row["password_length"] = len(str(raw or ""))
-                new_row["password_strength"] = _password_strength(raw)
+                strength = _password_strength(raw)
+                new_row["password_strength"] = strength
+                new_row["weak_password"] = 1 if raw not in (None, "") and strength <= 2 else 0
+                new_row.pop(key, None)
+            elif kind == "credential":
+                feature = _safe_feature_name(key)
+                new_row[f"{feature}_present"] = 1 if raw not in (None, "") else 0
+                new_row[f"{feature}_length"] = len(str(raw or ""))
                 new_row.pop(key, None)
         sanitized.append(new_row)
     return sanitized, sorted(set(sensitive_columns))
@@ -439,12 +545,21 @@ def _risk_breakdown(row: Optional[Dict], det: Dict) -> Dict:
         level_explain = "中风险：存在若干异常行为特征，建议结合业务上下文确认。"
     else:
         level_explain = "低风险：当前样本未表现出明显异常组合。"
+    triggered = [
+        item for item in indicators
+        if item.get("impact") in ("中", "高")
+    ]
+    dominant = triggered[0]["name"] if triggered else ("模型分数" if score >= 0.35 else "未发现明显触发项")
     return {
         "final_score": round(score, 4),
         "score_range": "0 到 1，越接近 1 表示模型认为异常概率越高",
         "level_explain": level_explain,
         "model_signal": "融合检测模型输出的风险分数",
         "rule_signal": "登录安全字段触发的规则解释",
+        "score_formula": "排序优先看风险分数，其次看是否达到中高风险等级和触发特征数量。",
+        "dominant_factor": dominant,
+        "triggered_count": len(triggered),
+        "triggered_indicators": triggered,
         "indicators": indicators,
     }
 
@@ -467,7 +582,7 @@ def _clean_reason_for_detection(det: Dict, row: Optional[Dict] = None) -> str:
 def _clean_suggestion_for_detection(det: Dict, row: Optional[Dict] = None) -> str:
     triggers = set(_trigger_features(row))
     if "失败次数偏高" in triggers or "多次失败登录" in triggers or "密码强度偏低" in triggers:
-        return "建议核验账号登录行为，必要时要求用户重置密码并启用二次验证。"
+        return "建议核验账号登录行为，并按业务策略启用二次验证或密码重置流程。"
     if "请求频率偏高" in triggers:
         return "建议关注同一来源的访问频率，结合限流策略和业务白名单进行复核。"
     if "异常时间段访问" in triggers or "会话时长异常" in triggers:
@@ -664,23 +779,39 @@ class UserSubmissionManager:
             summary[rl] = summary.get(rl, 0) + 1
             attack_types[det.get("attack_type", "unknown")] = attack_types.get(det.get("attack_type", "unknown"), 0) + 1
 
+        row_by_id = {i + 1: row for i, row in enumerate(rows)}
+        def _attention_key(d):
+            row = row_by_id.get(d.get("id")) or {}
+            triggers = _trigger_features(row)
+            score = float(d.get("risk_score") or 0)
+            level_weight = {"critical": 4, "high": 3, "medium": 2, "low": 1}.get(d.get("risk_level"), 0)
+            return (level_weight, score, len(triggers))
+
         high_items = [
             d for d in detections
-            if d.get("risk_level") in ("medium", "high", "critical") or float(d.get("risk_score") or 0) >= 0.35
+            if d.get("risk_level") in ("medium", "high", "critical")
+            or float(d.get("risk_score") or 0) >= 0.35
+            or _trigger_features(row_by_id.get(d.get("id")))
         ]
-        high_items = sorted(high_items, key=lambda d: float(d.get("risk_score") or 0), reverse=True)
+        high_items = sorted(high_items, key=_attention_key, reverse=True)
         reasons = []
-        row_by_id = {i + 1: row for i, row in enumerate(rows)}
         for det in high_items[:20]:
             row = row_by_id.get(det.get("id")) or {}
+            breakdown = _risk_breakdown(row, det)
             reasons.append({
+                "rank": len(reasons) + 1,
                 "id": det.get("id"),
-                "username": _mask_value(row.get("username") or row.get("user") or row.get("account") or ""),
+                "username": _mask_value(row.get("username") or row.get("user") or row.get("account") or "", "username"),
                 "ip": row.get("ip") or row.get("srcip") or row.get("source_ip") or "",
                 "risk_score": det.get("risk_score"),
                 "risk_level": det.get("risk_level"),
+                "risk_level_zh": RISK_LEVEL_ZH.get(det.get("risk_level"), det.get("risk_level")),
+                "attack_type": det.get("attack_type", "unknown"),
+                "model_judgement": "异常/攻击倾向" if det.get("is_attack") else "正常倾向",
                 "trigger_features": _trigger_features(row),
-                "score_breakdown": _risk_breakdown(row, det),
+                "dominant_factor": breakdown.get("dominant_factor"),
+                "triggered_count": breakdown.get("triggered_count", 0),
+                "score_breakdown": breakdown,
                 "reason": _clean_reason_for_detection(det, row),
                 "suggestion": _clean_suggestion_for_detection(det, row),
             })
@@ -694,6 +825,8 @@ class UserSubmissionManager:
             "attack_types": attack_types,
             "detections": detections[:200],
             "high_risk_reasons": reasons,
+            "top_reason_limit": 20,
+            "top_reason_order": "risk_score_desc",
             "suggestions": _clean_suggestions(summary),
             "sensitive_columns": item.get("sensitive_columns", []),
             "privacy_notice": item.get("privacy_notice", ""),

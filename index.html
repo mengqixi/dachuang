@@ -24,6 +24,12 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
 .btn-lightx{background:#EEF2F6;color:#263238;border:0;border-radius:8px;padding:8px 14px;font-size:14px}
 .status-pill{display:inline-block;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:700}
 .ok{background:#E8F5E9;color:#2E7D32}.warn{background:#FFF8E1;color:#8A6200}.bad{background:#FFEBEE;color:#B71C1C}.info{background:#E3F2FD;color:#1E5C9A}
+.risk-tags{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+.risk-tag{display:inline-flex;align-items:center;border-radius:999px;padding:2px 7px;font-size:12px;font-weight:800;border:1px solid transparent}
+.risk-tag.high{background:#FFEBEE;color:#B71C1C;border-color:#FFCDD2}
+.risk-tag.medium{background:#FFF8E1;color:#8A6200;border-color:#FFE0A3}
+.risk-tag.low{background:#E8F5E9;color:#2E7D32;border-color:#C8E6C9}
+.risk-tag.empty{background:#EEF2F6;color:#607D8B;border-color:#D8DEE9}
 .metric-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
 .metric{background:#fff;border:1px solid #E6ECF2;border-radius:10px;padding:14px;text-align:center}
 .metric-value{font-size:26px;font-weight:900;color:#2F5F93;word-break:break-all}.metric-label{font-size:12px;color:#607D8B;margin-top:4px}
@@ -78,6 +84,7 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">字段数</div></div>
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">加密归档</div></div>
         </div>
+        <div class="notice mt-3" id="privacyNotice">敏感字段识别结果会在上传或生成样本后显示。</div>
       </div>
     </div>
     <div class="two-col">
@@ -105,15 +112,16 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">中风险</div></div>
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">低风险</div></div>
         </div>
+        <div class="notice mt-3" id="riskTopHint">检测完成后默认展示风险分数最高的 Top 20 中高风险样本。</div>
       </div>
     </div>
     <div class="panel">
-      <div class="panel-head">重点样本解释</div>
+      <div class="panel-head">Top 20 重点样本解释</div>
       <div class="panel-body">
         <div class="scroll-box">
           <table class="table table-sm">
-            <thead><tr><th>样本</th><th>用户</th><th>IP</th><th>风险</th><th>分数</th><th>触发特征</th><th>原因</th><th>建议</th></tr></thead>
-            <tbody id="reasonTable"><tr><td colspan="8" class="text-muted">暂无检测结果</td></tr></tbody>
+            <thead><tr><th>排序</th><th>样本</th><th>用户</th><th>IP</th><th>风险</th><th>分数</th><th>主要因素</th><th>原因</th><th>建议</th><th>操作</th></tr></thead>
+            <tbody id="reasonTable"><tr><td colspan="10" class="text-muted">暂无检测结果</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -137,6 +145,33 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
       <div class="panel-body">
         <button class="btn-main me-2" onclick="loadReport()">加载报告</button>
         <button class="btn-lightx" onclick="downloadReport()">下载 Markdown 报告</button>
+        <div class="metric-grid mt-3" id="reportMetrics">
+          <div class="metric"><div class="metric-value">--</div><div class="metric-label">总样本</div></div>
+          <div class="metric"><div class="metric-value">--</div><div class="metric-label">高风险</div></div>
+          <div class="metric"><div class="metric-value">--</div><div class="metric-label">中风险</div></div>
+          <div class="metric"><div class="metric-value">--</div><div class="metric-label">加密归档</div></div>
+        </div>
+        <div class="two-col mt-3">
+          <div class="preview-card">
+            <h6 class="fw-bold">报告摘要</h6>
+            <div id="reportSummaryBox" class="small-text text-muted">完成风险检测后显示数据概况、风险分布和隐私保护状态。</div>
+          </div>
+          <div class="preview-card">
+            <h6 class="fw-bold">处理建议</h6>
+            <ul id="reportSuggestionList" class="small-text mb-0 text-muted"><li>完成风险检测后显示建议。</li></ul>
+          </div>
+        </div>
+        <div class="panel mt-3 mb-0">
+          <div class="panel-head">Top 重点样本</div>
+          <div class="panel-body">
+            <div class="scroll-box">
+              <table class="table table-sm">
+                <thead><tr><th>排序</th><th>样本</th><th>用户</th><th>IP</th><th>风险</th><th>分数</th><th>主要因素</th><th>建议</th></tr></thead>
+                <tbody id="reportTopTable"><tr><td colspan="8" class="text-muted">暂无报告数据</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
         <div class="report-box mt-3" id="reportBox">完成风险检测后可查看报告。</div>
       </div>
     </div>
@@ -156,6 +191,12 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">样本</div></div>
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">特征</div></div>
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">联邦就绪</div></div>
+        </div>
+        <div class="metric-grid mt-3" id="submissionRiskMetrics">
+          <div class="metric"><div class="metric-value">--</div><div class="metric-label">用户提交</div></div>
+          <div class="metric"><div class="metric-value">--</div><div class="metric-label">高风险样本</div></div>
+          <div class="metric"><div class="metric-value">--</div><div class="metric-label">中风险样本</div></div>
+          <div class="metric"><div class="metric-value">--</div><div class="metric-label">可训练提交</div></div>
         </div>
       </div>
     </div>
@@ -251,10 +292,35 @@ let currentSubmissionId = localStorage.getItem('currentSubmissionId') || '';
 let currentReport = '';
 let adminLoggedIn = false;
 let lastRiskReasons = [];
+let currentAnalysis = null;
 
 function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function arr(v){return Array.isArray(v)?v:[]}
 function obj(v){return v&&typeof v==='object'&&!Array.isArray(v)?v:{}}
+function isSensitivePreviewKey(key){
+  const k=String(key||'').toLowerCase().replace(/[^a-z0-9_\u4e00-\u9fa5]/g,'_');
+  if(['password_present','password_length','password_strength','weak_password','token_present','token_length','secret_present','secret_length','api_key_present','api_key_length','apikey_present','apikey_length'].includes(k)||k.endsWith('_present')||k.endsWith('_length'))return false;
+  if(['ip','srcip','src_ip','source_ip','dstip','dst_ip','destination_ip','client_ip','remote_ip','ip_address','user_agent'].includes(k))return false;
+  const exact=['password','passwd','pwd','user_password','login_password','token','access_token','refresh_token','api_key','apikey','secret','client_secret','authorization','private_key','username','user_name','account','login_name'];
+  if(exact.includes(k))return true;
+  return /(phone|mobile|telephone|email|mail|id_card|idcard|identity|bank_card|bankcard|card_no|card_number|salary|income|wage|address|手机号|电话|邮箱|身份证|银行卡|薪资|工资|收入|地址)/.test(k);
+}
+function maskPreviewValue(key,value){
+  if(value===null||value===undefined)return value;
+  const text=String(value);
+  if(!isSensitivePreviewKey(key)){
+    if(/^1[3-9]\d{9}$/.test(text)||/^\d{16,19}$/.test(text)||/^[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}$/.test(text))return text.slice(0,2)+'***'+text.slice(-2);
+    return value;
+  }
+  const k=String(key||'').toLowerCase();
+  if(/password|passwd|pwd/.test(k))return '[password_derived_only]';
+  if(/token|secret|api_key|apikey|authorization|private_key/.test(k))return '[secret_masked]';
+  if(!text)return text;
+  if(text.includes('@')){const [l,r]=text.split('@');return (l||'').slice(0,2)+'***@'+(r||'').slice(-18)}
+  if(text.length<=4)return '*'.repeat(text.length);
+  return text.slice(0,2)+'***'+text.slice(-2);
+}
+function maskPreviewRows(rows){return arr(rows).map(row=>Object.fromEntries(Object.entries(obj(row)).map(([k,v])=>[k,maskPreviewValue(k,v)])))}
 function toast(msg,type='info'){const el=document.createElement('div');el.className='toastx';el.style.background=type==='bad'?'#C62828':type==='ok'?'#2E7D32':'#2F5F93';el.textContent=msg;document.body.appendChild(el);setTimeout(()=>el.remove(),2600)}
 async function api(url,opt={}){try{const r=await fetch(url,{credentials:'same-origin',...opt});const t=await r.text();let j={};try{j=t?JSON.parse(t):{}}catch(e){return{ok:false,error:'响应不是 JSON'}};if(!r.ok||j.code&&j.code!==200)return{ok:false,error:j.msg||r.statusText,data:j.data};return{ok:true,data:j.data??j,msg:j.msg}}catch(e){return{ok:false,error:e.message}}}
 function table(rows,cols){if(!rows.length)return '<div class="p-3 text-muted">暂无数据</div>';return '<table class="table table-sm"><thead><tr>'+cols.map(c=>`<th>${c[0]}</th>`).join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+cols.map(c=>`<td>${esc(typeof c[1]==='function'?c[1](r):r[c[1]])}</td>`).join('')+'</tr>').join('')+'</tbody></table>'}
@@ -263,6 +329,31 @@ function previewCols(row){
   const preferred=['id','username','ip','device_type','browser','os','login_success','failed_attempts','request_frequency','response_time','session_duration','unusual_hour','label'];
   const keys=Object.keys(obj(row));
   return preferred.filter(k=>keys.includes(k)).concat(keys.filter(k=>!preferred.includes(k))).slice(0,14).map(k=>[k,k]);
+}
+function riskLevelText(level){return ({low:'低风险',medium:'中风险',high:'高风险',critical:'严重风险'})[level]||level||'-'}
+function parseRiskSummary(value){
+  if(typeof value==='string'){
+    try{return obj(JSON.parse(value))}catch(e){return {}}
+  }
+  return obj(value);
+}
+function riskSummaryCounts(value){
+  const s=parseRiskSummary(value);
+  return {
+    high:Number(s.high||0)+Number(s.critical||0),
+    medium:Number(s.medium||0),
+    low:Number(s.low||0),
+    total:Number(s.high||0)+Number(s.critical||0)+Number(s.medium||0)+Number(s.low||0)
+  };
+}
+function riskSummaryTags(value){
+  const c=riskSummaryCounts(value);
+  if(!c.total)return '<span class="risk-tag empty">未分析</span>';
+  return `<div class="risk-tags">
+    <span class="risk-tag high">高 ${esc(c.high)}</span>
+    <span class="risk-tag medium">中 ${esc(c.medium)}</span>
+    <span class="risk-tag low">低 ${esc(c.low)}</span>
+  </div>`;
 }
 
 function setupNav(){
@@ -291,6 +382,10 @@ function renderUploadSummary(d){
   uploadSummary.innerHTML=[
     ['提交编号',d.id||'--'],['样本数',d.row_count??'--'],['字段数',d.column_count??'--'],['加密归档',d.encrypted?'AES':'--']
   ].map(x=>`<div class="metric"><div class="metric-value">${esc(x[1])}</div><div class="metric-label">${x[0]}</div></div>`).join('');
+  const sensitive=arr(d.sensitive_columns);
+  privacyNotice.innerHTML=sensitive.length
+    ? `已识别敏感字段：${sensitive.map(x=>`<span class="status-pill warn me-1">${esc(x)}</span>`).join('')}。预览仅显示脱敏值，password/token/secret 类字段只保留派生特征。`
+    : '未识别到 password、token、手机号、银行卡、邮箱、薪资等常见敏感字段；预览仍会对疑似手机号、银行卡和邮箱格式做保护。';
   if(d.id){currentSubmissionId=d.id;localStorage.setItem('currentSubmissionId',d.id);detectHint.textContent='当前提交：'+d.id;}
 }
 async function uploadBlob(filename,content){
@@ -304,14 +399,16 @@ async function uploadUserFile(){
   const fd=new FormData(); fd.append('file',f);
   const res=await api('/api/user/datasets/upload',{method:'POST',body:fd});
   if(!res.ok){toast(res.error,'bad');return}
-  renderUploadSummary(res.data); plainPreview.innerHTML=table(arr(res.data.masked_preview),previewCols(arr(res.data.masked_preview)[0])); toast('上传成功','ok');
+  const masked=maskPreviewRows(arr(res.data.masked_preview));
+  renderUploadSummary(res.data); plainPreview.innerHTML=table(masked,previewCols(masked[0])); toast('上传成功','ok');
 }
 function toCsv(rows){if(!rows.length)return'';const keys=Object.keys(rows[0]);return keys.join(',')+'\n'+rows.map(r=>keys.map(k=>`"${String(r[k]??'').replace(/"/g,'""')}"`).join(',')).join('\n')}
 async function generateLoginSamples(){
   const count=Math.max(20,Math.min(parseInt(sampleCount.value||200),5000));
   const res=await api('/api/generate_login_security_dataset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({n_records:count})});
   if(!res.ok){toast(res.error,'bad');return}
-  const rows=arr(res.data.dataset || res.data.records); plainPreview.innerHTML=table(rows.slice(0,200),previewCols(rows[0]));
+  const rows=arr(res.data.dataset || res.data.records); const masked=maskPreviewRows(rows);
+  plainPreview.innerHTML=table(masked.slice(0,200),previewCols(masked[0]));
   encryptedPreview.innerHTML='<div class="p-3 text-muted">登录安全样本用于风险检测；password 等敏感字段会在上传归档时转换为派生特征。</div>';
   await uploadBlob('login_security_samples.csv',toCsv(rows));
 }
@@ -319,7 +416,8 @@ async function generatePrivacySamples(){
   const count=Math.max(20,Math.min(parseInt(sampleCount.value||200),1000));
   const res=await api('/api/generate_privacy_dataset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({n_records:count,algorithm:'Paillier'})});
   if(!res.ok){toast(res.error,'bad');return}
-  plainPreview.innerHTML=table(arr(res.data.plaintext).slice(0,100),Object.keys(obj(arr(res.data.plaintext)[0])).slice(0,10).map(k=>[k,k]));
+  const plaintext=maskPreviewRows(arr(res.data.plaintext));
+  plainPreview.innerHTML=table(plaintext.slice(0,100),Object.keys(obj(plaintext[0])).slice(0,10).map(k=>[k,k]));
   encryptedPreview.innerHTML=table(arr(res.data.encrypted).slice(0,100),Object.keys(obj(arr(res.data.encrypted)[0])).slice(0,10).map(k=>[k,k]));
   toast('已生成隐私加密样本。该样本用于密态展示，不直接进入攻击检测。','ok');
 }
@@ -330,26 +428,88 @@ async function analyzeCurrentSubmission(){
   renderAnalysis(res.data); toast('风险检测完成','ok');
 }
 function renderAnalysis(d){
+  currentAnalysis = obj(d);
   const s=obj(d.risk_summary); riskMetrics.innerHTML=[
     ['总样本',d.total||0],['高风险',(s.high||0)+(s.critical||0)],['中风险',s.medium||0],['低风险',s.low||0]
   ].map(x=>`<div class="metric"><div class="metric-value">${x[1]}</div><div class="metric-label">${x[0]}</div></div>`).join('');
   const rows=arr(d.high_risk_reasons);
   lastRiskReasons=rows;
-  reasonTable.innerHTML=rows.length?rows.map(r=>`<tr><td>${esc(r.id)}</td><td>${esc(r.username||'-')}</td><td>${esc(r.ip||'-')}</td><td class="risk-${esc(r.risk_level)}">${esc(r.risk_level)}</td><td>${esc(r.risk_score)}</td><td>${esc(arr(r.trigger_features).join('、')||'-')}</td><td>${esc(r.reason)}</td><td>${esc(r.suggestion)}</td><td><button class="btn-lightx" onclick="explainRiskScore(${Number(r.id)||0})">分数解释</button></td></tr>`).join(''):'<tr><td colspan="9" class="text-muted">暂无中高风险样本</td></tr>';
+  riskTopHint.textContent=rows.length
+    ? `已按风险分数降序展示 ${rows.length} 条重点样本，完整检测样本数 ${d.total||0}。`
+    : `本次检测未发现需要优先关注的中高风险样本，完整检测样本数 ${d.total||0}。`;
+  reasonTable.innerHTML=rows.length?rows.map(r=>`<tr>
+    <td>${esc(r.rank||'-')}</td>
+    <td>${esc(r.id)}</td>
+    <td>${esc(r.username||'-')}</td>
+    <td>${esc(r.ip||'-')}</td>
+    <td class="risk-${esc(r.risk_level)}">${esc(r.risk_level_zh||riskLevelText(r.risk_level))}</td>
+    <td>${esc(r.risk_score)}</td>
+    <td>${esc(r.dominant_factor||arr(r.trigger_features)[0]||'-')}</td>
+    <td>${esc(r.reason)}</td>
+    <td>${esc(r.suggestion)}</td>
+    <td><button class="btn-lightx" onclick="explainRiskScore(${Number(r.id)||0})">查看解释</button></td>
+  </tr>`).join(''):'<tr><td colspan="10" class="text-muted">暂无中高风险样本</td></tr>';
+}
+function renderReportStructured(payload){
+  const data=obj(payload);
+  const analysis=obj(data.analysis || currentAnalysis);
+  const submission=obj(data.submission);
+  const summary=riskSummaryCounts(analysis.risk_summary || submission.risk_summary);
+  const total=analysis.total || submission.row_count || 0;
+  const encrypted=submission.encrypted ? (submission.encryption || 'AES') : '--';
+  reportMetrics.innerHTML=[
+    ['总样本',total],['高风险',summary.high],['中风险',summary.medium],['加密归档',encrypted]
+  ].map(x=>`<div class="metric"><div class="metric-value">${esc(x[1])}</div><div class="metric-label">${x[0]}</div></div>`).join('');
+
+  const sensitive=arr(analysis.sensitive_columns || submission.sensitive_columns);
+  reportSummaryBox.innerHTML=`
+    <div class="mb-2"><b>提交编号：</b>${esc(submission.id || currentSubmissionId || '--')}</div>
+    <div class="mb-2"><b>文件名称：</b>${esc(submission.filename || '--')}</div>
+    <div class="mb-2"><b>风险分布：</b>${riskSummaryTags(analysis.risk_summary || submission.risk_summary)}</div>
+    <div class="mb-2"><b>标签列：</b>${esc(analysis.label_column || submission.label_column || '未识别')}</div>
+    <div><b>敏感字段：</b>${sensitive.length?sensitive.map(x=>`<span class="status-pill warn me-1">${esc(x)}</span>`).join(''):'未识别到常见敏感字段'}</div>
+  `;
+
+  const suggestions=arr(analysis.suggestions);
+  reportSuggestionList.innerHTML=suggestions.length
+    ? suggestions.slice(0,6).map(x=>`<li>${esc(x)}</li>`).join('')
+    : '<li>暂无处理建议，请先执行风险检测。</li>';
+
+  const rows=arr(analysis.high_risk_reasons).slice(0,10);
+  reportTopTable.innerHTML=rows.length?rows.map(r=>`<tr>
+    <td>${esc(r.rank||'-')}</td>
+    <td>${esc(r.id||'-')}</td>
+    <td>${esc(r.username||'-')}</td>
+    <td>${esc(r.ip||'-')}</td>
+    <td class="risk-${esc(r.risk_level)}">${esc(r.risk_level_zh||riskLevelText(r.risk_level))}</td>
+    <td>${esc(r.risk_score||'-')}</td>
+    <td>${esc(r.dominant_factor||arr(r.trigger_features)[0]||'-')}</td>
+    <td>${esc(r.suggestion||'-')}</td>
+  </tr>`).join(''):'<tr><td colspan="8" class="text-muted">暂无需要优先关注的样本</td></tr>';
 }
 function explainRiskScore(id){
   const item=lastRiskReasons.find(x=>String(x.id)===String(id));
   if(!item){toast('未找到该样本的解释信息','bad');return}
   const b=obj(item.score_breakdown);
   const indicators=arr(b.indicators);
+  const triggered=arr(b.triggered_indicators);
   scoreExplainBox.innerHTML=`
     <div class="metric-grid mb-3">
+      <div class="metric"><div class="metric-value">#${esc(item.rank||'-')}</div><div class="metric-label">Top 排序</div></div>
       <div class="metric"><div class="metric-value">${esc(item.risk_score)}</div><div class="metric-label">最终风险分数</div></div>
-      <div class="metric"><div class="metric-value risk-${esc(item.risk_level)}">${esc(item.risk_level)}</div><div class="metric-label">风险等级</div></div>
+      <div class="metric"><div class="metric-value risk-${esc(item.risk_level)}">${esc(item.risk_level_zh||riskLevelText(item.risk_level))}</div><div class="metric-label">风险等级</div></div>
       <div class="metric"><div class="metric-value">${esc(item.ip||'-')}</div><div class="metric-label">来源 IP</div></div>
-      <div class="metric"><div class="metric-value">${esc(arr(item.trigger_features).length)}</div><div class="metric-label">触发特征数</div></div>
     </div>
-    <div class="notice mb-3"><b>分数含义：</b>${esc(b.score_range||'0 到 1，越接近 1 风险越高')}<br><b>等级说明：</b>${esc(b.level_explain||'基于模型分数和规则解释综合展示。')}</div>
+    <div class="notice mb-3">
+      <b>排序依据：</b>${esc(b.score_formula||'按风险分数和触发项综合排序')}<br>
+      <b>主要因素：</b>${esc(item.dominant_factor||b.dominant_factor||'-')}；触发项数量：${esc(item.triggered_count??b.triggered_count??0)}<br>
+      <b>模型判断：</b>${esc(item.model_judgement||'-')}；攻击类型：${esc(item.attack_type||'-')}<br>
+      <b>分数含义：</b>${esc(b.score_range||'0 到 1，越接近 1 风险越高')}<br>
+      <b>等级说明：</b>${esc(b.level_explain||'基于模型分数和规则解释综合展示。')}
+    </div>
+    <h6 class="fw-bold">本样本触发项</h6>
+    <div class="scroll-box mb-3">${table(triggered.length?triggered:indicators.filter(x=>x.impact!=='低'),[['指标','name'],['当前值','value'],['阈值','threshold'],['影响','impact'],['解释','explain']])}</div>
+    <h6 class="fw-bold">全部解释指标</h6>
     <div class="scroll-box">${table(indicators,[['指标','name'],['当前值','value'],['阈值','threshold'],['影响','impact'],['解释','explain']])}</div>
     <div class="notice mt-3"><b>本样本原因：</b>${esc(item.reason)}<br><b>处理建议：</b>${esc(item.suggestion)}</div>`;
   showPage('score');
@@ -359,7 +519,10 @@ async function loadReport(){
   if(!currentSubmissionId){toast('请先完成检测','bad');return}
   const res=await api(`/api/user/reports/${currentSubmissionId}`);
   if(!res.ok){toast(res.error,'bad');return}
-  currentReport=res.data.report_markdown||'暂无报告内容'; reportBox.textContent=currentReport;
+  currentReport=res.data.report_markdown||'暂无报告内容';
+  currentAnalysis=obj(res.data.analysis);
+  renderReportStructured(res.data);
+  reportBox.textContent=currentReport;
 }
 function downloadReport(){if(!currentReport){toast('请先加载报告','bad');return}const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([currentReport],{type:'text/markdown;charset=utf-8'}));a.download='risk-report.md';a.click();}
 
@@ -375,7 +538,20 @@ async function loadAdminData(){
     ['数据源',sd.source_type||sd.source||'未检测'],['样本',sd.samples||0],['特征',sd.features||0],['联邦就绪',sd.ready_for_federated?'ready':'not ready']
   ].map(x=>`<div class="metric"><div class="metric-value">${esc(x[1])}</div><div class="metric-label">${x[0]}</div></div>`).join('');
   const rows=arr(obj(subs.data).submissions);
-  submissionTable.innerHTML=rows.length?rows.map(r=>`<tr><td>${esc(r.upload_time)}</td><td>${esc(r.filename)}</td><td>${esc(r.row_count)}</td><td>${esc(r.column_count)}</td><td>${r.encrypted?'AES':'-'}</td><td>${esc(r.review_status||r.status)}</td><td>${esc(JSON.stringify(r.risk_summary||{}))}</td><td><button class="btn-lightx" onclick="markTrainable('${esc(r.id)}')">标记可训练</button></td></tr>`).join(''):'<tr><td colspan="8" class="text-muted">暂无用户提交</td></tr>';
+  const totals=rows.reduce((acc,r)=>{const c=riskSummaryCounts(r.risk_summary);acc.high+=c.high;acc.medium+=c.medium;acc.trainable+=r.trainable?1:0;return acc},{high:0,medium:0,trainable:0});
+  submissionRiskMetrics.innerHTML=[
+    ['用户提交',rows.length],['高风险样本',totals.high],['中风险样本',totals.medium],['可训练提交',totals.trainable]
+  ].map(x=>`<div class="metric"><div class="metric-value">${esc(x[1])}</div><div class="metric-label">${x[0]}</div></div>`).join('');
+  submissionTable.innerHTML=rows.length?rows.map(r=>`<tr>
+    <td>${esc(r.upload_time)}</td>
+    <td>${esc(r.filename)}</td>
+    <td>${esc(r.row_count)}</td>
+    <td>${esc(r.column_count)}</td>
+    <td>${r.encrypted?'AES':'-'}</td>
+    <td>${esc(r.review_status||r.status)}</td>
+    <td>${riskSummaryTags(r.risk_summary)}</td>
+    <td><button class="btn-lightx" onclick="markTrainable('${esc(r.id)}')">标记可训练</button></td>
+  </tr>`).join(''):'<tr><td colspan="8" class="text-muted">暂无用户提交</td></tr>';
 }
 async function processSystemDataset(){const r=await api('/api/dataset/unsw/process',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});toast(r.ok?'处理完成':r.error,r.ok?'ok':'bad');loadAdminData();loadNodes();}
 async function markTrainable(id){const r=await api(`/api/admin/submissions/${id}/mark-trainable`,{method:'POST'});toast(r.ok?'已标记可训练':r.error,r.ok?'ok':'bad');loadAdminData();}
