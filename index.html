@@ -437,13 +437,27 @@ async function init(){
 }
 
 function renderUploadSummary(d){
+  const schema=obj(d.schema_check);
+  const missing=schema.missing_ratio!=null ? (Number(schema.missing_ratio)*100).toFixed(1)+'%' : '--';
+  const loginReady=schema.has_login_security_fields ? '已识别' : '不足';
   uploadSummary.innerHTML=[
-    ['提交编号',d.id||'--'],['样本数',d.row_count??'--'],['字段数',d.column_count??'--'],['加密归档',d.encrypted?'AES':'--']
+    ['提交编号',d.id||'--'],
+    ['样本数',schema.row_count??d.row_count??'--'],
+    ['字段数',schema.column_count??d.column_count??'--'],
+    ['缺失率',missing],
+    ['登录安全字段',loginReady],
+    ['加密归档',d.encrypted?'AES':'--']
   ].map(x=>`<div class="metric"><div class="metric-value">${esc(x[1])}</div><div class="metric-label">${x[0]}</div></div>`).join('');
   const sensitive=arr(d.sensitive_columns);
-  privacyNotice.innerHTML=sensitive.length
+  const warnings=arr(schema.warnings);
+  const sensitiveText=sensitive.length
     ? `已识别敏感字段：${sensitive.map(x=>`<span class="status-pill warn me-1">${esc(x)}</span>`).join('')}。预览仅显示脱敏值，password/token/secret 类字段只保留派生特征。`
     : '未识别到 password、token、手机号、银行卡、邮箱、薪资等常见敏感字段；预览仍会对疑似手机号、银行卡和邮箱格式做保护。';
+  const schemaText=`数据体检：标签列 ${esc(schema.label_column||'未识别')}，数值字段 ${esc(schema.numeric_columns??'--')} 个，缺失单元格 ${esc(schema.missing_cells??'--')} 个。`;
+  const warningText=warnings.length
+    ? `<div class="mt-2">${warnings.map(w=>`<div class="status-pill warn me-1 mb-1">${esc(w)}</div>`).join('')}</div>`
+    : '<div class="mt-2"><span class="status-pill ok">数据结构可用于当前风险检测流程</span></div>';
+  privacyNotice.innerHTML=`${sensitiveText}<div class="mt-2">${schemaText}</div>${warningText}`;
   if(d.id){currentSubmissionId=d.id;localStorage.setItem('currentSubmissionId',d.id);detectHint.textContent='当前提交：'+d.id;}
 }
 async function uploadBlob(filename,content){

@@ -51,6 +51,19 @@ KEY_DIR = os.path.join(PROJECT_ROOT, "data", "keys")
 KEY_FILE = os.path.join(KEY_DIR, "user_archive.key")
 MAX_PREVIEW_ROWS = 8
 MAX_TRAIN_ROWS = 20000
+MAX_UPLOAD_ROWS = 50000
+
+LOGIN_SECURITY_FIELD_HINTS = {
+    "ip", "client_ip", "remote_ip", "source_ip", "src_ip",
+    "username", "user", "account", "login_name",
+    "failed_attempts", "fail_count", "login_failures",
+    "request_rate", "request_frequency", "rate",
+    "response_time", "response_time_ms", "latency",
+    "session_duration", "duration", "dur",
+    "login_success", "success", "is_success",
+    "device", "device_type", "browser", "os", "user_agent",
+    "hour", "timestamp", "login_time", "unusual_hour",
+}
 
 PASSWORD_FIELD_HINTS = {
     "password", "passwd", "pwd", "user_password", "login_password",
@@ -398,6 +411,52 @@ def _profile_rows(rows: List[Dict], columns: List[str]) -> Dict:
     }
 
 
+def _has_login_security_fields(columns: List[str]) -> bool:
+    normalized = {_normalize_key(c) for c in columns}
+    compact = {c.replace("_", "") for c in normalized}
+    hits = 0
+    for hint in LOGIN_SECURITY_FIELD_HINTS:
+        h = _normalize_key(hint)
+        if h in normalized or h.replace("_", "") in compact:
+            hits += 1
+    return hits >= 2
+
+
+def _schema_check(profile: Dict, columns: List[str], label_col: Optional[str],
+                  sensitive_columns: List[str], truncated: bool = False) -> Dict:
+    warnings = []
+    row_count = int(profile.get("rows") or 0)
+    column_count = int(profile.get("columns") or 0)
+    missing_rate = float(profile.get("missing_rate") or 0)
+    has_login_security_fields = _has_login_security_fields(columns)
+
+    if row_count <= 0:
+        warnings.append("文件没有可分析的数据行。")
+    if column_count < 3:
+        warnings.append("字段数量较少，风险检测可信度可能不足。")
+    if not label_col:
+        warnings.append("未识别到 label / attack_cat / is_attack 等标签列，系统会按无标签数据处理。")
+    if missing_rate >= 0.2:
+        warnings.append("缺失值比例较高，建议先清洗数据后再分析。")
+    if not has_login_security_fields:
+        warnings.append("缺少典型登录安全字段，风险原因可能主要依赖通用数值特征。")
+    if truncated:
+        warnings.append("上传数据超过处理上限，本次仅处理前 %d 行。" % MAX_UPLOAD_ROWS)
+
+    return {
+        "row_count": row_count,
+        "column_count": column_count,
+        "label_column": label_col,
+        "missing_ratio": missing_rate,
+        "missing_cells": int(profile.get("missing_cells") or 0),
+        "numeric_columns": int(profile.get("numeric_columns") or 0),
+        "sensitive_column_count": len(sensitive_columns),
+        "has_login_security_fields": has_login_security_fields,
+        "ready_for_detection": row_count > 0 and column_count >= 3,
+        "warnings": warnings,
+    }
+
+
 def _features_from_rows(rows: List[Dict]) -> Tuple[np.ndarray, np.ndarray]:
     X = []
     y = []
@@ -645,12 +704,16 @@ class UserSubmissionManager:
         enc_path = os.path.join(ARCHIVE_DIR, submission_id + ".enc")
         shutil.copy2(src_path, plain_path)
 
-        rows, columns = _load_rows(plain_path, safe, limit=500)
+        rows, columns = _load_rows(plain_path, safe, limit=MAX_UPLOAD_ROWS + 1)
+        truncated = len(rows) > MAX_UPLOAD_ROWS
+        if truncated:
+            rows = rows[:MAX_UPLOAD_ROWS]
         rows, sensitive_columns = _sanitize_sensitive_rows(rows)
         if sensitive_columns:
             columns = _write_rows(plain_path, safe, rows)
         profile = _profile_rows(rows, columns)
         label_col = _detect_label_column(columns)
+        schema_check = _schema_check(profile, columns, label_col, sensitive_columns, truncated=truncated)
         enc_info = _encrypt_file(plain_path, enc_path)
 
         item = {
@@ -672,6 +735,7 @@ class UserSubmissionManager:
             "columns": columns[:80],
             "label_column": label_col,
             "profile": profile,
+            "schema_check": schema_check,
             "masked_preview": _masked_preview(rows),
             "sensitive_columns": sensitive_columns,
             "privacy_notice": "password fields are converted to derived strength features before archive storage" if sensitive_columns else "",
@@ -713,6 +777,8 @@ class UserSubmissionManager:
             "row_count": item.get("row_count", 0),
             "column_count": item.get("column_count", 0),
             "label_column": item.get("label_column"),
+            "schema_check": item.get("schema_check", {}),
+            "profile": item.get("profile", {}),
             "risk_summary": item.get("risk_summary", {}),
             "masked_preview": item.get("masked_preview", []),
             "sensitive_columns": item.get("sensitive_columns", []),
