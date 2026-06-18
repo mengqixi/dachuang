@@ -514,7 +514,10 @@ def _num(row: Dict, *keys: str, default: float = 0.0) -> float:
     for key in keys:
         if key in row:
             try:
-                return float(row.get(key) or default)
+                value = row.get(key)
+                if value is None or value == "":
+                    return default
+                return float(value)
             except Exception:
                 return default
     return default
@@ -525,12 +528,14 @@ def _trigger_features(row: Optional[Dict]) -> List[str]:
         return []
     triggers = []
     failed = _num(row, "failed_attempts", "ct_dst_src_ltm")
-    freq = _num(row, "request_frequency", "rate")
-    response = _num(row, "response_time", "dur")
+    freq = _num(row, "request_rate", "request_frequency", "rate")
+    response = _num(row, "response_time_ms", "response_time", "latency", "dur")
     session = _num(row, "session_duration", "connection_duration", "dur")
     password_strength = _num(row, "password_strength", default=3)
     unusual_hour = _num(row, "unusual_hour")
     login_success = _num(row, "login_success", default=1)
+    if login_success == 0 and failed >= 3:
+        triggers.append("多次失败登录")
     if failed >= 5:
         triggers.append("失败次数偏高")
     if freq >= 80:
@@ -543,8 +548,6 @@ def _trigger_features(row: Optional[Dict]) -> List[str]:
         triggers.append("密码强度偏低")
     if unusual_hour >= 1:
         triggers.append("异常时间段访问")
-    if login_success == 0 and failed >= 3:
-        triggers.append("多次失败登录")
     missing = sum(1 for v in row.values() if v in (None, ""))
     if missing >= max(3, len(row) // 4):
         triggers.append("缺失字段较多")
@@ -555,8 +558,8 @@ def _risk_breakdown(row: Optional[Dict], det: Dict) -> Dict:
     row = row or {}
     score = float(det.get("risk_score", det.get("score", 0)) or 0)
     failed = _num(row, "failed_attempts", "ct_dst_src_ltm")
-    freq = _num(row, "request_frequency", "rate")
-    response = _num(row, "response_time", "dur")
+    freq = _num(row, "request_rate", "request_frequency", "rate")
+    response = _num(row, "response_time_ms", "response_time", "latency", "dur")
     session = _num(row, "session_duration", "connection_duration", "dur")
     password_strength = _num(row, "password_strength", default=3)
     unusual_hour = _num(row, "unusual_hour")
@@ -612,9 +615,10 @@ def _risk_breakdown(row: Optional[Dict], det: Dict) -> Dict:
             "explain": "登录失败本身不一定危险，但和高失败次数组合时风险升高。",
         },
     ]
-    if score >= 0.75:
+    risk_level = str(det.get("risk_level") or "").lower()
+    if risk_level in ("critical", "high") or score >= 0.75:
         level_explain = "高风险：模型分数和规则触发项均较高，建议优先复核。"
-    elif score >= 0.45:
+    elif risk_level == "medium" or score >= 0.45:
         level_explain = "中风险：存在若干异常行为特征，建议结合业务上下文确认。"
     else:
         level_explain = "低风险：当前样本未表现出明显异常组合。"
@@ -639,16 +643,25 @@ def _risk_breakdown(row: Optional[Dict], det: Dict) -> Dict:
 
 def _clean_reason_for_detection(det: Dict, row: Optional[Dict] = None) -> str:
     score = float(det.get("risk_score", det.get("score", 0)) or 0)
+    risk_level = str(det.get("risk_level") or "").lower()
     reasons = []
-    if score >= 0.75:
+    if risk_level in ("critical", "high") or score >= 0.75:
         reasons.append("风险分数处于高区间")
-    elif score >= 0.45:
+    elif risk_level == "medium" or score >= 0.45:
         reasons.append("风险分数处于中等区间")
     if det.get("is_attack"):
         reasons.append("模型判断为异常或攻击样本")
-    triggers = _trigger_features(row)
-    if triggers:
-        reasons.append("触发特征：" + "、".join(triggers))
+    breakdown = _risk_breakdown(row, det)
+    triggered = breakdown.get("triggered_indicators", [])
+    if triggered:
+        detail = []
+        for item in triggered[:3]:
+            detail.append("%s=%s，阈值%s" % (
+                item.get("name", "指标"),
+                item.get("value", "-"),
+                item.get("threshold", "-"),
+            ))
+        reasons.append("触发指标：" + "；".join(detail))
     return "；".join(reasons[:3]) or "未发现明显异常特征，建议结合业务场景复核"
 
 
