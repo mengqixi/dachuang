@@ -24,7 +24,7 @@ from src.dataset_manager import dataset_manager, save_training_record, get_train
 from src.data_generator import generate_and_prepare, ensure_data_generated, FEATURE_NAMES as GEN_FEATURES
 from src.utils.data_storage import db
 from src.utils.model_manager import model_manager
-from src.user_submission_manager import user_submission_manager
+from src.user_submission_manager import UploadValidationError, user_submission_manager, validate_upload_file
 
 # ─── 日志配置 ───
 logger.remove()
@@ -970,12 +970,12 @@ def upload_file():
     if not allowed_file(file.filename):
         return jsonify(api_response(code=400, msg="不支持的文件类型"))
 
-    filename = file.filename
+    filename = os.path.basename(file.filename)
     file_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-    file.save(file_path)
-    logger.info("文件上传: %s" % filename)
-
     try:
+        file.save(file_path)
+        validate_upload_file(file_path, filename)
+        logger.info("文件上传: %s" % filename)
         data = []
         if filename.endswith(".csv"):
             if pd is not None:
@@ -1036,9 +1036,17 @@ def upload_file():
             "anomaly_count": sum(1 for d in detections if d["is_attack"]),
             "normal_count": sum(1 for d in detections if not d["is_attack"]),
         }))
+    except UploadValidationError as e:
+        return jsonify(api_response(code=400, msg=str(e)))
     except Exception as e:
         logger.error("文件处理失败: %s" % e)
         return jsonify(api_response(code=500, msg="文件处理失败: %s" % e))
+    finally:
+        try:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+        except Exception:
+            pass
 
 
 # ─── API: 自适应优化 ───
@@ -1171,12 +1179,15 @@ def user_dataset_upload():
     temp_path = os.path.join(app.config["UPLOAD_FOLDER"], temp_name)
     try:
         file.save(temp_path)
+        validate_upload_file(temp_path, file.filename)
         info = user_submission_manager.create_submission(temp_path, file.filename)
         try:
             db.upsert_user_submission(info)
         except Exception as persist_error:
             logger.warning("Persist user submission failed: %s", persist_error)
         return jsonify(api_response(msg="上传成功，文件已加密归档", data=info))
+    except UploadValidationError as e:
+        return jsonify(api_response(code=400, msg=str(e)))
     except Exception as e:
         logger.exception("User dataset upload failed")
         return jsonify(api_response(code=500, msg="上传失败: %s" % e))
@@ -1549,12 +1560,16 @@ def datasets_upload():
     if ext not in ("csv", "json"):
         return jsonify(api_response(code=400, msg="仅支持 CSV/JSON 格式"))
 
-    temp_path = os.path.join(app.config["UPLOAD_FOLDER"], "upload_" + file.filename)
+    filename = os.path.basename(file.filename)
+    temp_path = os.path.join(app.config["UPLOAD_FOLDER"], "upload_" + filename)
     file.save(temp_path)
 
     try:
-        info = dataset_manager.upload_dataset(temp_path, file.filename)
+        validate_upload_file(temp_path, filename)
+        info = dataset_manager.upload_dataset(temp_path, filename)
         return jsonify(api_response(data=info, msg="数据集导入成功"))
+    except UploadValidationError as e:
+        return jsonify(api_response(code=400, msg=str(e)))
     except Exception as e:
         logger.error("数据集导入失败: %s" % e)
         return jsonify(api_response(code=500, msg="导入失败: %s" % e))

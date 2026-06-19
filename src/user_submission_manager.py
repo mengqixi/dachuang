@@ -52,6 +52,13 @@ KEY_FILE = os.path.join(KEY_DIR, "user_archive.key")
 MAX_PREVIEW_ROWS = 8
 MAX_TRAIN_ROWS = 20000
 MAX_UPLOAD_ROWS = 50000
+MAX_UPLOAD_BYTES = 20 * 1024 * 1024
+MAX_UPLOAD_COLUMNS = 200
+SUPPORTED_UPLOAD_EXTENSIONS = {"csv", "json"}
+
+
+class UploadValidationError(ValueError):
+    """Raised when an uploaded CSV/JSON file fails safety validation."""
 
 LOGIN_SECURITY_FIELD_HINTS = {
     "ip", "client_ip", "remote_ip", "source_ip", "src_ip",
@@ -123,6 +130,68 @@ def _safe_filename(filename: str) -> str:
     name = os.path.basename(filename or "upload.dat")
     name = re.sub(r"[^A-Za-z0-9._-]+", "_", name).strip("._")
     return name or "upload.dat"
+
+
+def validate_upload_file(path: str, filename: str) -> Dict:
+    """Validate upload boundaries before creating encrypted archives."""
+    safe = _safe_filename(filename)
+    ext = safe.rsplit(".", 1)[-1].lower() if "." in safe else ""
+    if ext not in SUPPORTED_UPLOAD_EXTENSIONS:
+        raise UploadValidationError("仅支持 CSV/JSON 文件")
+    if not os.path.exists(path):
+        raise UploadValidationError("上传文件不存在")
+    size = os.path.getsize(path)
+    if size <= 0:
+        raise UploadValidationError("上传文件为空，请选择包含数据的 CSV/JSON 文件")
+    if size > MAX_UPLOAD_BYTES:
+        raise UploadValidationError("上传文件过大，当前限制为 %dMB" % (MAX_UPLOAD_BYTES // 1024 // 1024))
+
+    if ext == "csv":
+        try:
+            with open(path, "r", encoding="utf-8-sig", newline="") as f:
+                reader = csv.reader(f)
+                header = next(reader, None)
+                if not header:
+                    raise UploadValidationError("CSV 文件缺少表头")
+                columns = [str(x or "").strip() for x in header]
+                if not any(columns):
+                    raise UploadValidationError("CSV 表头为空")
+                if len(columns) > MAX_UPLOAD_COLUMNS:
+                    raise UploadValidationError("CSV 字段数过多，当前限制为 %d 列" % MAX_UPLOAD_COLUMNS)
+                rows = 0
+                for rows, _ in enumerate(reader, start=1):
+                    if rows > MAX_UPLOAD_ROWS:
+                        break
+        except UnicodeDecodeError:
+            raise UploadValidationError("文件编码无法识别，请使用 UTF-8 编码保存后重新上传")
+        except csv.Error as e:
+            raise UploadValidationError("CSV 格式无法解析: %s" % e)
+        if rows <= 0:
+            raise UploadValidationError("CSV 文件没有可分析的数据行")
+        return {"filename": safe, "extension": ext, "size": size, "rows": min(rows, MAX_UPLOAD_ROWS), "columns": len(columns)}
+
+    try:
+        with open(path, "r", encoding="utf-8-sig") as f:
+            data = json.load(f)
+    except UnicodeDecodeError:
+        raise UploadValidationError("文件编码无法识别，请使用 UTF-8 编码保存后重新上传")
+    except json.JSONDecodeError as e:
+        raise UploadValidationError("JSON 格式无法解析: %s" % e)
+    if isinstance(data, dict):
+        records = data.get("records") or data.get("data") or [data]
+    elif isinstance(data, list):
+        records = data
+    else:
+        raise UploadValidationError("JSON 顶层必须是对象数组，或包含 records/data 字段")
+    records = [x for x in records if isinstance(x, dict)]
+    if not records:
+        raise UploadValidationError("JSON 文件没有可分析的数据对象")
+    columns = set()
+    for row in records[:MAX_UPLOAD_ROWS]:
+        columns.update(row.keys())
+        if len(columns) > MAX_UPLOAD_COLUMNS:
+            raise UploadValidationError("JSON 字段数过多，当前限制为 %d 列" % MAX_UPLOAD_COLUMNS)
+    return {"filename": safe, "extension": ext, "size": size, "rows": min(len(records), MAX_UPLOAD_ROWS), "columns": len(columns)}
 
 
 def _read_index() -> Dict:
@@ -709,57 +778,67 @@ class UserSubmissionManager:
         _ensure_dirs()
         safe = _safe_filename(filename)
         ext = safe.rsplit(".", 1)[-1].lower() if "." in safe else ""
-        if ext not in ("csv", "json"):
-            raise ValueError("仅支持 CSV/JSON 文件")
+        if ext not in SUPPORTED_UPLOAD_EXTENSIONS:
+            raise UploadValidationError("仅支持 CSV/JSON 文件")
+        validate_upload_file(src_path, safe)
 
         submission_id = "sub_%s_%s" % (datetime.now().strftime("%Y%m%d%H%M%S"), uuid.uuid4().hex[:8])
         plain_path = os.path.join(TEMP_DIR, submission_id + "_" + safe)
         enc_path = os.path.join(ARCHIVE_DIR, submission_id + ".enc")
-        shutil.copy2(src_path, plain_path)
+        try:
+            shutil.copy2(src_path, plain_path)
 
-        rows, columns = _load_rows(plain_path, safe, limit=MAX_UPLOAD_ROWS + 1)
-        truncated = len(rows) > MAX_UPLOAD_ROWS
-        if truncated:
-            rows = rows[:MAX_UPLOAD_ROWS]
-        rows, sensitive_columns = _sanitize_sensitive_rows(rows)
-        if sensitive_columns:
-            columns = _write_rows(plain_path, safe, rows)
-        profile = _profile_rows(rows, columns)
-        label_col = _detect_label_column(columns)
-        schema_check = _schema_check(profile, columns, label_col, sensitive_columns, truncated=truncated)
-        enc_info = _encrypt_file(plain_path, enc_path)
+            rows, columns = _load_rows(plain_path, safe, limit=MAX_UPLOAD_ROWS + 1)
+            truncated = len(rows) > MAX_UPLOAD_ROWS
+            if truncated:
+                rows = rows[:MAX_UPLOAD_ROWS]
+            rows, sensitive_columns = _sanitize_sensitive_rows(rows)
+            if sensitive_columns:
+                columns = _write_rows(plain_path, safe, rows)
+            profile = _profile_rows(rows, columns)
+            label_col = _detect_label_column(columns)
+            schema_check = _schema_check(profile, columns, label_col, sensitive_columns, truncated=truncated)
+            enc_info = _encrypt_file(plain_path, enc_path)
 
-        item = {
-            "id": submission_id,
-            "filename": safe,
-            "upload_time": _now(),
-            "status": "待分析",
-            "review_status": "待审核",
-            "trainable": False,
-            "archived": True,
-            "encrypted": True,
-            "encryption": enc_info["algorithm"],
-            "encrypted_path": enc_path,
-            "plain_temp_path": plain_path,
-            "file_size": os.path.getsize(src_path),
-            "sha256": enc_info["sha256"],
-            "row_count": profile["rows"],
-            "column_count": profile["columns"],
-            "columns": columns[:80],
-            "label_column": label_col,
-            "profile": profile,
-            "schema_check": schema_check,
-            "masked_preview": _masked_preview(rows),
-            "sensitive_columns": sensitive_columns,
-            "privacy_notice": "password fields are converted to derived strength features before archive storage" if sensitive_columns else "",
-            "risk_summary": {},
-            "report_path": None,
-            "source": "用户上传数据",
-        }
-        data = _read_index()
-        data["submissions"].append(item)
-        _write_index(data)
-        return self.public_summary(item)
+            item = {
+                "id": submission_id,
+                "filename": safe,
+                "upload_time": _now(),
+                "status": "待分析",
+                "review_status": REVIEW_STATUS["pending"],
+                "trainable": False,
+                "archived": True,
+                "encrypted": True,
+                "encryption": enc_info["algorithm"],
+                "encrypted_path": enc_path,
+                "plain_temp_path": plain_path,
+                "file_size": os.path.getsize(src_path),
+                "sha256": enc_info["sha256"],
+                "row_count": profile["rows"],
+                "column_count": profile["columns"],
+                "columns": columns[:80],
+                "label_column": label_col,
+                "profile": profile,
+                "schema_check": schema_check,
+                "masked_preview": _masked_preview(rows),
+                "sensitive_columns": sensitive_columns,
+                "privacy_notice": "password fields are converted to derived strength features before archive storage" if sensitive_columns else "",
+                "risk_summary": {},
+                "report_path": None,
+                "source": "用户上传数据",
+            }
+            data = _read_index()
+            data["submissions"].append(item)
+            _write_index(data)
+            return self.public_summary(item)
+        except Exception:
+            for cleanup_path in (plain_path, enc_path):
+                try:
+                    if os.path.exists(cleanup_path):
+                        os.remove(cleanup_path)
+                except Exception:
+                    pass
+            raise
 
     def public_summary(self, item: Dict) -> Dict:
         review_status = item.get("review_status") or REVIEW_STATUS["pending"]
