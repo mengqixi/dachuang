@@ -1483,8 +1483,24 @@ def admin_training_tasks():
 @app.route("/api/admin/model-versions", methods=["GET"])
 def admin_model_versions():
     limit = max(1, min(int(request.args.get("limit", 50) or 50), 200))
+    versions = db.get_model_versions(limit)
+    runtime_status = {}
+    try:
+        runtime_status = model_manager.get_status()
+    except Exception as status_error:
+        runtime_status = {"error": str(status_error)}
     return jsonify(api_response(msg="success", data={
-        "versions": db.get_model_versions(limit),
+        "versions": versions,
+        "runtime_model": {
+            "available": bool(runtime_status),
+            "is_ready": bool(runtime_status.get("is_ready") or runtime_status.get("ready")),
+            "model_version": runtime_status.get("model_version") or runtime_status.get("version") or "",
+            "model_count": runtime_status.get("model_count") or runtime_status.get("models") or "",
+            "accuracy": runtime_status.get("accuracy") or runtime_status.get("last_accuracy"),
+            "source": "runtime_model_manager",
+            "note": "当前运行中的检测模型状态；若尚未产生训练版本记录，可先通过训练中心执行本地训练或联邦训练生成可追溯版本。",
+            "raw_status": runtime_status,
+        },
         "limit": limit,
     }))
 

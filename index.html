@@ -45,6 +45,9 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
 .report-box{background:#fff;color:#263238;border:1px solid #DDE7F0;border-radius:10px;padding:18px;white-space:pre-wrap;min-height:260px;max-height:520px;overflow:auto;font-size:14px;line-height:1.85;box-shadow:inset 0 0 0 1px rgba(255,255,255,.65)}
 .report-box.empty{background:#F8FBFE;color:#66788A;border-style:dashed}
 .report-note{border:1px solid #DDE7F0;background:#F8FBFE;border-radius:10px;padding:10px 12px;color:#5D6F82;font-size:13px}
+.audit-detail-json{background:#F8FBFE;border:1px solid #DDE7F0;border-radius:8px;padding:10px;max-height:220px;overflow:auto;white-space:pre-wrap;font-size:12px;color:#40576B}
+.detail-kv{display:grid;grid-template-columns:120px 1fr;gap:6px 10px;align-items:start}
+.detail-kv b{color:#244E7A}
 .chain{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.chain span{background:#EEF6FF;border:1px solid #CFE2F5;color:#1E5C9A;border-radius:999px;padding:6px 10px;font-size:13px;font-weight:700}
 .toastx{position:fixed;top:60px;right:18px;z-index:9999;color:#fff;border-radius:8px;padding:10px 15px;font-size:13px;box-shadow:0 6px 20px rgba(0,0,0,.15)}
 @media(max-width:980px){.metric-grid,.two-col,.three-col,.node-grid{grid-template-columns:1fr}.navbar-nav{overflow-x:auto;max-width:100%}}
@@ -521,19 +524,24 @@ function renderUploadSummary(d){
   privacyNotice.innerHTML=`${sensitiveText}<div class="mt-2">${schemaText}</div>${warningText}`;
   if(d.id){currentSubmissionId=d.id;localStorage.setItem('currentSubmissionId',d.id);detectHint.textContent='当前提交：'+d.id;}
 }
+function setUploadStatus(message,type='info'){
+  const color=type==='bad'?'#C62828':type==='ok'?'#2E7D32':'#2F5F93';
+  privacyNotice.innerHTML=`<span style="color:${color};font-weight:600">${esc(message)}</span>`;
+}
 async function uploadBlob(filename,content){
   const fd=new FormData(); fd.append('file',new File([content],filename,{type:'text/csv'}));
   const res=await api('/api/user/datasets/upload',{method:'POST',body:fd});
-  if(!res.ok){toast(res.error,'bad');return null}
-  renderUploadSummary(res.data); toast('已上传并加密归档','ok'); return res.data;
+  if(!res.ok){setUploadStatus(`提交失败：${res.error}`,'bad');toast(res.error,'bad');return null}
+  renderUploadSummary(res.data); setUploadStatus(`提交成功：${filename} 已完成 AES 加密归档，提交编号 ${res.data.id||'-'}`,'ok'); toast('已上传并加密归档','ok'); return res.data;
 }
 async function uploadUserFile(){
   const f=uploadFile.files[0]; if(!f){toast('请选择文件','bad');return}
+  setUploadStatus(`正在提交 ${f.name}，系统会先校验 CSV/JSON 格式并进行加密归档...`);
   const fd=new FormData(); fd.append('file',f);
   const res=await api('/api/user/datasets/upload',{method:'POST',body:fd});
-  if(!res.ok){toast(res.error,'bad');return}
+  if(!res.ok){setUploadStatus(`提交失败：${res.error}`,'bad');toast(res.error,'bad');return}
   const masked=maskPreviewRows(arr(res.data.masked_preview));
-  renderUploadSummary(res.data); plainPreview.innerHTML=table(masked,previewCols(masked[0])); toast('上传成功','ok');
+  renderUploadSummary(res.data); plainPreview.innerHTML=table(masked,previewCols(masked[0])); setUploadStatus(`提交成功：${f.name} 已加密归档。可进入“风险检测”页面执行检测。`,'ok'); toast('上传成功','ok');
 }
 function toCsv(rows){if(!rows.length)return'';const keys=Object.keys(rows[0]);return keys.join(',')+'\n'+rows.map(r=>keys.map(k=>`"${String(r[k]??'').replace(/"/g,'""')}"`).join(',')).join('\n')}
 async function generateLoginSamples(){
@@ -718,8 +726,30 @@ async function loadTrainingRecords(){
 }
 async function loadModelVersions(){
   const r=await api('/api/admin/model-versions?limit=50');
+  if(!r.ok){
+    modelVersionTable.innerHTML=`<tr><td colspan="11" class="text-muted">模型版本加载失败：${esc(r.error)}。请确认已经登录管理端。</td></tr>`;
+    return;
+  }
   const rows=arr(obj(r.data).versions);
-  modelVersionTable.innerHTML=rows.length?rows.map(v=>{
+  if(!rows.length){
+    const runtime=obj(obj(r.data).runtime_model);
+    const raw=obj(runtime.raw_status);
+    modelVersionTable.innerHTML=`<tr>
+      <td>${esc(runtime.model_version||raw.version||'runtime')}</td>
+      <td>runtime_detector</td>
+      <td>${esc(raw.algorithm||'ensemble_detector')}</td>
+      <td>${esc(runtime.source||'runtime_model_manager')}</td>
+      <td>${esc(raw.samples||raw.train_samples||'-')}</td>
+      <td><b>${esc(metricText(runtime.accuracy))}</b><div class="small-text text-muted">${runtime.is_ready?'运行中模型可用':'运行中模型未就绪'}</div></td>
+      <td>- / -<div class="small-text text-muted">需执行训练任务后记录</div></td>
+      <td><span class="status-pill ${runtime.is_ready?'ok':'warn'}">${runtime.is_ready?'运行中':'未就绪'}</span></td>
+      <td>-</td>
+      <td class="small-text">${esc(runtime.note||'暂无持久化模型版本记录。')}</td>
+      <td><button class="btn-lightx" onclick="runAdminLocalTrain()">生成版本</button></td>
+    </tr>`;
+    return;
+  }
+  modelVersionTable.innerHTML=rows.map(v=>{
     const current=Number(v.is_current||0)===1;
     const meta=parseJsonObject(v.metadata);
     const metric=trainingMetricInfo({...meta,...v});
@@ -738,7 +768,7 @@ async function loadModelVersions(){
       <td class="small-text">${esc(note)}</td>
       <td>${current?'-':`<button class="btn-lightx" onclick="activateModelVersion(${Number(v.id)||0})">设为当前</button>`}</td>
     </tr>`;
-  }).join(''):'<tr><td colspan="11" class="text-muted">暂无模型版本</td></tr>';
+  }).join('');
 }
 async function activateModelVersion(id){
   if(!id)return;
@@ -803,7 +833,14 @@ function renderAuditDetail(e,kind){
     ['设备',ex.device_type],['机型',ex.device_model],['系统',`${ex.os||'-'} ${ex.os_version||''}`],['浏览器',`${ex.browser||'-'} ${ex.browser_version||''}`],
     ['Host',ex.host],['端口',ex.server_port],['来源页',ex.referer],['原因',eventReason(e)],['建议',eventAdvice(e)]
   ];
-  auditDetailBox.innerHTML=`<div class="two-col">${rows.map(x=>`<div class="preview-card"><b>${esc(x[0])}</b><div class="small-text text-muted mt-1">${esc(x[1]||'-')}</div></div>`).join('')}</div>`;
+  const extraText=JSON.stringify(ex,null,2);
+  auditDetailBox.classList.remove('text-muted');
+  auditDetailBox.innerHTML=`
+    <div class="detail-kv mb-3">${rows.map(x=>`<b>${esc(x[0])}</b><div>${esc(x[1]||'-')}</div>`).join('')}</div>
+    <div class="fw-bold mb-2">原始扩展信息</div>
+    <div class="audit-detail-json">${esc(extraText)}</div>
+  `;
+  auditDetailBox.scrollIntoView({behavior:'smooth',block:'center'});
 }
 async function loadAudit(){
   const type=encodeURIComponent(auditTypeFilter?.value||'');
