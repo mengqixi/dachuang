@@ -1174,7 +1174,14 @@ class UserSubmissionManager:
             return np.empty((0, len(FEATURE_NAMES))), np.empty(0, dtype=np.int32), {"sources": []}
         X = np.vstack(X_all)
         y = np.concatenate(y_all)
-        return X, y, {"sources": source_items, "samples": int(len(X))}
+        unique, counts = np.unique(y, return_counts=True)
+        label_distribution = {str(int(k)): int(v) for k, v in zip(unique, counts)}
+        return X, y, {
+            "sources": source_items,
+            "samples": int(len(X)),
+            "label_distribution": label_distribution,
+            "source_count": len(source_items),
+        }
 
 
 user_submission_manager = UserSubmissionManager()

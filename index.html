@@ -389,7 +389,22 @@ function trainingMetricInfo(row){
   const label=merged.metric_label || (scope==='train'?'训练集指标':scope.includes('validation')?'验证指标':'历史记录');
   const note=merged.metric_note || (scope==='legacy'?'该历史记录生成于指标标注接入之前，无法确认是否使用独立验证集。':'该指标来自训练接口返回。');
   const validation=merged.validation_available===true || merged.validation_available==='true';
-  return {label,note,validation};
+  return {label,note,validation,meta:merged};
+}
+function labelDistText(v){
+  const dist=obj(v);
+  const keys=Object.keys(dist);
+  return keys.length?keys.map(k=>`${k}:${dist[k]}`).join(' / '):'未记录标签分布';
+}
+function trainingDataNote(metric){
+  const m=metric.meta||{};
+  const parts=[];
+  if(m.source_count!=null)parts.push(`来源 ${m.source_count} 份`);
+  if(m.samples!=null)parts.push(`样本 ${m.samples}`);
+  if(m.label_distribution)parts.push(`标签 ${labelDistText(m.label_distribution)}`);
+  if(m.node_count)parts.push(`节点 ${m.node_count}`);
+  if(m.rounds!=null && Number(m.rounds)>0)parts.push(`轮次 ${m.rounds}`);
+  return parts.join('；');
 }
 function reviewStatusBadge(row){
   const status=row.review_status||'待审核';
@@ -657,9 +672,9 @@ async function loadTrainingRecords(){
       <td>${esc(x.task_type)}</td>
       <td>${esc(x.source)}</td>
       <td>${esc(x.samples)}</td>
-      <td>${esc(Number.isFinite(accuracy)?accuracy.toFixed(4):'-')}</td>
+      <td><b>${esc(Number.isFinite(accuracy)?accuracy.toFixed(4):'-')}</b><div class="small-text text-muted">${metric.validation?'节点验证/留出指标':'训练集流程指标'}</div></td>
       <td><span class="status-pill ${metric.validation?'ok':'warn'}">${esc(metric.label)}</span></td>
-      <td class="small-text">${esc(metric.note)}</td>
+      <td class="small-text">${esc(metric.note)}${trainingDataNote(metric)?`<div class="mt-1 text-muted">${esc(trainingDataNote(metric))}</div>`:''}</td>
       <td>${esc(x.status)}</td>
       <td>${esc(x.created_at||x.timestamp||'')}</td>
     </tr>`;
@@ -671,12 +686,14 @@ async function loadModelVersions(){
   modelVersionTable.innerHTML=rows.length?rows.map(v=>{
     const current=Number(v.is_current||0)===1;
     const acc=Number(v.accuracy||0);
+    const meta=parseJsonObject(v.metadata);
+    const metric=trainingMetricInfo({...meta,...v});
     return `<tr>
       <td>${esc(v.version||'-')}</td>
       <td>${esc(v.model_type||'-')}</td>
       <td>${esc(v.source||'-')}</td>
-      <td>${esc(v.samples||0)}</td>
-      <td>${esc(Number.isFinite(acc)?acc.toFixed(4):'-')}</td>
+      <td>${esc(v.samples||0)}<div class="small-text text-muted">${esc(labelDistText(meta.label_distribution))}</div></td>
+      <td><b>${esc(Number.isFinite(acc)?acc.toFixed(4):'-')}</b><div class="small-text text-muted">${esc(metric.label)}</div></td>
       <td>${current?'<span class="status-pill ok">当前启用</span>':'<span class="status-pill info">可回退</span>'}</td>
       <td>${esc(v.timestamp||'')}</td>
       <td>${current?'-':`<button class="btn-lightx" onclick="activateModelVersion(${Number(v.id)||0})">设为当前</button>`}</td>
