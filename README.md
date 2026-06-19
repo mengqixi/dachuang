@@ -272,6 +272,19 @@ nohup python3 app.py > app.log 2>&1 &
 
 如果服务器无法 `git fetch`，可以按 `DEPLOYMENT_RUNBOOK.md` 使用 SFTP 同步已跟踪代码文件，再重启 Flask。
 
+## 部署安全检查
+
+上线或公网展示前，请先阅读并执行 [DEPLOYMENT_SECURITY_CHECKLIST.md](DEPLOYMENT_SECURITY_CHECKLIST.md)。
+
+必须确认：
+
+- 已配置 `FLASK_SECRET_KEY`，且不是默认值。
+- 已配置 `ADMIN_USERNAME` / `ADMIN_PASSWORD`，且管理端不使用默认弱口令。
+- 公网环境不启用 Flask debug。
+- 上传文件限制、空文件检查、CSV/JSON 格式检查已生效。
+- `data/`、`logs/`、密钥、数据库、模型文件和真实凭据不提交到 Git。
+- 如面向公网长期运行，建议启用 HTTPS、限制 CORS，并使用 systemd 或等价方式托管服务。
+
 ## 数据与安全边界
 
 - `data/` 下的数据库、模型、日志、上传文件和数据集通常不应提交到 Git。

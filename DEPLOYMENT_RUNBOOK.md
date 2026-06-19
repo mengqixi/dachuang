@@ -553,3 +553,18 @@ tail -n 100 app.log
 - API 返回结构变化。
 - 页面元素 id 或 JS 函数名被改动。
 - 浏览器缓存仍使用旧脚本。
+
+
+## 11. 部署安全检查
+
+每次公网部署前，应先执行 [DEPLOYMENT_SECURITY_CHECKLIST.md](DEPLOYMENT_SECURITY_CHECKLIST.md) 中的检查项。
+
+重点确认：
+
+- `FLASK_SECRET_KEY` 已配置为随机强密钥。
+- `ADMIN_USERNAME` / `ADMIN_PASSWORD` 已配置，且不是默认弱口令。
+- 管理端未配置强密码时应禁止公网登录。
+- 不开启 Flask debug。
+- 上传文件大小、类型、空文件、CSV/JSON 解析和行列数限制已生效。
+- `data/system.db`、`data/logs/`、`data/user_submissions/`、`data/keys/`、`logs/` 不应随代码提交。
+- 公网长期运行建议启用 HTTPS、限制 CORS、使用 systemd 托管服务并配置日志轮转。
