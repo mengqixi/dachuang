@@ -441,6 +441,30 @@ class DataStorage:
             finally:
                 conn.close()
 
+    def get_current_model_versions(self) -> List[Dict]:
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                rows = conn.execute(
+                    """
+                    SELECT cmv.model_type,
+                           cmv.model_version,
+                           cmv.model_id,
+                           cmv.timestamp AS current_since,
+                           mv.source,
+                           mv.samples,
+                           mv.accuracy,
+                           mv.metadata
+                    FROM current_model_versions cmv
+                    LEFT JOIN model_versions mv
+                      ON mv.id = cmv.model_id
+                    ORDER BY cmv.timestamp DESC
+                    """
+                ).fetchall()
+                return [dict(r) for r in rows]
+            finally:
+                conn.close()
+
     def set_current_model_version(self, version_id: int) -> Dict:
         with self._lock:
             conn = self._get_conn()

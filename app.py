@@ -79,6 +79,31 @@ def log_visitor(ip, path, method, user_agent=""):
             _visitor_log[:50] = []  # keep newest 150
 
 
+def binary_classification_metrics(y_true, y_pred):
+    """Return accuracy/precision/recall/f1 without adding metric dependencies."""
+    y_true = np.asarray(y_true).astype(int)
+    y_pred = np.asarray(y_pred).astype(int)
+    if len(y_true) == 0:
+        return {"accuracy": 0.0, "precision": None, "recall": None, "f1": None}
+    tp = int(np.sum((y_true == 1) & (y_pred == 1)))
+    tn = int(np.sum((y_true == 0) & (y_pred == 0)))
+    fp = int(np.sum((y_true == 0) & (y_pred == 1)))
+    fn = int(np.sum((y_true == 1) & (y_pred == 0)))
+    accuracy = float((tp + tn) / max(1, len(y_true)))
+    precision = float(tp / (tp + fp)) if (tp + fp) else None
+    recall = float(tp / (tp + fn)) if (tp + fn) else None
+    if precision is None or recall is None or (precision + recall) == 0:
+        f1 = None
+    else:
+        f1 = float(2 * precision * recall / (precision + recall))
+    return {
+        "accuracy": round(accuracy, 4),
+        "precision": round(precision, 4) if precision is not None else None,
+        "recall": round(recall, 4) if recall is not None else None,
+        "f1": round(f1, 4) if f1 is not None else None,
+    }
+
+
 # ─── IP中间件 ───
 @app.before_request
 def before_request():
@@ -1173,6 +1198,7 @@ def user_dataset_analyze(submission_id):
         analysis = user_submission_manager.analyze(submission_id, detector=ensemble_detector, limit=limit)
         if analysis is None:
             return jsonify(api_response(code=404, msg="提交记录不存在"))
+        analysis["current_model_versions"] = db.get_current_model_versions()
         try:
             item = user_submission_manager.get_submission(submission_id, include_preview=False) or {}
             db.upsert_user_submission(item)
@@ -1283,14 +1309,22 @@ def admin_training_local():
 
         seq_count = max(0, min(len(X) - 10, 1000))
         X_seq = np.array([X[i:i + 10] for i in range(seq_count)]) if seq_count else None
-        result = ensemble_detector.fit(X[:min(len(X), 5000)], y[:min(len(y), 5000)], X_seq[:500] if X_seq is not None else None)
+        fit_x = X[:min(len(X), 5000)]
+        fit_y = y[:min(len(y), 5000)]
+        result = ensemble_detector.fit(fit_x, fit_y, X_seq[:500] if X_seq is not None else None)
+        train_preds, _, _ = ensemble_detector.predict(fit_x)
+        metrics = binary_classification_metrics((fit_y > 0).astype(int), train_preds)
         record = {
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "task_type": "local",
             "source": "encrypted_user_submissions",
             "model_type": "admin_local_ensemble",
             "dataset_name": "encrypted_user_submissions",
-            "accuracy": round(float(result.get("accuracy", 0)), 4),
+            "accuracy": metrics["accuracy"],
+            "precision": metrics["precision"],
+            "recall": metrics["recall"],
+            "f1": metrics["f1"],
+            "algorithm": "ensemble_detector",
             "metric_name": "accuracy",
             "metric_scope": "train",
             "metric_label": "训练集指标",
@@ -1304,6 +1338,7 @@ def admin_training_local():
             "epochs": 1,
             "status": "completed",
             "model_version": datetime.now().strftime("v%Y%m%d%H%M%S"),
+            "note": "Local training version. Metrics are calculated on the current training batch unless a separate validation set is configured.",
         }
         source_ids = [s.get("id") for s in meta.get("sources", []) if s.get("id")]
         record["source_submission_ids"] = source_ids
@@ -1375,6 +1410,10 @@ def admin_training_federated():
                 "metric_label": "节点本地验证指标",
             } for r in results],
             "avg_accuracy": round(float(np.mean([r.get("accuracy", 0) for r in results])), 4) if results else 0,
+            "precision": None,
+            "recall": None,
+            "f1": None,
+            "algorithm": "fedavg",
             "metric_name": "avg_accuracy",
             "metric_scope": "node_validation_mean",
             "metric_label": "四节点本地验证均值",
@@ -1385,6 +1424,7 @@ def admin_training_federated():
             "node_count": len(NODE_NAMES),
             "rounds": fedavg_server.round,
             "history": fedavg_server.get_history(),
+            "note": "Federated version. Current client outputs include node accuracy and loss; precision/recall/F1 are not available for this training path.",
             **meta,
         }
         data["updated_submissions"] = user_submission_manager.mark_used_for_training(
@@ -1439,6 +1479,13 @@ def admin_model_versions():
     return jsonify(api_response(msg="success", data={
         "versions": db.get_model_versions(limit),
         "limit": limit,
+    }))
+
+
+@app.route("/api/model/current", methods=["GET"])
+def current_model_versions():
+    return jsonify(api_response(msg="success", data={
+        "versions": db.get_current_model_versions(),
     }))
 
 

@@ -115,6 +115,7 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">低风险</div></div>
         </div>
         <div class="notice mt-3" id="riskTopHint">检测完成后默认展示风险分数最高的 Top 20 中高风险样本。</div>
+        <div class="notice mt-2" id="currentModelHint">当前检测模型：暂无启用模型版本记录；如需追溯模型来源，请先在管理端训练中心生成模型版本。</div>
       </div>
     </div>
     <div class="panel">
@@ -253,8 +254,8 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
         <div class="notice mb-2">新训练出的模型版本会默认成为对应模型类型的当前版本；如需回退，可在列表中手动切换。</div>
         <div class="scroll-box">
           <table class="table table-sm">
-            <thead><tr><th>版本</th><th>模型类型</th><th>来源</th><th>样本</th><th>指标</th><th>当前启用</th><th>时间</th><th>操作</th></tr></thead>
-            <tbody id="modelVersionTable"><tr><td colspan="8" class="text-muted">暂无模型版本</td></tr></tbody>
+            <thead><tr><th>版本</th><th>模型类型</th><th>算法</th><th>来源</th><th>样本</th><th>准确率</th><th>召回率 / F1</th><th>当前启用</th><th>时间</th><th>备注</th><th>操作</th></tr></thead>
+            <tbody id="modelVersionTable"><tr><td colspan="11" class="text-muted">暂无模型版本</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -396,6 +397,20 @@ function labelDistText(v){
   const keys=Object.keys(dist);
   return keys.length?keys.map(k=>`${k}:${dist[k]}`).join(' / '):'未记录标签分布';
 }
+function metricText(v){
+  if(v===null || v===undefined || v==='')return'-';
+  const n=Number(v);
+  return Number.isFinite(n)?n.toFixed(4):'-';
+}
+function currentModelText(versions){
+  const rows=arr(versions);
+  if(!rows.length)return'当前检测模型：暂无启用模型版本记录；如需追溯模型来源，请先在管理端训练中心生成模型版本。';
+  return '当前启用模型：' + rows.map(v=>{
+    const meta=parseJsonObject(v.metadata);
+    const acc=metricText(v.accuracy);
+    return `${v.model_type||'model'} / ${v.model_version||v.version||'-'} / ${meta.algorithm||'algorithm未记录'} / accuracy ${acc}`;
+  }).join('；');
+}
 function trainingDataNote(metric){
   const m=metric.meta||{};
   const parts=[];
@@ -527,6 +542,7 @@ async function analyzeCurrentSubmission(){
 }
 function renderAnalysis(d){
   currentAnalysis = obj(d);
+  if(typeof currentModelHint!=='undefined')currentModelHint.textContent=currentModelText(d.current_model_versions);
   const s=obj(d.risk_summary); riskMetrics.innerHTML=[
     ['总样本',d.total||0],['高风险',(s.high||0)+(s.critical||0)],['中风险',s.medium||0],['低风险',s.low||0]
   ].map(x=>`<div class="metric"><div class="metric-value">${x[1]}</div><div class="metric-label">${x[0]}</div></div>`).join('');
@@ -685,20 +701,24 @@ async function loadModelVersions(){
   const rows=arr(obj(r.data).versions);
   modelVersionTable.innerHTML=rows.length?rows.map(v=>{
     const current=Number(v.is_current||0)===1;
-    const acc=Number(v.accuracy||0);
     const meta=parseJsonObject(v.metadata);
     const metric=trainingMetricInfo({...meta,...v});
+    const algorithm=meta.algorithm || (String(v.model_type||'').includes('federated')?'fedavg':'ensemble_detector');
+    const note=meta.note || meta.metric_note || metric.note || '-';
     return `<tr>
       <td>${esc(v.version||'-')}</td>
       <td>${esc(v.model_type||'-')}</td>
+      <td>${esc(algorithm)}</td>
       <td>${esc(v.source||'-')}</td>
       <td>${esc(v.samples||0)}<div class="small-text text-muted">${esc(labelDistText(meta.label_distribution))}</div></td>
-      <td><b>${esc(Number.isFinite(acc)?acc.toFixed(4):'-')}</b><div class="small-text text-muted">${esc(metric.label)}</div></td>
+      <td><b>${esc(metricText(v.accuracy))}</b><div class="small-text text-muted">${esc(metric.label)}</div></td>
+      <td>${esc(metricText(meta.recall))} / ${esc(metricText(meta.f1))}<div class="small-text text-muted">Precision ${esc(metricText(meta.precision))}</div></td>
       <td>${current?'<span class="status-pill ok">当前启用</span>':'<span class="status-pill info">可回退</span>'}</td>
       <td>${esc(v.timestamp||'')}</td>
+      <td class="small-text">${esc(note)}</td>
       <td>${current?'-':`<button class="btn-lightx" onclick="activateModelVersion(${Number(v.id)||0})">设为当前</button>`}</td>
     </tr>`;
-  }).join(''):'<tr><td colspan="8" class="text-muted">暂无模型版本</td></tr>';
+  }).join(''):'<tr><td colspan="11" class="text-muted">暂无模型版本</td></tr>';
 }
 async function activateModelVersion(id){
   if(!id)return;
