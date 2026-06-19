@@ -1301,7 +1301,15 @@ def admin_training_local():
             "status": "completed",
             "model_version": datetime.now().strftime("v%Y%m%d%H%M%S"),
         }
+        source_ids = [s.get("id") for s in meta.get("sources", []) if s.get("id")]
+        record["source_submission_ids"] = source_ids
         save_training_record(record)
+        updated_submissions = user_submission_manager.mark_used_for_training(
+            source_ids,
+            task_type="local",
+            model_version=record["model_version"],
+            samples=int(len(X)),
+        )
         try:
             db.save_training_task_record(record)
             db.save_model_version_record({
@@ -1314,7 +1322,7 @@ def admin_training_local():
             })
         except Exception as persist_error:
             logger.warning("Persist local training task failed: %s", persist_error)
-        return jsonify(api_response(msg="本地训练完成", data={**record, **meta, "fit_result": result}))
+        return jsonify(api_response(msg="本地训练完成", data={**record, **meta, "fit_result": result, "updated_submissions": updated_submissions}))
     except Exception as e:
         logger.exception("Admin local training failed")
         return jsonify(api_response(code=500, msg="训练失败: %s" % e))
@@ -1344,10 +1352,14 @@ def admin_training_federated():
                 results.append(client.train_local(global_weights=fedavg_server.global_weights, epochs=epochs))
         fedavg_server.aggregate(results)
 
+        version = datetime.now().strftime("fed%Y%m%d%H%M%S")
+        source_ids = [s.get("id") for s in meta.get("sources", []) if s.get("id")]
         data = {
             "task_type": "federated",
             "source": "encrypted_user_submissions",
             "status": "completed",
+            "model_version": version,
+            "source_submission_ids": source_ids,
             "nodes": [{"name": n, "samples": int(c), "ready": True} for n, c in saved],
             "round": fedavg_server.round,
             "clients": [{
@@ -1367,8 +1379,13 @@ def admin_training_federated():
             "history": fedavg_server.get_history(),
             **meta,
         }
+        data["updated_submissions"] = user_submission_manager.mark_used_for_training(
+            source_ids,
+            task_type="federated",
+            model_version=version,
+            samples=int(len(X)),
+        )
         try:
-            version = datetime.now().strftime("fed%Y%m%d%H%M%S")
             db.save_training_task_record({
                 "task_type": "federated",
                 "source": "encrypted_user_submissions",

@@ -208,8 +208,8 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
       <div class="panel-body">
         <div class="scroll-box">
           <table class="table table-sm">
-            <thead><tr><th>时间</th><th>文件</th><th>样本</th><th>字段</th><th>加密</th><th>审核状态</th><th>训练池</th><th>风险摘要</th><th>操作</th></tr></thead>
-            <tbody id="submissionTable"><tr><td colspan="9" class="text-muted">请先刷新数据</td></tr></tbody>
+            <thead><tr><th>时间</th><th>文件</th><th>样本</th><th>字段</th><th>加密</th><th>审核状态</th><th>生命周期</th><th>最近操作</th><th>风险摘要</th><th>操作</th></tr></thead>
+            <tbody id="submissionTable"><tr><td colspan="10" class="text-muted">请先刷新数据</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -395,6 +395,14 @@ function reviewStatusBadge(row){
   const status=row.review_status||'待审核';
   const cls=status==='可训练'?'ok':status==='已拒绝'?'bad':status==='已归档'?'info':'warn';
   return `<span class="status-pill ${cls}" title="${esc(row.review_status_note||'')}">${esc(status)}</span>`;
+}
+function lifecycleBadge(row){
+  const status=row.lifecycle_status||'待审核';
+  const cls=status==='已生成模型版本'?'ok':status==='已用于训练'?'info':status==='可训练'?'ok':status==='已拒绝'?'bad':status==='已加密归档'?'info':'warn';
+  const meta=[];
+  if(row.training_runs)meta.push(`训练 ${row.training_runs} 次`);
+  if(row.last_model_version)meta.push(`版本 ${row.last_model_version}`);
+  return `<span class="status-pill ${cls}">${esc(status)}</span>${meta.length?`<div class="small-text text-muted mt-1">${esc(meta.join(' / '))}</div>`:''}`;
 }
 function submissionActionButtons(row){
   const id=esc(row.id);
@@ -626,10 +634,11 @@ async function loadAdminData(){
     <td>${esc(r.column_count)}</td>
     <td>${r.encrypted?'AES':'-'}</td>
     <td>${reviewStatusBadge(r)}<div class="small-text text-muted mt-1">${esc(r.review_status_note||'')}</div></td>
-    <td>${r.trainable?'<span class="status-pill ok">可训练</span>':'<span class="status-pill warn">未进入</span>'}</td>
+    <td>${lifecycleBadge(r)}</td>
+    <td>${esc(r.recent_operation_time||r.upload_time||'-')}</td>
     <td>${riskSummaryTags(r.risk_summary)}</td>
     <td>${submissionActionButtons(r)}</td>
-  </tr>`).join(''):'<tr><td colspan="9" class="text-muted">暂无用户提交</td></tr>';
+  </tr>`).join(''):'<tr><td colspan="10" class="text-muted">暂无用户提交</td></tr>';
 }
 async function processSystemDataset(){const r=await api('/api/dataset/unsw/process',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});toast(r.ok?'处理完成':r.error,r.ok?'ok':'bad');loadAdminData();loadNodes();}
 async function archiveSubmission(id){const r=await api(`/api/admin/submissions/${id}/archive`,{method:'POST'});toast(r.ok?'已归档':r.error,r.ok?'ok':'bad');loadAdminData();}

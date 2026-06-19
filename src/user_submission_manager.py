@@ -764,6 +764,34 @@ class UserSubmissionManager:
     def public_summary(self, item: Dict) -> Dict:
         review_status = item.get("review_status") or REVIEW_STATUS["pending"]
         trainable = bool(item.get("trainable"))
+        training_history = item.get("training_history", [])
+        if not isinstance(training_history, list):
+            training_history = []
+        training_runs = int(item.get("training_runs") or len(training_history) or 0)
+        model_versions = item.get("model_versions", [])
+        if not isinstance(model_versions, list):
+            model_versions = []
+        if model_versions:
+            lifecycle_status = "已生成模型版本"
+        elif training_runs:
+            lifecycle_status = "已用于训练"
+        elif trainable:
+            lifecycle_status = "可训练"
+        elif review_status == REVIEW_STATUS["archived"]:
+            lifecycle_status = "已加密归档"
+        elif review_status == REVIEW_STATUS["rejected"]:
+            lifecycle_status = "已拒绝"
+        else:
+            lifecycle_status = "待审核"
+        review_history = item.get("review_history", [])
+        if not isinstance(review_history, list):
+            review_history = []
+        recent_operation_time = (
+            item.get("last_training_at")
+            or (review_history[-1].get("time") if review_history else "")
+            or item.get("reviewed_at")
+            or item.get("upload_time")
+        )
         actions = []
         if review_status == REVIEW_STATUS["pending"]:
             actions.extend(["archive", "reject"])
@@ -783,6 +811,13 @@ class UserSubmissionManager:
             "reviewed_at": item.get("reviewed_at"),
             "trainable": trainable,
             "training_status": "已进入训练池" if trainable else "未进入训练池",
+            "lifecycle_status": lifecycle_status,
+            "recent_operation_time": recent_operation_time,
+            "training_runs": training_runs,
+            "last_training_at": item.get("last_training_at"),
+            "last_training_task_type": item.get("last_training_task_type"),
+            "last_model_version": item.get("last_model_version"),
+            "model_versions": model_versions[-5:],
             "allowed_actions": actions,
             "archived": bool(item.get("archived")),
             "encrypted": bool(item.get("encrypted")),
@@ -1071,6 +1106,43 @@ class UserSubmissionManager:
             patch["review_history"] = history[-20:]
         item = _update_submission(submission_id, patch)
         return self.public_summary(item) if item else None
+
+    def mark_used_for_training(self, source_ids: List[str], task_type: str, model_version: str = "", samples: int = 0) -> List[Dict]:
+        if not source_ids:
+            return []
+        data = _read_index()
+        updated = []
+        now = _now()
+        source_set = set(source_ids)
+        for item in data.get("submissions", []):
+            if item.get("id") not in source_set:
+                continue
+            history = item.get("training_history", [])
+            if not isinstance(history, list):
+                history = []
+            history.append({
+                "time": now,
+                "task_type": task_type,
+                "model_version": model_version,
+                "samples": int(samples or 0),
+            })
+            versions = item.get("model_versions", [])
+            if not isinstance(versions, list):
+                versions = []
+            if model_version:
+                versions.append(model_version)
+            item["training_history"] = history[-20:]
+            item["training_runs"] = int(item.get("training_runs") or 0) + 1
+            item["last_training_at"] = now
+            item["last_training_task_type"] = task_type
+            item["last_model_version"] = model_version
+            item["model_versions"] = versions[-10:]
+            item["review_status"] = REVIEW_STATUS["trainable"]
+            item["trainable"] = True
+            updated.append(self.public_summary(item))
+        if updated:
+            _write_index(data)
+        return updated
 
     def load_trainable_features(self, ids: Optional[List[str]] = None, limit: int = MAX_TRAIN_ROWS) -> Tuple[np.ndarray, np.ndarray, Dict]:
         selected = []
