@@ -216,8 +216,8 @@ def api_response(code=200, msg="操作成功", data=None):
     return {"code": code, "msg": msg, "data": data or {}}
 
 
-DEFAULT_ADMIN_USERNAME = "admin"
-DEFAULT_ADMIN_PASSWORD = "admin123"
+DEFAULT_ADMIN_USERNAME = "root"
+DEFAULT_ADMIN_PASSWORD = "root"
 
 
 def _is_local_request():
@@ -227,21 +227,17 @@ def _is_local_request():
 
 
 def _admin_credentials():
-    return os.environ.get("ADMIN_USERNAME", DEFAULT_ADMIN_USERNAME), os.environ.get("ADMIN_PASSWORD", "")
+    return (
+        os.environ.get("ADMIN_USERNAME", DEFAULT_ADMIN_USERNAME),
+        os.environ.get("ADMIN_PASSWORD", DEFAULT_ADMIN_PASSWORD),
+    )
 
 
 def _admin_auth_config_status():
     username, password = _admin_credentials()
     configured = bool(os.environ.get("ADMIN_PASSWORD"))
-    local_default_allowed = _is_local_request() and os.environ.get("ALLOW_DEFAULT_ADMIN", "").lower() in ("1", "true", "yes")
-    if not configured and local_default_allowed:
-        password = DEFAULT_ADMIN_PASSWORD
     disabled_reason = ""
-    if not configured and not local_default_allowed:
-        disabled_reason = "管理端未配置 ADMIN_PASSWORD，登录已禁用。请在服务器环境变量中设置强密码。"
     weak_default = password == DEFAULT_ADMIN_PASSWORD
-    if configured and weak_default and not _is_local_request():
-        disabled_reason = "管理端 ADMIN_PASSWORD 仍为默认弱口令，外网登录已禁用。"
     return {
         "username": username,
         "password": password,

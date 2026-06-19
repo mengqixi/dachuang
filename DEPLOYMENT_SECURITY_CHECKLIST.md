@@ -77,8 +77,8 @@ Type=simple
 WorkingDirectory=/root/dachuang
 Environment=PYTHONUNBUFFERED=1
 Environment=FLASK_SECRET_KEY=请替换为随机强密钥
-Environment=ADMIN_USERNAME=admin
-Environment=ADMIN_PASSWORD=请替换为强密码
+Environment=ADMIN_USERNAME=root
+Environment=ADMIN_PASSWORD=root
 ExecStart=/usr/bin/python3 /root/dachuang/app.py
 Restart=always
 RestartSec=3

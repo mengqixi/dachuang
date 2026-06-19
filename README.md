@@ -103,16 +103,16 @@ python app.py
 管理端登录需要配置环境变量：
 
 ```bash
-export ADMIN_USERNAME=admin
-export ADMIN_PASSWORD='your-strong-password'
+export ADMIN_USERNAME=root
+export ADMIN_PASSWORD=root
 python app.py
 ```
 
 Windows PowerShell：
 
 ```powershell
-$env:ADMIN_USERNAME = "admin"
-$env:ADMIN_PASSWORD = "your-strong-password"
+$env:ADMIN_USERNAME = "root"
+$env:ADMIN_PASSWORD = "root"
 python app.py
 ```
 
@@ -265,8 +265,8 @@ python -m py_compile @files
 cd /root/dachuang
 git fetch origin
 git reset --hard origin/master
-export ADMIN_USERNAME=admin
-export ADMIN_PASSWORD='your-strong-password'
+export ADMIN_USERNAME=root
+export ADMIN_PASSWORD=root
 nohup python3 app.py > app.log 2>&1 &
 ```
 
