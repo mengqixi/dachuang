@@ -264,30 +264,49 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
 
   <section class="page" id="pg-audit">
     <div class="panel">
-      <div class="panel-head"><i class="fas fa-clipboard-check text-primary"></i> 系统审计 - 平台访问与安全事件</div>
+      <div class="panel-head"><i class="fas fa-clipboard-check text-primary"></i> ???? - ?????????</div>
       <div class="panel-body">
-        <div class="notice mb-3">系统审计记录“谁访问平台”和平台运行事件；风险检测分析的是用户提交的数据，两者用途不同。</div>
+        <div class="notice mb-3">???????????????????????????????????????????????????????????????</div>
         <div class="row g-2 align-items-end">
-          <div class="col-md-2"><label class="form-label">风险等级</label><select class="form-select" id="auditRiskFilter"><option value="">全部</option><option value="critical">严重</option><option value="high">高</option><option value="medium">中</option><option value="low">低</option><option value="info">信息</option></select></div>
-          <div class="col-md-2"><label class="form-label">事件类型</label><select class="form-select" id="auditTypeFilter"><option value="">全部事件</option><option value="site_visit">访问记录</option><option value="slow_api_detected">慢接口</option><option value="rate_limit_triggered">限流</option></select></div>
-          <div class="col-md-2"><label class="form-label">IP 包含</label><input class="form-control" id="auditIpFilter" placeholder="例如 127.0"></div>
-          <div class="col-md-3"><label class="form-label">路径包含</label><input class="form-control" id="auditPathFilter" placeholder="例如 /api"></div>
-          <div class="col-md-1"><label class="form-label">条数</label><select class="form-select" id="auditLimit"><option>50</option><option selected>100</option><option>200</option></select></div>
-          <div class="col-md-2"><button class="btn-main w-100" onclick="loadAudit()">刷新审计</button></div>
+          <div class="col-md-2"><label class="form-label">????</label><select class="form-select" id="auditRiskFilter"><option value="">??</option><option value="critical">??</option><option value="high">?</option><option value="medium">?</option><option value="low">?</option><option value="info">??</option></select></div>
+          <div class="col-md-2"><label class="form-label">????</label><select class="form-select" id="auditTypeFilter"><option value="">????</option><option value="site_visit">????</option><option value="slow_api_detected">???</option><option value="rate_limit_triggered">??</option></select></div>
+          <div class="col-md-2"><label class="form-label">IP ??</label><input class="form-control" id="auditIpFilter" placeholder="?? 127.0"></div>
+          <div class="col-md-3"><label class="form-label">????</label><input class="form-control" id="auditPathFilter" placeholder="?? /api"></div>
+          <div class="col-md-1"><label class="form-label">??</label><select class="form-select" id="auditLimit"><option>50</option><option selected>100</option><option>200</option></select></div>
+          <div class="col-md-2"><button class="btn-main w-100" onclick="resetAuditAndLoad()">????</button></div>
         </div>
-        <div class="small-text text-muted mt-2" id="auditFilterSummary">默认展示最近 100 条审计记录。</div>
+        <div class="small-text text-muted mt-2" id="auditFilterSummary">?????? 100 ??????</div>
         <div class="metric-grid mt-3" id="auditMetrics"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">???? IP ??</div>
+      <div class="panel-body">
+        <div class="notice mb-2">??????????? IP ?????????????????????????????????????????</div>
+        <div class="scroll-box"><table class="table table-sm"><thead><tr><th>IP</th><th>???</th><th>???</th><th>??????</th><th>????</th><th>????</th></tr></thead><tbody id="suspiciousIpTable"><tr><td colspan="6" class="text-muted">??????</td></tr></tbody></table></div>
       </div>
     </div>
     <div class="two-col">
       <div class="panel">
-        <div class="panel-head">安全事件</div>
-        <div class="panel-body"><div class="scroll-box"><table class="table table-sm"><thead><tr><th>时间</th><th>风险</th><th>类型</th><th>路径</th><th>原因</th><th>建议</th></tr></thead><tbody id="eventTable"></tbody></table></div></div>
+        <div class="panel-head">????</div>
+        <div class="panel-body">
+          <div class="small-text text-muted mb-2">??????????????????????????????? TraceId?User-Agent ??????</div>
+          <div class="scroll-box"><table class="table table-sm"><thead><tr><th>??</th><th>??</th><th>??</th><th>??</th><th>??</th><th>??</th><th>??</th></tr></thead><tbody id="eventTable"></tbody></table></div>
+          <div class="d-flex justify-content-between align-items-center mt-2"><button class="btn-lightx" onclick="pageAudit(-1,'events')">???</button><span class="small-text text-muted" id="eventPageInfo">?? 0/0</span><button class="btn-lightx" onclick="pageAudit(1,'events')">???</button></div>
+        </div>
       </div>
       <div class="panel">
-        <div class="panel-head">最近访问记录</div>
-        <div class="panel-body"><div class="scroll-box"><table class="table table-sm"><thead><tr><th>时间</th><th>IP</th><th>归属地</th><th>设备</th><th>系统</th><th>浏览器</th><th>方法</th><th>端口</th><th>路径</th></tr></thead><tbody id="visitTable"></tbody></table></div></div>
+        <div class="panel-head">??????</div>
+        <div class="panel-body">
+          <div class="small-text text-muted mb-2">????????????????????????????????????????????????</div>
+          <div class="scroll-box"><table class="table table-sm"><thead><tr><th>??</th><th>IP</th><th>???</th><th>??</th><th>??</th><th>???</th><th>??</th><th>??</th><th>??</th><th>??</th></tr></thead><tbody id="visitTable"></tbody></table></div>
+          <div class="d-flex justify-content-between align-items-center mt-2"><button class="btn-lightx" onclick="pageAudit(-1,'visits')">???</button><span class="small-text text-muted" id="visitPageInfo">?? 0/0</span><button class="btn-lightx" onclick="pageAudit(1,'visits')">???</button></div>
+        </div>
       </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">????</div>
+      <div class="panel-body"><div id="auditDetailBox" class="preview-card text-muted">???????????????????</div></div>
     </div>
   </section>
 
@@ -315,6 +334,7 @@ let currentReport = '';
 let adminLoggedIn = false;
 let lastRiskReasons = [];
 let currentAnalysis = null;
+let auditState = {eventOffset:0, visitOffset:0, events:[], visits:[], totalEvents:0, totalVisits:0};
 
 function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function arr(v){return Array.isArray(v)?v:[]}
@@ -726,27 +746,90 @@ async function activateModelVersion(id){
   toast(r.ok?'已切换当前模型版本':r.error,r.ok?'ok':'bad');
   loadModelVersions();
 }
-function eventReason(e){const t=e.event_type||'';if(t==='site_visit')return'页面访问记录';if(t.includes('slow'))return'接口耗时超过阈值';if(t.includes('rate'))return'访问频率超过限制';return e.message||'系统记录事件'}
-function eventAdvice(e){const t=e.event_type||'';if(t.includes('slow'))return'关注接口耗时和服务负载，必要时优化接口或调整阈值。';if(t.includes('rate'))return'关注同一 IP 和路径的访问频率，结合业务场景判断。';return'作为审计记录留存，结合访问路径和来源继续观察。'}
-async function loadAudit(){
+function eventReason(e){
+  const t=e.event_type||'';
+  if(t==='site_visit')return'???????????????????????????';
+  if(t.includes('slow'))return'????????????????????????????????';
+  if(t.includes('rate'))return'????????????????????????????';
+  if(e.message)return e.message;
+  return '?????????????????? IP ? TraceId ????';
+}
+function eventAdvice(e){
+  const t=e.event_type||'';
+  if(t.includes('slow'))return'??????????????????????????????????????????';
+  if(t.includes('rate'))return'?????? IP ????????????????????????????????';
+  if(t==='site_visit')return'??????????????????????? TraceId ???????';
+  return'???? TraceId?????????????????????????????';
+}
+function shortText(v,n=38){const s=String(v||'-');return s.length>n?s.slice(0,n)+'...':s}
+function auditRiskWeight(level){return {critical:4,high:3,medium:2,low:1,info:0}[level]??0}
+function geoText(e){const ex=obj(e.extra),g=obj(ex.geo);return [g.country,g.region,g.city].filter(Boolean).join(' ')||'-'}
+function auditQueryBase(offset){
   const limit=encodeURIComponent(auditLimit?.value||100);
   const risk=encodeURIComponent(auditRiskFilter?.value||'');
-  const type=encodeURIComponent(auditTypeFilter?.value||'');
   const ip=encodeURIComponent((auditIpFilter?.value||'').trim());
   const path=encodeURIComponent((auditPathFilter?.value||'').trim());
-  const base=`limit=${limit}&risk_level=${risk}&ip=${ip}&path=${path}`;
-  const eventQuery=type?`${base}&event_type=${type}`:base;
+  return `limit=${limit}&offset=${Math.max(0,offset||0)}&risk_level=${risk}&ip=${ip}&path=${path}`;
+}
+function resetAuditAndLoad(){auditState.eventOffset=0;auditState.visitOffset=0;loadAudit()}
+function pageAudit(delta,kind){
+  const limit=Number(auditLimit?.value||100)||100;
+  if(kind==='events')auditState.eventOffset=Math.max(0,auditState.eventOffset+delta*limit);
+  if(kind==='visits')auditState.visitOffset=Math.max(0,auditState.visitOffset+delta*limit);
+  loadAudit();
+}
+function renderSuspiciousIps(events,visits){
+  const map=new Map();
+  [...events,...visits].forEach(e=>{
+    const ip=e.ip||'unknown';
+    if(!map.has(ip))map.set(ip,{ip,count:0,paths:new Set(),risk:0,last:'',topPath:''});
+    const row=map.get(ip);
+    row.count+=1;
+    if(e.path)row.paths.add(e.path);
+    if(['critical','high','medium'].includes(e.risk_level||''))row.risk+=1;
+    if(!row.last || String(e.timestamp||'')>row.last)row.last=e.timestamp||'';
+    if(!row.topPath && e.path)row.topPath=e.path;
+  });
+  const rows=[...map.values()].sort((a,b)=>b.risk-a.risk||b.count-a.count).slice(0,10);
+  suspiciousIpTable.innerHTML=rows.length?rows.map(r=>`<tr>
+    <td>${esc(r.ip)}</td><td>${r.count}</td><td>${r.paths.size}</td><td>${r.risk}</td><td>${esc(r.last||'-')}</td><td title="${esc(r.topPath||'-')}">${esc(shortText(r.topPath,42))}</td>
+  </tr>`).join(''):'<tr><td colspan="6" class="text-muted">??????</td></tr>';
+}
+function renderAuditDetail(e,kind){
+  const ex=obj(e.extra),g=obj(ex.geo);
+  const rows=[
+    ['????',kind==='visit'?'????':'????'],['??',e.timestamp],['????',e.risk_level],['????',e.event_type],['TraceId',e.trace_id],
+    ['IP',e.ip],['???',geoText(e)],['????',e.method],['??',e.path],['User-Agent',e.user_agent],
+    ['??',ex.device_type],['??',ex.device_model],['??',`${ex.os||'-'} ${ex.os_version||''}`],['???',`${ex.browser||'-'} ${ex.browser_version||''}`],
+    ['Host',ex.host],['??',ex.server_port],['???',ex.referer],['??',eventReason(e)],['??',eventAdvice(e)]
+  ];
+  auditDetailBox.innerHTML=`<div class="two-col">${rows.map(x=>`<div class="preview-card"><b>${esc(x[0])}</b><div class="small-text text-muted mt-1">${esc(x[1]||'-')}</div></div>`).join('')}</div>`;
+}
+async function loadAudit(){
+  const type=encodeURIComponent(auditTypeFilter?.value||'');
+  const eventBase=auditQueryBase(auditState.eventOffset);
+  const visitBase=auditQueryBase(auditState.visitOffset);
+  const eventQuery=type?`${eventBase}&event_type=${type}`:`${eventBase}&exclude_event_type=site_visit`;
   const [all,visit]=await Promise.all([
     api(`/api/admin/audit/events?${eventQuery}`),
-    api(`/api/admin/audit/events?${base}&event_type=site_visit`)
+    api(`/api/admin/audit/events?${visitBase}&event_type=site_visit`)
   ]);
-  const events=arr(obj(all.data).events).filter(e=>e.event_type!=='site_visit'); const visits=arr(obj(visit.data).events);
+  const events=arr(obj(all.data).events).filter(e=>e.event_type!=='site_visit');
+  const visits=arr(obj(visit.data).events);
   const totalEvents=obj(all.data).total??events.length, totalVisits=obj(visit.data).total??visits.length;
+  auditState={...auditState,events,visits,totalEvents,totalVisits};
   const high=events.filter(e=>['high','critical'].includes(e.risk_level)).length, med=events.filter(e=>e.risk_level==='medium').length, low=events.filter(e=>['low','info'].includes(e.risk_level)).length;
-  auditMetrics.innerHTML=[['告警摘要',events.length],['高风险告警',high],['中风险告警',med],['低风险/系统事件',low]].map(x=>`<div class="metric"><div class="metric-value">${x[1]}</div><div class="metric-label">${x[0]}</div></div>`).join('');
-  auditFilterSummary.textContent=`当前筛选：安全事件 ${events.length}/${totalEvents} 条，访问记录 ${visits.length}/${totalVisits} 条。IP 与路径支持包含匹配。`;
-  eventTable.innerHTML=events.length?events.slice(0,80).map(e=>`<tr><td>${esc(e.timestamp)}</td><td class="risk-${esc(e.risk_level)}">${esc(e.risk_level||'-')}</td><td>${esc(e.event_type)}</td><td>${esc(e.path||'-')}</td><td>${esc(eventReason(e))}</td><td>${esc(eventAdvice(e))}</td></tr>`).join(''):'<tr><td colspan="6" class="text-muted">暂无安全事件</td></tr>';
-  visitTable.innerHTML=visits.length?visits.slice(0,80).map(e=>{const ex=obj(e.extra),g=obj(ex.geo);const geo=[g.country,g.region,g.city].filter(Boolean).join(' ')||'-';return`<tr><td>${esc(e.timestamp)}</td><td>${esc(e.ip)}</td><td>${esc(geo)}</td><td>${esc(ex.device_type||'-')}</td><td>${esc(ex.os||'-')}</td><td>${esc(ex.browser||'-')}</td><td>${esc(e.method||'-')}</td><td>${esc(ex.server_port||'-')}</td><td>${esc(e.path||'-')}</td></tr>`}).join(''):'<tr><td colspan="9" class="text-muted">暂无访问记录，刷新首页后会自动产生记录。</td></tr>';
+  auditMetrics.innerHTML=[['????',events.length],['?????',high],['?????',med],['???/??',low]].map(x=>`<div class="metric"><div class="metric-value">${x[1]}</div><div class="metric-label">${x[0]}</div></div>`).join('');
+  auditFilterSummary.textContent=`????????? ${events.length}/${totalEvents} ?????? ${visits.length}/${totalVisits} ???? offset=${auditState.eventOffset}??? offset=${auditState.visitOffset}?`;
+  eventPageInfo.textContent=`?? ${Math.min(auditState.eventOffset+events.length,totalEvents)}/${totalEvents}`;
+  visitPageInfo.textContent=`?? ${Math.min(auditState.visitOffset+visits.length,totalVisits)}/${totalVisits}`;
+  renderSuspiciousIps(events,visits);
+  eventTable.innerHTML=events.length?events.map((e,i)=>`<tr>
+    <td>${esc(e.timestamp)}</td><td class="risk-${esc(e.risk_level)}">${esc(e.risk_level||'-')}</td><td>${esc(e.event_type)}</td><td title="${esc(e.path||'-')}">${esc(shortText(e.path,34))}</td><td>${esc(eventReason(e))}</td><td>${esc(eventAdvice(e))}</td><td><button class="btn-lightx" onclick="renderAuditDetail(auditState.events[${i}],'event')">??</button></td>
+  </tr>`).join(''):'<tr><td colspan="7" class="text-muted">??????</td></tr>';
+  visitTable.innerHTML=visits.length?visits.map((e,i)=>{const ex=obj(e.extra);return`<tr>
+    <td>${esc(e.timestamp)}</td><td>${esc(e.ip)}</td><td>${esc(geoText(e))}</td><td>${esc(ex.device_type||'-')}</td><td>${esc(ex.os||'-')}</td><td>${esc(ex.browser||'-')}</td><td>${esc(e.method||'-')}</td><td>${esc(ex.server_port||'-')}</td><td title="${esc(e.path||'-')}">${esc(shortText(e.path,28))}</td><td><button class="btn-lightx" onclick="renderAuditDetail(auditState.visits[${i}],'visit')">??</button></td>
+  </tr>`}).join(''):'<tr><td colspan="10" class="text-muted">????????????????????</td></tr>';
 }
 
 // Compatibility names kept for older inline checks.

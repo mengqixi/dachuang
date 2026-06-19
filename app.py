@@ -1509,6 +1509,7 @@ def admin_audit_events():
         except (ValueError, TypeError):
             offset = 0
         event_type = request.args.get("event_type")
+        exclude_event_type = request.args.get("exclude_event_type")
         risk_level = request.args.get("risk_level")
         ip = request.args.get("ip")
         path_filter = request.args.get("path")
@@ -1520,6 +1521,7 @@ def admin_audit_events():
             ip=ip,
             path=path_filter,
             offset=offset,
+            exclude_event_type=exclude_event_type,
             return_total=True,
         )
         return jsonify(api_response(msg="success", data={

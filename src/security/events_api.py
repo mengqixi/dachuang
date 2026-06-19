@@ -21,7 +21,8 @@ def normalize_limit(limit, default=DEFAULT_LIMIT, max_limit=MAX_LIMIT):
 
 
 def read_events(log_path, limit=DEFAULT_LIMIT, event_type=None, risk_level=None,
-                max_limit=MAX_LIMIT, ip=None, path=None, offset=0, return_total=False):
+                max_limit=MAX_LIMIT, ip=None, path=None, offset=0,
+                exclude_event_type=None, return_total=False):
     """Read recent events from a JSON Lines log file.
 
     Returns newest events first. This function is read-only and never raises for
@@ -53,6 +54,8 @@ def read_events(log_path, limit=DEFAULT_LIMIT, event_type=None, risk_level=None,
                 if not isinstance(event, dict):
                     continue
                 if event_type and event.get("event_type") != event_type:
+                    continue
+                if exclude_event_type and event.get("event_type") == exclude_event_type:
                     continue
                 if risk_level and event.get("risk_level") != risk_level:
                     continue
