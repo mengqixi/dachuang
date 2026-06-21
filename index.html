@@ -34,7 +34,9 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
 .metric{background:#fff;border:1px solid #E6ECF2;border-radius:10px;padding:14px;text-align:center}
 .metric-value{font-size:26px;font-weight:900;color:#2F5F93;word-break:break-all}.metric-label{font-size:12px;color:#607D8B;margin-top:4px}
 .notice{background:#F8FAFC;border:1px dashed #C7D2DE;border-radius:10px;padding:12px 14px;color:#455A64;font-size:13px;line-height:1.65}
-.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}.three-col{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}.two-col.training-layout{grid-template-columns:minmax(460px,.95fr) minmax(520px,1.05fr);align-items:start}.three-col{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.training-flow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:12px 0}.training-step{border:1px solid #DDE7F0;background:#F8FBFE;border-radius:10px;padding:10px;text-align:center;font-size:12px;color:#456;min-height:58px}.training-step b{display:block;color:#1E5C9A;margin-bottom:4px}.result-card{border:1px solid #DDE7F0;background:#fff;border-radius:10px;padding:12px;margin-top:12px}.result-card .title{font-weight:800;color:#1E5C9A;margin-bottom:8px}.result-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.result-item{background:#F8FBFE;border:1px solid #E6ECF2;border-radius:8px;padding:8px}.result-item b{display:block;font-size:16px;color:#2F5F93}.tag-line{display:flex;flex-wrap:wrap;gap:6px}.mini-badge{display:inline-block;background:#EAF3FF;color:#1E5C9A;border:1px solid #BBD3EC;border-radius:999px;padding:3px 8px;font-size:12px;font-weight:700}
+@media(max-width:1100px){.two-col.training-layout{grid-template-columns:1fr}.training-flow{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .table-sm th{font-size:12px;color:#455A64;font-weight:800}.table-sm td{font-size:12px;vertical-align:middle}
 .scroll-box{max-height:340px;overflow:auto;border:1px solid #E6ECF2;border-radius:10px}.scroll-box table{margin-bottom:0}
 .preview-card{border:1px solid #E6ECF2;border-radius:10px;padding:12px;background:#FAFBFC}
@@ -207,10 +209,11 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
             <tbody id="datasetSourceTable"><tr><td colspan="7" class="text-muted">请先刷新数据源</td></tr></tbody>
           </table>
         </div>
-        <div class="metric-grid mt-3" id="submissionRiskMetrics">
-          <div class="metric"><div class="metric-value">--</div><div class="metric-label">用户提交</div></div>
-          <div class="metric"><div class="metric-value">--</div><div class="metric-label">高风险样本</div></div>
-          <div class="metric"><div class="metric-value">--</div><div class="metric-label">中风险样本</div></div>
+        <div class="notice mt-3">用户提交统计仅汇总用户上传或生成后归档的提交记录；不等同于上方当前训练数据源的样本数。</div>
+        <div class="metric-grid mt-2" id="submissionRiskMetrics">
+          <div class="metric"><div class="metric-value">--</div><div class="metric-label">用户提交总数</div></div>
+          <div class="metric"><div class="metric-value">--</div><div class="metric-label">提交高风险样本</div></div>
+          <div class="metric"><div class="metric-value">--</div><div class="metric-label">提交中风险样本</div></div>
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">可训练提交</div></div>
         </div>
       </div>
@@ -353,11 +356,35 @@ let adminLoggedIn = false;
 let lastRiskReasons = [];
 let currentAnalysis = null;
 let currentDatasetSourceId = '';
+let currentDatasetSource = null;
 let auditState = {eventOffset:0, visitOffset:0, events:[], visits:[], totalEvents:0, totalVisits:0};
 
 function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function arr(v){return Array.isArray(v)?v:[]}
 function obj(v){return v&&typeof v==='object'&&!Array.isArray(v)?v:{}}
+function pad2(n){return String(n).padStart(2,'0')}
+function fmtTime(value){
+  if(value===undefined||value===null||value==='')return '-';
+  if(typeof value==='number'){
+    const ms=value>1e12?value:value*1000;
+    const d=new Date(ms);
+    if(!Number.isNaN(d.getTime()))return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+  }
+  const raw=String(value).trim();
+  if(!raw)return '-';
+  if(/^\d+(\.\d+)?$/.test(raw)){
+    const num=Number(raw), ms=num>1e12?num:num*1000, d=new Date(ms);
+    if(!Number.isNaN(d.getTime()))return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+  }
+  if(/[zZ]|[+-]\d\d:\d\d$/.test(raw)){
+    const d=new Date(raw);
+    if(!Number.isNaN(d.getTime()))return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+  }
+  const normalized=raw.replace('T',' ').replace(/\.\d+$/,'');
+  const m=normalized.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})/);
+  if(m)return `${m[1]} ${m[2]}`;
+  return normalized;
+}
 function isSensitivePreviewKey(key){
   const k=String(key||'').toLowerCase().replace(/[^a-z0-9_\u4e00-\u9fa5]/g,'_');
   if(['password_present','password_length','password_strength','weak_password','token_present','token_length','secret_present','secret_length','api_key_present','api_key_length','apikey_present','apikey_length'].includes(k)||k.endsWith('_present')||k.endsWith('_length'))return false;
@@ -391,6 +418,22 @@ function previewCols(row){
   const keys=Object.keys(obj(row));
   return preferred.filter(k=>keys.includes(k)).concat(keys.filter(k=>!preferred.includes(k))).slice(0,14).map(k=>[k,k]);
 }
+function loginPreviewCols(row){
+  const keys=Object.keys(obj(row));
+  const preferred=['id','username','ip','device_type','browser','os','login_success','failed_attempts','request_frequency','response_time','session_duration','unusual_hour','password_strength','label'];
+  return preferred.filter(k=>keys.includes(k)).map(k=>[k,k]);
+}
+function privacyPlainCols(row){
+  const keys=Object.keys(obj(row));
+  const preferred=['id','phone','income','salary','credit_score','age','city','risk_level','label'];
+  return preferred.filter(k=>keys.includes(k)).concat(keys.filter(k=>!preferred.includes(k))).slice(0,10).map(k=>[k,k]);
+}
+function privacyCipherCols(row){
+  const keys=Object.keys(obj(row));
+  const preferred=['id','phone_encrypted','income_encrypted','salary_encrypted','credit_score_encrypted','algorithm','status'];
+  return preferred.filter(k=>keys.includes(k)).concat(keys.filter(k=>!preferred.includes(k))).slice(0,10).map(k=>[k,k]);
+}
+
 function riskLevelText(level){return ({low:'低风险',medium:'中风险',high:'高风险',critical:'严重风险'})[level]||level||'-'}
 function parseRiskSummary(value){
   if(typeof value==='string'){
@@ -574,9 +617,11 @@ async function generateLoginSamples(){
   const count=Math.max(20,Math.min(parseInt(sampleCount.value||200),5000));
   const res=await api('/api/generate_login_security_dataset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({n_records:count})});
   if(!res.ok){toast(res.error,'bad');return}
-  const rows=arr(res.data.dataset || res.data.records); const masked=maskPreviewRows(rows);
-  plainPreview.innerHTML=table(masked.slice(0,200),previewCols(masked[0]));
-  encryptedPreview.innerHTML='<div class="p-3 text-muted">登录安全样本用于风险检测；password 等敏感字段会在上传归档时转换为派生特征。</div>';
+  const rows=arr(res.data.dataset || res.data.records);
+  const masked=maskPreviewRows(rows);
+  const cols=loginPreviewCols(masked[0]||rows[0]);
+  plainPreview.innerHTML=`<div class="small-text text-muted p-2">共生成 ${rows.length} 条登录安全样本；预览包含 IP、设备、浏览器、系统、失败次数、请求频率、响应时间和标签字段。</div>`+table(masked.slice(0,300),cols.length?cols:previewCols(masked[0]));
+  encryptedPreview.innerHTML='<div class="p-3 text-muted">登录安全样本用于密码攻击风险检测；password 等敏感字段会在上传归档时转换为长度、强度等派生特征，不展示明文密码。</div>';
   await uploadBlob('login_security_samples.csv',toCsv(rows));
 }
 async function generatePrivacySamples(){
@@ -584,8 +629,11 @@ async function generatePrivacySamples(){
   const res=await api('/api/generate_privacy_dataset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({n_records:count,algorithm:'Paillier'})});
   if(!res.ok){toast(res.error,'bad');return}
   const plaintext=maskPreviewRows(arr(res.data.plaintext));
-  plainPreview.innerHTML=table(plaintext.slice(0,100),Object.keys(obj(plaintext[0])).slice(0,10).map(k=>[k,k]));
-  encryptedPreview.innerHTML=table(arr(res.data.encrypted).slice(0,100),Object.keys(obj(arr(res.data.encrypted)[0])).slice(0,10).map(k=>[k,k]));
+  const encrypted=arr(res.data.encrypted);
+  const algorithm=res.data.algorithm||res.data.encryption_method||res.data.encryption_algorithm||obj(encrypted[0]).algorithm||'Paillier';
+  const note=String(algorithm).toLowerCase().includes('mock')?'Paillier 初始化不可用，当前显示模拟密态片段。':'当前显示 Paillier 密文片段；密文较长，表格仅截取前段用于验证字段已进入密态展示流程。';
+  plainPreview.innerHTML=`<div class="small-text text-muted p-2">隐私样本只用于密态字段展示，不直接作为攻击检测原因。手机号、收入、信用分等字段会脱敏或加密显示。</div>`+table(plaintext.slice(0,200),privacyPlainCols(plaintext[0]));
+  encryptedPreview.innerHTML=`<div class="small-text text-muted p-2"><span class="mini-badge">${esc(algorithm)}</span> ${esc(note)}</div>`+table(encrypted.slice(0,200),privacyCipherCols(encrypted[0]));
   toast('已生成隐私加密样本。该样本用于密态展示，不直接进入攻击检测。','ok');
 }
 async function analyzeCurrentSubmission(){
@@ -747,11 +795,14 @@ async function adminLogin(){
 async function adminLogout(){await api('/api/admin/logout',{method:'POST'});location.reload();}
 async function loadAdminData(){
   const [st,subs,sourcesRes]=await Promise.all([api('/api/dataset/unsw/status'),api('/api/admin/submissions'),api('/api/admin/datasets/sources')]);
-  const sd=obj(st.data); systemDataMetrics.innerHTML=[
-    ['数据源',sd.source_type||sd.source||'未检测'],['样本',sd.samples||0],['特征',sd.features||0],['联邦就绪',sd.ready_for_federated?'ready':'not ready']
-  ].map(x=>`<div class="metric"><div class="metric-value">${esc(x[1])}</div><div class="metric-label">${x[0]}</div></div>`).join('');
+  const sd=obj(st.data);
   const sources=arr(obj(sourcesRes.data).sources);
-  currentDatasetSourceId = (sources.find(s=>s.trainable)||sources[0]||{}).id || '';
+  currentDatasetSource = sources.find(s=>s.trainable)||sources[0]||sd;
+  currentDatasetSourceId = obj(currentDatasetSource).id || '';
+  systemDataMetrics.innerHTML=[
+    ['当前数据源',currentDatasetSource.source_type||currentDatasetSource.source||sd.source_type||'未检测'],['当前源样本',currentDatasetSource.samples||sd.samples||0],['当前源特征',currentDatasetSource.features||sd.features||0],['联邦节点',currentDatasetSource.prepared_for_federated||sd.ready_for_federated?'ready':'not ready']
+  ].map(x=>`<div class="metric"><div class="metric-value">${esc(x[1])}</div><div class="metric-label">${x[0]}</div></div>`).join('');
+  if(typeof trainingSourceBox!=='undefined')trainingSourceBox.innerHTML=`<b>当前训练数据源：</b>${esc(currentDatasetSource.name||currentDatasetSource.source||sd.source||'未检测')} <span class="mini-badge">${esc(currentDatasetSource.source_type||sd.source_type||'-')}</span><div class="small-text text-muted mt-1">样本 ${esc(currentDatasetSource.samples||sd.samples||0)} 条，特征 ${esc(currentDatasetSource.features||sd.features||0)} 个，标签列 ${esc(currentDatasetSource.label_column||sd.label_column||'-')}。</div>`;
   if(typeof datasetSourceTable!=='undefined'){
     datasetSourceTable.innerHTML=sources.length?sources.map(s=>`<tr>
       <td>${esc(s.name||s.source||'-')}<div class="small-text text-muted">${esc(s.source||'-')}</div></td>
@@ -769,14 +820,14 @@ async function loadAdminData(){
     ['用户提交',rows.length],['高风险样本',totals.high],['中风险样本',totals.medium],['可训练提交',totals.trainable]
   ].map(x=>`<div class="metric"><div class="metric-value">${esc(x[1])}</div><div class="metric-label">${x[0]}</div></div>`).join('');
   submissionTable.innerHTML=rows.length?rows.map(r=>`<tr>
-    <td>${esc(r.upload_time)}</td>
+    <td>${esc(fmtTime(r.upload_time))}</td>
     <td>${esc(r.filename)}</td>
     <td>${esc(r.row_count)}</td>
     <td>${esc(r.column_count)}</td>
     <td>${r.encrypted?'AES':'-'}</td>
     <td>${reviewStatusBadge(r)}<div class="small-text text-muted mt-1">${esc(r.review_status_note||'')}</div></td>
     <td>${lifecycleBadge(r)}</td>
-    <td>${esc(r.recent_operation_time||r.upload_time||'-')}</td>
+    <td>${esc(fmtTime(r.recent_operation_time||r.upload_time))}</td>
     <td>${riskSummaryTags(r.risk_summary)}</td>
     <td>${submissionActionButtons(r)}</td>
   </tr>`).join(''):'<tr><td colspan="10" class="text-muted">暂无用户提交</td></tr>';
@@ -803,8 +854,30 @@ async function loadNodes(){
   }).join(''):'<div class="text-muted">暂无节点数据</div>';
   if(typeof fedNodeExplain!=='undefined')fedNodeExplain.textContent=data.explanation||'四节点数据由训练数据池按标签分层划分得到。';
 }
-async function runAdminLocalTrain(){const r=await api('/api/admin/training/local',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:10000,dataset_source_id:currentDatasetSourceId})});toast(r.ok?'本地训练完成':r.error,r.ok?'ok':'bad');loadTrainingRecords();loadModelVersions();}
-async function runAdminFederatedTrain(){const method=(typeof aggregationMethod!=='undefined'?aggregationMethod.value:'plain');const r=await api('/api/admin/training/federated',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({epochs:3,limit:10000,dataset_source_id:currentDatasetSourceId,aggregation_method:method,secure_aggregation:method==='paillier'})});toast(r.ok?'联邦训练完成':r.error,r.ok?'ok':'bad');loadNodes();loadTrainingRecords();loadModelVersions();}
+function renderTrainingResult(data,type){
+  const d=obj(data);
+  const metric=obj(d.metrics||d.result||d);
+  const agg=obj(d.aggregation||d.secure_aggregation||metric.aggregation);
+  const acc=Number(metric.accuracy??metric.avg_accuracy??d.accuracy??d.avg_accuracy);
+  const version=d.model_version||metric.model_version||d.version||'-';
+  const samples=d.samples||metric.samples||currentDatasetSource?.samples||'-';
+  const source=d.source||metric.source||currentDatasetSource?.source_type||currentDatasetSource?.source||'-';
+  const method=d.aggregation_method||metric.aggregation_method||(aggregationMethod?.value||'plain');
+  const paillier=d.paillier_enabled||metric.paillier_enabled||agg.paillier_enabled||method==='paillier';
+  const paillierLine=paillier?`<div class="notice mt-2">Paillier 聚合展示：加密 ${esc(agg.encryption_time_ms??metric.encryption_time_ms??'-')} ms，密态聚合 ${esc(agg.aggregation_time_ms??metric.aggregation_time_ms??'-')} ms，解密 ${esc(agg.decryption_time_ms??metric.decryption_time_ms??'-')} ms，加密参数 ${esc(agg.encrypted_parameter_count??metric.encrypted_parameter_count??'-')} 个。</div>`:'';
+  trainingResultSummary.innerHTML=`
+    <div class="title">${type==='local'?'本地训练完成':'四节点联邦训练完成'}</div>
+    <div class="result-grid">
+      <div class="result-item"><b>${esc(version)}</b><span class="small-text text-muted">生成模型版本</span></div>
+      <div class="result-item"><b>${Number.isFinite(acc)?(acc*100).toFixed(2)+'%':'--'}</b><span class="small-text text-muted">训练指标</span></div>
+      <div class="result-item"><b>${esc(samples)}</b><span class="small-text text-muted">使用样本</span></div>
+    </div>
+    <div class="tag-line mt-2"><span class="mini-badge">来源：${esc(source)}</span><span class="mini-badge">方式：${esc(method)}</span><span class="mini-badge">版本已写入列表</span></div>
+    ${paillierLine}
+  `;
+}
+async function runAdminLocalTrain(){const r=await api('/api/admin/training/local',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:10000,dataset_source_id:currentDatasetSourceId})});toast(r.ok?'本地训练完成':r.error,r.ok?'ok':'bad');if(r.ok)renderTrainingResult(r.data,'local');loadTrainingRecords();loadModelVersions();}
+async function runAdminFederatedTrain(){const method=(typeof aggregationMethod!=='undefined'?aggregationMethod.value:'plain');const r=await api('/api/admin/training/federated',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({epochs:3,limit:10000,dataset_source_id:currentDatasetSourceId,aggregation_method:method,secure_aggregation:method==='paillier'})});toast(r.ok?'联邦训练完成':r.error,r.ok?'ok':'bad');if(r.ok)renderTrainingResult(r.data,'federated');loadNodes();loadTrainingRecords();loadModelVersions();}
 async function loadTrainingRecords(){
   const r=await api('/api/admin/training/tasks?limit=50');
   const rows=arr(obj(r.data).tasks);
@@ -819,7 +892,7 @@ async function loadTrainingRecords(){
       <td><span class="status-pill ${metric.validation?'ok':'warn'}">${esc(metric.label)}</span></td>
       <td class="small-text">${esc(metric.note)}${trainingDataNote(metric)?`<div class="mt-1 text-muted">${esc(trainingDataNote(metric))}</div>`:''}${aggregationSummary(metric)?`<div class="mt-1 text-muted">${esc(aggregationSummary(metric))}</div>`:''}</td>
       <td>${esc(x.status)}</td>
-      <td>${esc(x.created_at||x.timestamp||'')}</td>
+      <td>${esc(fmtTime(x.created_at||x.timestamp))}</td>
     </tr>`;
   }).join(''):'<tr><td colspan="8" class="text-muted">暂无训练记录</td></tr>'
 }
@@ -863,7 +936,7 @@ async function loadModelVersions(){
       <td><b>${esc(metricText(v.accuracy))}</b><div class="small-text text-muted">${esc(metric.label)}</div></td>
       <td>${esc(metricText(meta.recall))} / ${esc(metricText(meta.f1))}<div class="small-text text-muted">Precision ${esc(metricText(meta.precision))}</div></td>
       <td>${current?'<span class="status-pill ok">当前启用</span>':'<span class="status-pill info">可回退</span>'}</td>
-      <td>${esc(v.timestamp||'')}</td>
+      <td>${esc(fmtTime(v.timestamp))}</td>
       <td class="small-text">${esc(note)}</td>
       <td>${current?'-':`<button class="btn-lightx" onclick="activateModelVersion(${Number(v.id)||0})">设为当前</button>`}</td>
     </tr>`;
@@ -875,20 +948,33 @@ async function activateModelVersion(id){
   toast(r.ok?'已切换当前模型版本':r.error,r.ok?'ok':'bad');
   loadModelVersions();
 }
+function eventExtra(e){return obj(e.extra)}
+function eventEvidence(e){
+  const ex=eventExtra(e), t=e.event_type||'';
+  const parts=[];
+  if(e.ip)parts.push(`来源 IP ${e.ip}`);
+  if(e.path)parts.push(`路径 ${e.path}`);
+  if(e.method)parts.push(`方法 ${e.method}`);
+  if(t.includes('slow')){parts.push(`耗时 ${Number(ex.duration_ms||0).toFixed(2)}ms`);parts.push(`阈值 ${ex.threshold_ms||1000}ms`);if(ex.status_code)parts.push(`状态码 ${ex.status_code}`)}
+  if(t.includes('rate')){parts.push(`窗口计数 ${ex.current_count||'-'}`);parts.push(`每分钟限制 ${ex.limit_per_minute||'-'}`);parts.push(`窗口 ${ex.window_seconds||60}s`)}
+  if(t==='site_visit'){parts.push(`设备 ${ex.device_type||'-'}`);parts.push(`系统 ${ex.os||'-'} ${ex.os_version||''}`.trim());parts.push(`浏览器 ${ex.browser||'-'} ${ex.browser_version||''}`.trim());if(ex.referer)parts.push(`来源页 ${ex.referer}`)}
+  if(ex.user_agent_family)parts.push(`UA 类型 ${ex.user_agent_family}`);
+  return parts.filter(Boolean).join('；') || '暂无结构化判断依据。';
+}
 function eventReason(e){
-  const t=e.event_type||'';
-  if(t==='site_visit')return'页面访问记录，用于展示访问来源、设备和链路追踪信息。';
-  if(t.includes('slow'))return'接口响应时间超过慢接口阈值，需要关注接口耗时和调用频率。';
-  if(t.includes('rate'))return'同一来源访问频率超过当前限流阈值，系统已记录该风险事件。';
+  const t=e.event_type||'', ex=eventExtra(e);
+  if(t==='site_visit')return`页面访问流水，记录访问来源、设备、浏览器和 TraceId；该记录本身不代表攻击行为。`;
+  if(t.includes('slow'))return`接口响应耗时 ${Number(ex.duration_ms||0).toFixed(2)}ms，超过慢接口阈值 ${ex.threshold_ms||1000}ms，可能与训练任务、数据处理、模型推理、输入规模或服务器瞬时负载有关。`;
+  if(t.includes('rate'))return`同一来源在 ${ex.window_seconds||60}s 窗口内访问 ${ex.current_count||'-'} 次，超过当前限制 ${ex.limit_per_minute||'-'} 次/分钟，触发限流记录。`;
   if(e.message)return e.message;
-  return '系统记录到安全相关事件，可结合 IP、路径和 TraceId 进一步核查。';
+  return `系统记录到 ${t||'安全相关'} 事件，风险等级为 ${e.risk_level||'-'}，需要结合来源 IP、路径、TraceId 和原始扩展字段判断。`;
 }
 function eventAdvice(e){
   const t=e.event_type||'';
-  if(t.includes('slow'))return'建议查看对应接口的处理耗时、输入规模和服务器负载，必要时优化接口或调整阈值。';
-  if(t.includes('rate'))return'建议关注同一 IP 和路径的访问频率；如属于正常业务，可调整阈值或加入白名单。';
-  if(t==='site_visit')return'用于访问可观测性分析，可结合来源 IP、设备和 TraceId 判断是否为正常访问。';
-  return'建议保留 TraceId 并结合访问路径、时间和来源信息进行复核。';
+  if(t.includes('slow'))return`先确认 ${e.path||'该接口'} 是否正在执行训练、数据处理或大文件分析；若非预期，请检查同一 IP 的调用频率、请求输入规模、服务器 CPU/内存和接口日志，并考虑优化接口或调整慢接口阈值。`;
+  if(t.includes('rate'))return`重点核查来源 IP ${e.ip||'-'} 是否持续访问同一路径；若为正常业务流量，可评估提高阈值或按可信来源放行；若为异常脚本访问，应保留 TraceId 并结合访问记录继续排查。`;
+  if(t==='site_visit')return`作为访问审计流水保存，用于追踪访问时间、来源 IP、设备和浏览器；如同一 IP 短时间大量访问，再结合安全事件列表判断是否需要处置。`;
+  return`建议按 TraceId 查询同时间段访问记录，结合路径、IP、User-Agent、状态码和扩展字段进行复核。`;
 }
 function shortText(v,n=38){const s=String(v||'-');return s.length>n?s.slice(0,n)+'...':s}
 function auditRiskWeight(level){return {critical:4,high:3,medium:2,low:1,info:0}[level]??0}
@@ -921,16 +1007,16 @@ function renderSuspiciousIps(events,visits){
   });
   const rows=[...map.values()].sort((a,b)=>b.risk-a.risk||b.count-a.count).slice(0,10);
   suspiciousIpTable.innerHTML=rows.length?rows.map(r=>`<tr>
-    <td>${esc(r.ip)}</td><td>${r.count}</td><td>${r.paths.size}</td><td>${r.risk}</td><td>${esc(r.last||'-')}</td><td title="${esc(r.topPath||'-')}">${esc(shortText(r.topPath,42))}</td>
+    <td>${esc(r.ip)}</td><td>${r.count}</td><td>${r.paths.size}</td><td>${r.risk}</td><td>${esc(fmtTime(r.last))}</td><td title="${esc(r.topPath||'-')}">${esc(shortText(r.topPath,42))}</td>
   </tr>`).join(''):'<tr><td colspan="6" class="text-muted">暂无聚合记录</td></tr>';
 }
 function renderAuditDetail(e,kind){
   const ex=obj(e.extra),g=obj(ex.geo);
   const rows=[
-    ['记录类型',kind==='visit'?'访问记录':'安全事件'],['时间',e.timestamp],['风险等级',e.risk_level],['事件类型',e.event_type],['TraceId',e.trace_id],
+    ['记录类型',kind==='visit'?'访问记录':'安全事件'],['时间',fmtTime(e.timestamp)],['风险等级',e.risk_level],['事件类型',e.event_type],['TraceId',e.trace_id],
     ['IP',e.ip],['归属地',geoText(e)],['请求方法',e.method],['路径',e.path],['User-Agent',e.user_agent],
     ['设备',ex.device_type],['机型',ex.device_model],['系统',`${ex.os||'-'} ${ex.os_version||''}`],['浏览器',`${ex.browser||'-'} ${ex.browser_version||''}`],
-    ['Host',ex.host],['端口',ex.server_port],['来源页',ex.referer],['原因',eventReason(e)],['建议',eventAdvice(e)]
+    ['Host',ex.host],['端口',ex.server_port],['来源页',ex.referer],['判断依据',eventEvidence(e)],['原因',eventReason(e)],['建议',eventAdvice(e)]
   ];
   const extraText=JSON.stringify(ex,null,2);
   auditDetailBox.classList.remove('text-muted');
@@ -961,10 +1047,10 @@ async function loadAudit(){
   visitPageInfo.textContent=`第 ${Math.min(auditState.visitOffset+visits.length,totalVisits)}/${totalVisits} 条`;
   renderSuspiciousIps(events,visits);
   eventTable.innerHTML=events.length?events.map((e,i)=>`<tr>
-    <td>${esc(e.timestamp)}</td><td class="risk-${esc(e.risk_level)}">${esc(e.risk_level||'-')}</td><td>${esc(e.event_type)}</td><td title="${esc(e.path||'-')}">${esc(shortText(e.path,34))}</td><td>${esc(eventReason(e))}</td><td>${esc(eventAdvice(e))}</td><td><button class="btn-lightx" onclick="renderAuditDetail(auditState.events[${i}],'event')">详情</button></td>
+    <td>${esc(fmtTime(e.timestamp))}</td><td class="risk-${esc(e.risk_level)}">${esc(e.risk_level||'-')}</td><td>${esc(e.event_type)}</td><td title="${esc(e.path||'-')}">${esc(shortText(e.path,34))}</td><td>${esc(eventReason(e))}</td><td>${esc(eventAdvice(e))}</td><td><button class="btn-lightx" onclick="renderAuditDetail(auditState.events[${i}],'event')">详情</button></td>
   </tr>`).join(''):'<tr><td colspan="7" class="text-muted">暂无安全事件</td></tr>';
   visitTable.innerHTML=visits.length?visits.map((e,i)=>{const ex=obj(e.extra);return`<tr>
-    <td>${esc(e.timestamp)}</td><td>${esc(e.ip)}</td><td>${esc(geoText(e))}</td><td>${esc(ex.device_type||'-')}</td><td>${esc(ex.os||'-')}</td><td>${esc(ex.browser||'-')}</td><td>${esc(e.method||'-')}</td><td>${esc(ex.server_port||'-')}</td><td title="${esc(e.path||'-')}">${esc(shortText(e.path,28))}</td><td><button class="btn-lightx" onclick="renderAuditDetail(auditState.visits[${i}],'visit')">详情</button></td>
+    <td>${esc(fmtTime(e.timestamp))}</td><td>${esc(e.ip)}</td><td>${esc(geoText(e))}</td><td>${esc(ex.device_type||'-')}</td><td>${esc(ex.os||'-')}</td><td>${esc(ex.browser||'-')}</td><td>${esc(e.method||'-')}</td><td>${esc(ex.server_port||'-')}</td><td title="${esc(e.path||'-')}">${esc(shortText(e.path,28))}</td><td><button class="btn-lightx" onclick="renderAuditDetail(auditState.visits[${i}],'visit')">详情</button></td>
   </tr>`}).join(''):'<tr><td colspan="10" class="text-muted">暂无访问记录，刷新页面后会自动产生记录</td></tr>';
 }
 
