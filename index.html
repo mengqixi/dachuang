@@ -56,7 +56,7 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
 <body>
 <nav class="navbar navbar-expand-lg sticky-top">
   <div class="container-fluid">
-    <span class="navbar-brand" id="brand"><i class="fas fa-shield-alt"></i> 密码攻击检测系统</span>
+    <span class="navbar-brand" id="brand"><i class="fas fa-shield-alt"></i> 密码攻击检测与隐私训练平台</span>
     <div class="navbar-nav d-flex flex-row ms-auto" id="nav"></div>
   </div>
 </nav>
@@ -109,7 +109,8 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
       <div class="panel-head"><i class="fas fa-shield-virus text-danger"></i> 风险检测 - 原因解释与建议</div>
       <div class="panel-body">
         <div class="notice mb-3">本页分析当前提交的数据。风险原因来自登录安全字段，例如失败次数、请求频率、异常时间段、响应时间、设备和密码强度派生特征。</div>
-        <button class="btn-main" onclick="analyzeCurrentSubmission()"><i class="fas fa-play"></i> 检测当前提交</button>
+        <button class="btn-main me-2" onclick="analyzeCurrentSubmission()"><i class="fas fa-play"></i> 检测当前提交</button>
+        <button class="btn-lightx" onclick="detectFromSystemDataset()">从内置测试集抽样检测</button>
         <span class="ms-2 muted" id="detectHint">请先上传或生成登录安全样本。</span>
         <div class="metric-grid mt-3" id="riskMetrics">
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">总样本</div></div>
@@ -178,7 +179,7 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
             </div>
           </div>
         </div>
-        <div class="report-note mt-3">报告内容来自当前提交的风险检测结果，包含数据概况、风险摘要、重点样本原因、处理建议、隐私保护说明和系统边界。</div>
+        <div class="report-note mt-3">报告内容来自当前提交的密码攻击风险检测结果，包含数据概况、风险统计、重点样本原因、处置建议、隐私保护说明、模型指标说明和系统边界。</div>
         <div class="report-box empty mt-3" id="reportBox">完成风险检测后可查看报告。</div>
       </div>
     </div>
@@ -198,6 +199,13 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">样本</div></div>
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">特征</div></div>
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">联邦就绪</div></div>
+        </div>
+        <div class="notice mt-3">训练数据源说明：系统优先使用内置密码攻击训练样本，也可接入用户上传归档数据和公开入侵检测数据集。四节点联邦数据由训练数据池按标签分层切分得到，不代表真实机构数据规模。</div>
+        <div class="scroll-box mt-2">
+          <table class="table table-sm">
+            <thead><tr><th>数据源</th><th>类型</th><th>样本</th><th>特征</th><th>标签列</th><th>状态</th><th>用途说明</th></tr></thead>
+            <tbody id="datasetSourceTable"><tr><td colspan="7" class="text-muted">请先刷新数据源</td></tr></tbody>
+          </table>
         </div>
         <div class="metric-grid mt-3" id="submissionRiskMetrics">
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">用户提交</div></div>
@@ -226,10 +234,17 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
         <div class="panel-head"><i class="fas fa-brain text-primary"></i> 训练中心</div>
         <div class="panel-body">
           <div class="notice mb-3">本地训练作为集中式基线；四节点联邦训练用于展示数据分散训练与 FedAvg 聚合流程。Paillier 作为安全聚合方向说明，不表示完整密文训练。</div>
+          <label class="form-label fw-bold">聚合方式</label>
+          <select class="form-select mb-2" id="aggregationMethod">
+            <option value="plain">普通 FedAvg</option>
+            <option value="paillier">Paillier 安全聚合展示</option>
+          </select>
+          <div class="notice mb-3">选择 Paillier 时，系统会展示参数量化、加密、密态聚合和解密耗时，用于体现安全增强与性能开销；当前不宣称完整密文机器学习。</div>
           <button class="btn-main me-2" onclick="runAdminLocalTrain()">本地训练</button>
           <button class="btn-main" onclick="runAdminFederatedTrain()">四节点联邦训练</button>
           <div class="notice mt-3">指标说明：本地训练显示训练集指标；四节点联邦训练显示各节点本地留出验证指标的平均值。若未接入独立外部验证集，页面不会把结果描述为最终泛化能力。</div>
           <div class="node-grid mt-3" id="fedNodes"></div>
+          <div class="notice mt-2" id="fedNodeExplain">四节点数据由训练数据池按标签分层划分得到，样本数来自实际切分结果。</div>
         </div>
       </div>
       <div class="panel">
@@ -337,6 +352,7 @@ let currentReport = '';
 let adminLoggedIn = false;
 let lastRiskReasons = [];
 let currentAnalysis = null;
+let currentDatasetSourceId = '';
 let auditState = {eventOffset:0, visitOffset:0, events:[], visits:[], totalEvents:0, totalVisits:0};
 
 function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
@@ -415,6 +431,16 @@ function trainingMetricInfo(row){
   const validation=merged.validation_available===true || merged.validation_available==='true';
   return {label,note,validation,meta:merged};
 }
+function aggregationSummary(metric){
+  const m=obj(metric.meta);
+  const p=obj(m.paillier);
+  const method=m.aggregation_method || p.aggregation_method || '';
+  if(method==='paillier' || p.paillier_enabled){
+    return `聚合方式：Paillier 安全聚合；状态 ${p.key_status||p.status||'-'}；加密 ${p.encryption_time_ms??'-'}ms，聚合 ${p.aggregation_time_ms??'-'}ms，解密 ${p.decryption_time_ms??'-'}ms，参数 ${p.encrypted_parameter_count??'-'} 个。${p.note?' '+p.note:''}`;
+  }
+  if(method==='plain')return '聚合方式：普通 FedAvg。';
+  return '';
+}
 function labelDistText(v){
   const dist=obj(v);
   const keys=Object.keys(dist);
@@ -469,7 +495,7 @@ function submissionActionButtons(row){
 
 function setupNav(){
   const pages=APP_MODE==='admin'?ADMIN_PAGES:USER_PAGES;
-  brand.innerHTML = APP_MODE==='admin' ? '<i class="fas fa-user-shield"></i> 管理端 · 隐私训练平台' : '<i class="fas fa-shield-alt"></i> 用户端 · 数据风险分析';
+  brand.innerHTML = APP_MODE==='admin' ? '<i class="fas fa-user-shield"></i> 密码攻击检测与隐私训练平台 · 管理端' : '<i class="fas fa-shield-alt"></i> 密码攻击检测与隐私训练平台 · 用户端';
   nav.innerHTML=pages.map((p,i)=>`<a class="nav-link ${i?'':'active'}" href="#" data-page="${p.id}">${p.text}</a>`).join('')+(APP_MODE==='admin'?'<a class="nav-link" href="#" onclick="adminLogout();return false;">退出</a>':'');
   document.querySelectorAll('.nav-link[data-page]').forEach(a=>a.onclick=e=>{e.preventDefault();showPage(a.dataset.page);});
 }
@@ -568,6 +594,43 @@ async function analyzeCurrentSubmission(){
   if(!res.ok){toast(res.error,'bad');return}
   renderAnalysis(res.data); toast('风险检测完成','ok');
 }
+async function detectFromSystemDataset(){
+  const res=await api('/api/ensemble/detect_from_dataset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:50})});
+  if(!res.ok){toast(res.error || '请先在管理端处理训练数据源','bad');return}
+  renderDatasetDetection(res.data);
+  toast('内置测试集抽样检测完成','ok');
+}
+function renderDatasetDetection(d){
+  const rows=arr(d.detections);
+  const summary={low:0,medium:0,high:0,critical:0};
+  const reasons=rows.map((x,i)=>{
+    const score=Number(x.risk_score||0);
+    const level=String(x.risk_level||'低');
+    let key='low';
+    if(level.includes('危险')||level.includes('critical'))key='critical';
+    else if(level.includes('高')||level.includes('high'))key='high';
+    else if(level.includes('中')||level.includes('medium'))key='medium';
+    summary[key]=(summary[key]||0)+1;
+    const attack=x.attack_type||((x.is_attack||score>=0.7)?'账号风险行为':'正常访问');
+    return {
+      rank:i+1,id:x.id,username:'内置测试集',ip:'-',risk_level:key,risk_level_zh:riskLevelText(key),
+      risk_score:score,attack_type:attack,dominant_factor:attack,
+      trigger_features:[attack],
+      reason:`来自 ${d.source||'已处理数据集'} 的抽样检测结果，模型输出风险分数 ${score}，预测类型为 ${attack}。`,
+      suggestion:(key==='high'||key==='critical')?'建议结合训练数据标签、来源和模型版本复核该类样本。':'可作为模型当前表现的抽样参考。'
+    };
+  });
+  const attackTypes={};
+  reasons.forEach(r=>attackTypes[r.attack_type]=(attackTypes[r.attack_type]||0)+1);
+  renderAnalysis({
+    total:d.total||rows.length,
+    risk_summary:summary,
+    attack_types:attackTypes,
+    high_risk_reasons:reasons.filter(r=>['medium','high','critical'].includes(r.risk_level)).slice(0,20),
+    current_model_versions:null,
+  });
+  detectHint.textContent=`当前展示内置测试集抽样检测：${d.source||'processed dataset'}，共 ${d.total||rows.length} 条。`;
+}
 function renderAnalysis(d){
   currentAnalysis = obj(d);
   if(typeof currentModelHint!=='undefined')currentModelHint.textContent=currentModelText(d.current_model_versions);
@@ -604,10 +667,16 @@ function renderReportStructured(payload){
   ].map(x=>`<div class="metric"><div class="metric-value">${esc(x[1])}</div><div class="metric-label">${x[0]}</div></div>`).join('');
 
   const sensitive=arr(analysis.sensitive_columns || submission.sensitive_columns);
+  const attackTypes=obj(analysis.attack_types);
+  const attackTypeText=Object.keys(attackTypes).length
+    ? Object.entries(attackTypes).map(([k,v])=>`${esc(k)} ${esc(v)} 条`).join('，')
+    : '未发现明显风险类型';
   reportSummaryBox.innerHTML=`
     <div class="mb-2"><b>提交编号：</b>${esc(submission.id || currentSubmissionId || '--')}</div>
     <div class="mb-2"><b>文件名称：</b>${esc(submission.filename || '--')}</div>
     <div class="mb-2"><b>风险分布：</b>${riskSummaryTags(analysis.risk_summary || submission.risk_summary)}</div>
+    <div class="mb-2"><b>主要风险类型：</b>${attackTypeText}</div>
+    <div class="mb-2"><b>检测模型：</b>${esc(currentModelText(analysis.current_model_versions).replace('当前启用模型：','').replace('当前检测模型：',''))}</div>
     <div class="mb-2"><b>标签列：</b>${esc(analysis.label_column || submission.label_column || '未识别')}</div>
     <div><b>敏感字段：</b>${sensitive.length?sensitive.map(x=>`<span class="status-pill warn me-1">${esc(x)}</span>`).join(''):'未识别到常见敏感字段'}</div>
   `;
@@ -677,10 +746,23 @@ async function adminLogin(){
 }
 async function adminLogout(){await api('/api/admin/logout',{method:'POST'});location.reload();}
 async function loadAdminData(){
-  const [st,subs]=await Promise.all([api('/api/dataset/unsw/status'),api('/api/admin/submissions')]);
+  const [st,subs,sourcesRes]=await Promise.all([api('/api/dataset/unsw/status'),api('/api/admin/submissions'),api('/api/admin/datasets/sources')]);
   const sd=obj(st.data); systemDataMetrics.innerHTML=[
     ['数据源',sd.source_type||sd.source||'未检测'],['样本',sd.samples||0],['特征',sd.features||0],['联邦就绪',sd.ready_for_federated?'ready':'not ready']
   ].map(x=>`<div class="metric"><div class="metric-value">${esc(x[1])}</div><div class="metric-label">${x[0]}</div></div>`).join('');
+  const sources=arr(obj(sourcesRes.data).sources);
+  currentDatasetSourceId = (sources.find(s=>s.trainable)||sources[0]||{}).id || '';
+  if(typeof datasetSourceTable!=='undefined'){
+    datasetSourceTable.innerHTML=sources.length?sources.map(s=>`<tr>
+      <td>${esc(s.name||s.source||'-')}<div class="small-text text-muted">${esc(s.source||'-')}</div></td>
+      <td>${esc(s.source_type||'-')}</td>
+      <td>${esc(s.samples||0)}</td>
+      <td>${esc(s.features||0)}</td>
+      <td>${esc(s.label_column||'-')}</td>
+      <td>${s.prepared_for_federated?'<span class="status-pill ok">已生成节点</span>':'<span class="status-pill warn">待处理</span>'}</td>
+      <td class="small-text">${esc(s.description||'-')}</td>
+    </tr>`).join(''):'<tr><td colspan="7" class="text-muted">未检测到可用训练数据源</td></tr>';
+  }
   const rows=arr(obj(subs.data).submissions);
   const totals=rows.reduce((acc,r)=>{const c=riskSummaryCounts(r.risk_summary);acc.high+=c.high;acc.medium+=c.medium;acc.trainable+=r.trainable?1:0;return acc},{high:0,medium:0,trainable:0});
   submissionRiskMetrics.innerHTML=[
@@ -703,9 +785,26 @@ async function processSystemDataset(){const r=await api('/api/dataset/unsw/proce
 async function archiveSubmission(id){const r=await api(`/api/admin/submissions/${id}/archive`,{method:'POST'});toast(r.ok?'已归档':r.error,r.ok?'ok':'bad');loadAdminData();}
 async function markTrainable(id){const r=await api(`/api/admin/submissions/${id}/mark-trainable`,{method:'POST'});toast(r.ok?'已标记可训练':r.error,r.ok?'ok':'bad');loadAdminData();}
 async function rejectSubmission(id){const r=await api(`/api/admin/submissions/${id}/reject`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:'管理员确认暂不进入训练池'})});toast(r.ok?'已拒绝进入训练池':r.error,r.ok?'ok':'bad');loadAdminData();}
-async function loadNodes(){const r=await api('/api/federated/nodes');const nodes=arr(obj(r.data).nodes);fedNodes.innerHTML=nodes.length?nodes.map(n=>`<div class="node-card"><i class="fas fa-building"></i><b>${esc(n.name)}</b><div>${esc(n.samples||0)} 条</div><span class="status-pill ${n.ready?'ok':'warn'}">${n.ready?'ready':'not ready'}</span></div>`).join(''):'<div class="text-muted">暂无节点数据</div>'}
-async function runAdminLocalTrain(){const r=await api('/api/admin/training/local',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:10000})});toast(r.ok?'本地训练完成':r.error,r.ok?'ok':'bad');loadTrainingRecords();loadModelVersions();}
-async function runAdminFederatedTrain(){const r=await api('/api/admin/training/federated',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({epochs:3,limit:10000})});toast(r.ok?'联邦训练完成':r.error,r.ok?'ok':'bad');loadNodes();loadTrainingRecords();loadModelVersions();}
+async function loadNodes(){
+  const r=await api('/api/federated/nodes');
+  const data=obj(r.data);
+  const nodes=arr(data.nodes);
+  fedNodes.innerHTML=nodes.length?nodes.map(n=>{
+    const labels=obj(n.label_distribution);
+    const normal=n.normal_samples??labels['0']??0;
+    const attack=n.attack_samples??Math.max(0,(n.samples||0)-normal);
+    return `<div class="node-card">
+      <i class="fas fa-building"></i><b>${esc(n.name)}</b>
+      <div>${esc(n.samples||0)} 条 · ${esc(n.node_type||'模拟联邦节点')}</div>
+      <div class="small-text text-muted">正常 ${esc(normal)} / 攻击 ${esc(attack)} / 特征 ${esc(n.feature_dim||0)}</div>
+      <div class="small-text text-muted">来源：${esc(n.source_type||'-')}</div>
+      <span class="status-pill ${n.ready?'ok':'warn'}">${n.ready?'ready':'not ready'}</span>
+    </div>`;
+  }).join(''):'<div class="text-muted">暂无节点数据</div>';
+  if(typeof fedNodeExplain!=='undefined')fedNodeExplain.textContent=data.explanation||'四节点数据由训练数据池按标签分层划分得到。';
+}
+async function runAdminLocalTrain(){const r=await api('/api/admin/training/local',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:10000,dataset_source_id:currentDatasetSourceId})});toast(r.ok?'本地训练完成':r.error,r.ok?'ok':'bad');loadTrainingRecords();loadModelVersions();}
+async function runAdminFederatedTrain(){const method=(typeof aggregationMethod!=='undefined'?aggregationMethod.value:'plain');const r=await api('/api/admin/training/federated',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({epochs:3,limit:10000,dataset_source_id:currentDatasetSourceId,aggregation_method:method,secure_aggregation:method==='paillier'})});toast(r.ok?'联邦训练完成':r.error,r.ok?'ok':'bad');loadNodes();loadTrainingRecords();loadModelVersions();}
 async function loadTrainingRecords(){
   const r=await api('/api/admin/training/tasks?limit=50');
   const rows=arr(obj(r.data).tasks);
@@ -718,7 +817,7 @@ async function loadTrainingRecords(){
       <td>${esc(x.samples)}</td>
       <td><b>${esc(Number.isFinite(accuracy)?accuracy.toFixed(4):'-')}</b><div class="small-text text-muted">${metric.validation?'节点验证/留出指标':'训练集流程指标'}</div></td>
       <td><span class="status-pill ${metric.validation?'ok':'warn'}">${esc(metric.label)}</span></td>
-      <td class="small-text">${esc(metric.note)}${trainingDataNote(metric)?`<div class="mt-1 text-muted">${esc(trainingDataNote(metric))}</div>`:''}</td>
+      <td class="small-text">${esc(metric.note)}${trainingDataNote(metric)?`<div class="mt-1 text-muted">${esc(trainingDataNote(metric))}</div>`:''}${aggregationSummary(metric)?`<div class="mt-1 text-muted">${esc(aggregationSummary(metric))}</div>`:''}</td>
       <td>${esc(x.status)}</td>
       <td>${esc(x.created_at||x.timestamp||'')}</td>
     </tr>`;

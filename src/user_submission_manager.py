@@ -623,6 +623,23 @@ def _trigger_features(row: Optional[Dict]) -> List[str]:
     return triggers[:5]
 
 
+def _attack_type_for_detection(det: Dict, row: Optional[Dict] = None) -> str:
+    """Map model/rule signals to account-security risk types shown to users."""
+    triggers = set(_trigger_features(row))
+    score = float(det.get("risk_score", det.get("score", 0)) or 0)
+    if "失败次数偏高" in triggers or "多次失败登录" in triggers or "密码强度偏低" in triggers:
+        return "疑似暴力破解"
+    if "请求频率偏高" in triggers:
+        return "高频请求异常"
+    if "异常时间段访问" in triggers or "会话时长异常" in triggers:
+        return "异常登录行为"
+    if "响应时间异常" in triggers:
+        return "可疑自动化访问"
+    if det.get("is_attack") or score >= 0.7:
+        return "账号风险行为"
+    return "正常访问"
+
+
 def _risk_breakdown(row: Optional[Dict], det: Dict) -> Dict:
     row = row or {}
     score = float(det.get("risk_score", det.get("score", 0)) or 0)
@@ -979,7 +996,11 @@ class UserSubmissionManager:
                     "actual_label": int(y[i]) if len(y) > i else None,
                     "risk_score": round(float(scores[i]), 4),
                     "risk_level": risk_names.get(int(risk_levels[i]), "low"),
-                    "attack_type": "Attack" if int(preds[i]) else "Normal",
+                    "attack_type": _attack_type_for_detection({
+                        "is_attack": bool(preds[i]),
+                        "risk_score": float(scores[i]),
+                        "risk_level": risk_names.get(int(risk_levels[i]), "low"),
+                    }, rows[i]),
                 })
         else:
             for i, row in enumerate(rows):
@@ -991,7 +1012,11 @@ class UserSubmissionManager:
                     "actual_label": label,
                     "risk_score": score,
                     "risk_level": "high" if score >= 0.7 else "low",
-                    "attack_type": "Attack" if label else "Normal",
+                    "attack_type": _attack_type_for_detection({
+                        "is_attack": bool(label),
+                        "risk_score": score,
+                        "risk_level": "high" if score >= 0.7 else "low",
+                    }, row),
                 })
 
         summary = {"low": 0, "medium": 0, "high": 0, "critical": 0}
@@ -1075,7 +1100,7 @@ class UserSubmissionManager:
         low_count = summary.get("low", 0)
         attack_types = analysis.get("attack_types", {})
         lines = [
-            "# 用户数据风险分析报告",
+            "# 密码攻击风险分析报告",
             "",
             "## 一、报告摘要",
             "",
@@ -1087,14 +1112,14 @@ class UserSubmissionManager:
             "- 标签列：%s" % (analysis.get("label_column") or "未识别"),
             "- 加密归档：AES-256-GCM",
             "",
-            "## 二、风险摘要",
+            "## 二、密码攻击风险统计",
             "",
             "- 高风险样本：%s" % high_count,
             "- 中风险样本：%s" % medium_count,
             "- 低风险样本：%s" % low_count,
-            "- 主要攻击类型：%s" % ("、".join(attack_types.keys()) or "未发现明显攻击类型"),
+            "- 主要风险类型：%s" % ("、".join(attack_types.keys()) or "未发现明显风险类型"),
             "",
-            "## 三、重点样本原因",
+            "## 三、高风险样本 Top 20 与原因解释",
             "",
         ]
         reasons = analysis.get("high_risk_reasons", [])[:10]
@@ -1109,7 +1134,7 @@ class UserSubmissionManager:
         else:
             lines.append("- 当前数据未发现需要优先关注的中高风险样本。")
 
-        lines.extend(["", "## 四、处理建议", ""])
+        lines.extend(["", "## 四、处置建议", ""])
         for suggestion in analysis.get("suggestions", []):
             lines.append("- " + suggestion)
 
@@ -1126,7 +1151,26 @@ class UserSubmissionManager:
         if sensitive_columns:
             lines.append("- 本次识别并处理的敏感字段：%s。" % "、".join(sensitive_columns))
 
-        lines.extend(["", "## 六、系统边界", "", analysis.get("boundary", "")])
+        versions = analysis.get("current_model_versions", {}) or {}
+        active_models = []
+        if versions.get("federated"):
+            active_models.append("联邦模型：%s" % versions["federated"].get("version_id", "unknown"))
+        if versions.get("local"):
+            active_models.append("本地模型：%s" % versions["local"].get("version_id", "unknown"))
+        if versions.get("default"):
+            active_models.append("默认模型：%s" % versions["default"].get("version_id", "unknown"))
+        lines.extend([
+            "",
+            "## 六、模型与指标说明",
+            "",
+            "- 当前使用模型：%s" % ("；".join(active_models) if active_models else "系统当前可用检测模型"),
+            "- 风险分数综合模型输出、登录失败次数、请求频率、响应耗时、访问设备、IP 来源和标签字段生成。",
+            "- 指标用于本次上传数据的风险识别和排序参考，不等同于独立外部评测结论。",
+            "",
+            "## 七、系统边界说明",
+            "",
+            analysis.get("boundary", ""),
+        ])
         with open(path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
         return path

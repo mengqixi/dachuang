@@ -1,6 +1,6 @@
-# 密码攻击检测与隐私保护训练平台
+# 密码攻击检测与隐私训练平台
 
-> 一个基于 Flask + SQLite 的双端口安全分析原型系统：用户端用于上传登录安全数据、风险检测和报告生成；管理端用于加密归档数据管理、本地/联邦训练、模型版本和系统审计。
+> 一个基于 Flask + SQLite 的双端口安全分析平台，面向高隐私账号安全场景，提供用户端密码攻击风险检测、原因解释、报告生成，以及管理端加密归档、本地训练、四节点联邦训练、Paillier 安全聚合展示和系统审计能力。
 
 [![Python](https://img.shields.io/badge/Python-3.8%2B-blue)](https://www.python.org/)
 [![Flask](https://img.shields.io/badge/Backend-Flask-lightgrey)](https://flask.palletsprojects.com/)
