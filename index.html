@@ -237,6 +237,14 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
         <div class="panel-head"><i class="fas fa-brain text-primary"></i> 训练中心</div>
         <div class="panel-body">
           <div class="notice mb-3">本地训练作为集中式基线；四节点联邦训练用于展示数据分散训练与 FedAvg 聚合流程。Paillier 作为安全聚合方向说明，不表示完整密文训练。</div>
+          <div class="training-flow">
+            <div class="training-step"><b>1. 选择数据源</b>内置训练集或可训练提交</div>
+            <div class="training-step"><b>2. 本地基线</b>集中式训练得到对照指标</div>
+            <div class="training-step"><b>3. 四节点训练</b>节点分别训练本地模型</div>
+            <div class="training-step"><b>4. 聚合</b>FedAvg 或 Paillier 安全聚合展示</div>
+            <div class="training-step"><b>5. 版本</b>写入模型版本用于检测追踪</div>
+          </div>
+          <div class="preview-card mb-3" id="trainingSourceBox">当前训练数据源：请先在数据管理页刷新数据。</div>
           <label class="form-label fw-bold">聚合方式</label>
           <select class="form-select mb-2" id="aggregationMethod">
             <option value="plain">普通 FedAvg</option>
@@ -257,6 +265,10 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
             <div class="preview-card"><b>AES 加密归档</b><p class="muted small-text mb-0">保护用户上传文件的存储安全。</p></div>
             <div class="preview-card"><b>Paillier 密态字段</b><p class="muted small-text mb-0">展示敏感数值密态保护和安全聚合扩展方向。</p></div>
             <div class="preview-card"><b>FedAvg 联邦聚合</b><p class="muted small-text mb-0">展示四节点本地训练后的参数聚合流程。</p></div>
+          </div>
+          <div class="result-card" id="trainingResultSummary">
+            <div class="title">训练结果反馈</div>
+            <div class="text-muted small-text">尚未执行训练。点击“本地训练”或“四节点联邦训练”后，这里会显示生成的模型版本、样本数、指标来源和 Paillier 聚合耗时。</div>
           </div>
         </div>
       </div>
