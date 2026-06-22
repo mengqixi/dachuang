@@ -1552,9 +1552,14 @@ def admin_training_local():
         ids = req.get("submission_ids") or None
         dataset_source_id = req.get("dataset_source_id")
         limit = max(10, min(int(req.get("limit") or 10000), 50000))
-        X, y, meta = user_submission_manager.load_trainable_features(ids=ids, limit=limit)
-        if len(X) < 10:
+        if dataset_source_id:
             X, y, meta = _load_training_dataset_source(dataset_source_id, limit=limit)
+            if len(X) < 10:
+                X, y, meta = user_submission_manager.load_trainable_features(ids=ids, limit=limit)
+        else:
+            X, y, meta = user_submission_manager.load_trainable_features(ids=ids, limit=limit)
+            if len(X) < 10:
+                X, y, meta = _load_training_dataset_source(dataset_source_id, limit=limit)
         if len(X) < 10:
             return jsonify(api_response(code=400, msg="没有足够的可训练数据，请先标记用户提交为可训练，或在数据管理页确认系统内置训练数据源"))
 
@@ -1633,9 +1638,14 @@ def admin_training_federated():
         epochs = max(1, min(int(req.get("epochs") or 3), 20))
         aggregation_method = str(req.get("aggregation_method") or "plain").lower()
         secure_aggregation = bool(req.get("secure_aggregation") or aggregation_method == "paillier")
-        X, y, meta = user_submission_manager.load_trainable_features(ids=ids, limit=limit)
-        if len(X) < 20:
+        if dataset_source_id:
             X, y, meta = _load_training_dataset_source(dataset_source_id, limit=limit)
+            if len(X) < 20:
+                X, y, meta = user_submission_manager.load_trainable_features(ids=ids, limit=limit)
+        else:
+            X, y, meta = user_submission_manager.load_trainable_features(ids=ids, limit=limit)
+            if len(X) < 20:
+                X, y, meta = _load_training_dataset_source(dataset_source_id, limit=limit)
         if len(X) < 20:
             return jsonify(api_response(code=400, msg="没有足够的可训练数据，至少需要 20 条样本；请先标记用户提交为可训练，或在数据管理页确认系统内置训练数据源"))
 
@@ -1706,7 +1716,7 @@ def admin_training_federated():
         try:
             db.save_training_task_record({
                 "task_type": "federated",
-                "source": "encrypted_user_submissions",
+                "source": data.get("source", "managed_dataset_source"),
                 "samples": int(len(X)),
                 "accuracy": data["avg_accuracy"],
                 "metric_name": data["metric_name"],
@@ -1721,7 +1731,7 @@ def admin_training_federated():
             db.save_model_version_record({
                 "version": version,
                 "model_type": "federated_fedavg",
-                "source": "encrypted_user_submissions",
+                "source": data.get("source", "managed_dataset_source"),
                 "samples": int(len(X)),
                 "accuracy": data["avg_accuracy"],
                 "metadata": data,
@@ -1746,6 +1756,11 @@ def admin_training_tasks():
 @app.route("/api/admin/model-versions", methods=["GET"])
 def admin_model_versions():
     limit = max(1, min(int(request.args.get("limit", 50) or 50), 200))
+    backfilled = 0
+    try:
+        backfilled = db.backfill_model_versions_from_training_tasks()
+    except Exception as backfill_error:
+        logger.warning("Backfill model versions failed: %s", backfill_error)
     versions = db.get_model_versions(limit)
     runtime_status = {}
     try:
@@ -1764,6 +1779,7 @@ def admin_model_versions():
             "note": "当前运行中的检测模型状态；若尚未产生训练版本记录，可先通过训练中心执行本地训练或联邦训练生成可追溯版本。",
             "raw_status": runtime_status,
         },
+        "backfilled": backfilled,
         "limit": limit,
     }))
 

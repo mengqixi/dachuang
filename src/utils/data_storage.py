@@ -441,6 +441,100 @@ class DataStorage:
             finally:
                 conn.close()
 
+    def backfill_model_versions_from_training_tasks(self) -> int:
+        """Create model version rows from historical training tasks when missing.
+
+        Older deployments wrote training_tasks but did not always write
+        model_versions. This keeps the admin model version page useful without
+        requiring manual database edits.
+        """
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                rows = conn.execute(
+                    "SELECT * FROM training_tasks ORDER BY id ASC"
+                ).fetchall()
+                created = 0
+                for row in rows:
+                    item = dict(row)
+                    meta = self._parse_json(item.get("metadata"))
+                    nested = self._parse_json(meta.get("metadata")) if isinstance(meta.get("metadata"), str) else meta.get("metadata")
+                    if not isinstance(nested, dict):
+                        nested = {}
+
+                    version = (
+                        meta.get("model_version")
+                        or meta.get("version")
+                        or nested.get("model_version")
+                        or nested.get("version")
+                        or ""
+                    )
+                    if not version:
+                        continue
+
+                    task_type = str(meta.get("task_type") or item.get("task_type") or "").lower()
+                    if "federated" in task_type:
+                        model_type = "federated_fedavg"
+                        algorithm = nested.get("algorithm") or meta.get("algorithm") or "fedavg"
+                    else:
+                        model_type = nested.get("model_type") or meta.get("model_type") or "admin_local_ensemble"
+                        algorithm = nested.get("algorithm") or meta.get("algorithm") or "ensemble_detector"
+
+                    exists = conn.execute(
+                        "SELECT id FROM model_versions WHERE version = ? AND model_type = ?",
+                        (version, model_type),
+                    ).fetchone()
+                    if exists:
+                        continue
+
+                    full_meta = nested if nested else meta
+                    if not isinstance(full_meta, dict):
+                        full_meta = {}
+                    full_meta = {**full_meta, **{
+                        "version": version,
+                        "model_type": model_type,
+                        "algorithm": algorithm,
+                        "backfilled_from_training_task": item.get("id"),
+                    }}
+                    cur = conn.execute(
+                        "INSERT INTO model_versions (version, model_type, source, samples, accuracy, metadata) VALUES (?, ?, ?, ?, ?, ?)",
+                        (
+                            version,
+                            model_type,
+                            item.get("source") or meta.get("source") or full_meta.get("source") or "",
+                            int(item.get("samples") or meta.get("samples") or full_meta.get("samples") or 0),
+                            float(item.get("accuracy") or meta.get("accuracy") or full_meta.get("accuracy") or full_meta.get("avg_accuracy") or 0),
+                            self._json(full_meta),
+                        ),
+                    )
+                    conn.execute(
+                        """
+                        INSERT INTO current_model_versions (model_type, model_version, model_id, timestamp)
+                        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                        ON CONFLICT(model_type) DO UPDATE SET
+                            model_version=excluded.model_version,
+                            model_id=excluded.model_id,
+                            timestamp=CURRENT_TIMESTAMP
+                        """,
+                        (model_type, version, int(cur.lastrowid or 0)),
+                    )
+                    created += 1
+                conn.commit()
+                return created
+            finally:
+                conn.close()
+
+    def _parse_json(self, value: Any) -> Dict[str, Any]:
+        if isinstance(value, dict):
+            return value
+        if not value:
+            return {}
+        try:
+            parsed = json.loads(value)
+            return parsed if isinstance(parsed, dict) else {}
+        except Exception:
+            return {}
+
     def get_current_model_versions(self) -> List[Dict]:
         with self._lock:
             conn = self._get_conn()

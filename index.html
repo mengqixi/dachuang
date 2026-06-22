@@ -34,10 +34,12 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
 .metric{background:#fff;border:1px solid #E6ECF2;border-radius:10px;padding:14px;text-align:center}
 .metric-value{font-size:26px;font-weight:900;color:#2F5F93;word-break:break-all}.metric-label{font-size:12px;color:#607D8B;margin-top:4px}
 .notice{background:#F8FAFC;border:1px dashed #C7D2DE;border-radius:10px;padding:12px 14px;color:#455A64;font-size:13px;line-height:1.65}
+.hint{position:relative;display:inline-flex;align-items:center;margin-left:6px;vertical-align:middle}.info-icon{width:22px;height:22px;border-radius:50%;border:1px solid #BBD3EC;background:#EAF3FF;color:#1E5C9A;display:inline-flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer}.hint-panel{display:none;position:absolute;z-index:50;top:28px;left:0;width:320px;max-width:70vw;background:#fff;border:1px solid #DDE7F0;border-radius:10px;box-shadow:0 12px 28px rgba(20,40,70,.16);padding:12px 14px;color:#455A64;font-size:13px;line-height:1.65;text-align:left;font-weight:400}.hint-panel.right{left:auto;right:0}.hint:hover .hint-panel,.hint:focus-within .hint-panel{display:block}.subtle-note{font-size:12px;color:#607D8B;line-height:1.6}.compact-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}.two-col.training-layout{grid-template-columns:minmax(460px,.95fr) minmax(520px,1.05fr);align-items:start}.three-col{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .training-flow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:12px 0}.training-step{border:1px solid #DDE7F0;background:#F8FBFE;border-radius:10px;padding:10px;text-align:center;font-size:12px;color:#456;min-height:58px}.training-step b{display:block;color:#1E5C9A;margin-bottom:4px}.result-card{border:1px solid #DDE7F0;background:#fff;border-radius:10px;padding:12px;margin-top:12px}.result-card .title{font-weight:800;color:#1E5C9A;margin-bottom:8px}.result-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.result-item{background:#F8FBFE;border:1px solid #E6ECF2;border-radius:8px;padding:8px}.result-item b{display:block;font-size:16px;color:#2F5F93}.tag-line{display:flex;flex-wrap:wrap;gap:6px}.mini-badge{display:inline-block;background:#EAF3FF;color:#1E5C9A;border:1px solid #BBD3EC;border-radius:999px;padding:3px 8px;font-size:12px;font-weight:700}
-.training-compare{border:1px solid #DDE7F0;background:#FAFCFF;border-radius:10px;padding:12px;margin-top:12px}.compare-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}.compare-head b{color:#1E5C9A}.compare-row{display:grid;grid-template-columns:92px 1fr 70px;gap:10px;align-items:center;margin:10px 0}.bar-track{height:14px;background:#E9EEF5;border-radius:999px;overflow:hidden}.bar-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#6EA8FE,#2F5F93);min-width:2px}.bar-fill.fed{background:linear-gradient(90deg,#9CCC65,#2E7D32)}.compare-note{font-size:12px;color:#607D8B;line-height:1.65}.compare-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}.compare-card{background:#fff;border:1px solid #E6ECF2;border-radius:8px;padding:9px}.compare-card strong{display:block;color:#2F5F93;font-size:18px}.compare-card span{font-size:12px;color:#607D8B}
-@media(max-width:1100px){.two-col.training-layout{grid-template-columns:1fr}.training-flow{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.training-compare{border:1px solid #DDE7F0;background:#FAFCFF;border-radius:10px;padding:12px;margin-top:12px}.compare-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}.compare-head b{color:#1E5C9A}.compare-row{display:grid;grid-template-columns:92px 1fr 74px;gap:10px;align-items:center;margin:10px 0}.bar-track{height:14px;background:#E9EEF5;border-radius:999px;overflow:hidden}.bar-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#6EA8FE,#2F5F93);min-width:2px}.bar-fill.fed{background:linear-gradient(90deg,#9CCC65,#2E7D32)}.bar-fill.loss{background:linear-gradient(90deg,#FFCC80,#EF6C00)}.compare-note{font-size:12px;color:#607D8B;line-height:1.65}.compare-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:10px}.compare-card{background:#fff;border:1px solid #E6ECF2;border-radius:8px;padding:9px}.compare-card strong{display:block;color:#2F5F93;font-size:18px}.compare-card span{font-size:12px;color:#607D8B}.compare-split{display:grid;grid-template-columns:1fr 1fr;gap:10px}.compare-box{background:#fff;border:1px solid #E6ECF2;border-radius:10px;padding:10px}.compare-box h6{font-size:13px;font-weight:800;color:#1E5C9A;margin:0 0 8px}.compare-explain{background:#F8FBFE;border:1px dashed #C7D2DE;border-radius:8px;padding:9px;margin-top:10px;font-size:12px;color:#455A64;line-height:1.65}
+.model-version-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:12px}.model-version-card{border:1px solid #DDE7F0;background:#FAFCFF;border-radius:10px;padding:12px}.model-version-card h6{font-weight:800;color:#1E5C9A;margin:0 0 8px}.model-version-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.model-version-meta div{background:#fff;border:1px solid #E6ECF2;border-radius:8px;padding:8px}.model-version-meta b{display:block;color:#2F5F93;font-size:15px}.model-version-meta span{font-size:12px;color:#607D8B}
+@media(max-width:1100px){.two-col.training-layout{grid-template-columns:1fr}.training-flow{grid-template-columns:repeat(2,minmax(0,1fr))}.compare-split{grid-template-columns:1fr}.compare-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .table-sm th{font-size:12px;color:#455A64;font-weight:800}.table-sm td{font-size:12px;vertical-align:middle}
 .scroll-box{max-height:340px;overflow:auto;border:1px solid #E6ECF2;border-radius:10px}.scroll-box table{margin-bottom:0}
 .preview-card{border:1px solid #E6ECF2;border-radius:10px;padding:12px;background:#FAFBFC}
@@ -67,9 +69,10 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
 <main class="container-fluid px-3 py-3">
   <section class="page active" id="pg-upload">
     <div class="panel">
-      <div class="panel-head"><i class="fas fa-upload text-primary"></i> 上传数据 - 用户数据接入</div>
+      <div class="panel-head"><i class="fas fa-upload text-primary"></i> 上传数据 - 用户数据接入
+        <span class="hint"><button class="info-icon" type="button"><i class="fas fa-info"></i></button><span class="hint-panel">上传 CSV/JSON 后，系统会进行数据体检并对原始文件进行 AES 加密归档。若包含 password 字段，系统只保留密码长度、强度等派生特征，不展示或训练明文密码。</span></span>
+      </div>
       <div class="panel-body">
-        <div class="notice mb-3">上传 CSV/JSON 后，系统会进行数据体检并对原始文件进行 AES 加密归档。若包含 password 字段，系统只保留密码长度、强度等派生特征，不展示或训练明文密码。</div>
         <div class="two-col">
           <div>
             <label class="form-label fw-bold">上传 CSV/JSON</label>
@@ -83,7 +86,7 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
               <input class="form-control" id="sampleCount" type="number" min="20" max="5000" value="200">
             </div>
             <button class="btn-main me-2" onclick="generateCombinedSamples()">生成综合样本</button>
-            <div class="small-text text-muted mt-2">一次生成登录安全样本和隐私密态样本：左侧用于风险检测，右侧用于 Paillier 密态字段展示。</div>
+            <span class="hint"><button class="info-icon" type="button"><i class="fas fa-info"></i></button><span class="hint-panel right">一次生成登录安全样本和隐私密态样本：左侧用于风险检测，右侧用于 Paillier 密态字段展示。</span></span>
           </div>
         </div>
         <div class="metric-grid mt-3" id="uploadSummary">
@@ -109,9 +112,10 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
 
   <section class="page" id="pg-detect">
     <div class="panel">
-      <div class="panel-head"><i class="fas fa-shield-virus text-danger"></i> 风险检测 - 原因解释与建议</div>
+      <div class="panel-head"><i class="fas fa-shield-virus text-danger"></i> 风险检测 - 原因解释与建议
+        <span class="hint"><button class="info-icon" type="button"><i class="fas fa-info"></i></button><span class="hint-panel">本页分析当前提交的数据。风险原因来自登录安全字段，例如失败次数、请求频率、异常时间段、响应时间、设备和密码强度派生特征。</span></span>
+      </div>
       <div class="panel-body">
-        <div class="notice mb-3">本页分析当前提交的数据。风险原因来自登录安全字段，例如失败次数、请求频率、异常时间段、响应时间、设备和密码强度派生特征。</div>
         <button class="btn-main me-2" onclick="analyzeCurrentSubmission()"><i class="fas fa-play"></i> 检测当前提交</button>
         <button class="btn-lightx" onclick="detectFromSystemDataset()">从内置测试集抽样检测</button>
         <span class="ms-2 muted" id="detectHint">请先上传或生成登录安全样本。</span>
@@ -182,7 +186,7 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
             </div>
           </div>
         </div>
-        <div class="report-note mt-3">报告内容来自当前提交的密码攻击风险检测结果，包含数据概况、风险统计、重点样本原因、处置建议、隐私保护说明、模型指标说明和系统边界。</div>
+        <div class="subtle-note mt-3"><i class="fas fa-circle-info text-primary"></i> 报告内容来自当前提交的密码攻击风险检测结果，可下载为 Markdown。</div>
         <div class="report-box empty mt-3" id="reportBox">完成风险检测后可查看报告。</div>
       </div>
     </div>
@@ -203,14 +207,14 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">特征</div></div>
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">联邦就绪</div></div>
         </div>
-        <div class="notice mt-3">训练数据源说明：系统优先使用内置密码攻击训练样本，也可接入用户上传归档数据和公开入侵检测数据集。四节点联邦数据由训练数据池按标签分层切分得到，不代表真实机构数据规模。</div>
+        <div class="subtle-note mt-3"><i class="fas fa-circle-info text-primary"></i> 当前训练数据源用于管理端本地训练和四节点联邦切分。</div>
         <div class="scroll-box mt-2">
           <table class="table table-sm">
             <thead><tr><th>数据源</th><th>类型</th><th>样本</th><th>特征</th><th>标签列</th><th>状态</th><th>用途说明</th></tr></thead>
             <tbody id="datasetSourceTable"><tr><td colspan="7" class="text-muted">请先刷新数据源</td></tr></tbody>
           </table>
         </div>
-        <div class="notice mt-3">用户提交统计仅汇总用户上传或生成后归档的提交记录；不等同于上方当前训练数据源的样本数。</div>
+        <div class="subtle-note mt-3"><i class="fas fa-circle-info text-primary"></i> 用户提交统计只统计用户端归档记录，和当前训练数据源样本数分开计算。</div>
         <div class="metric-grid mt-2" id="submissionRiskMetrics">
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">用户提交总数</div></div>
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">提交高风险样本</div></div>
@@ -235,9 +239,10 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
   <section class="page" id="pg-training">
     <div class="two-col training-layout">
       <div class="panel">
-        <div class="panel-head"><i class="fas fa-brain text-primary"></i> 训练中心</div>
+        <div class="panel-head"><i class="fas fa-brain text-primary"></i> 训练中心
+          <span class="hint"><button class="info-icon" type="button"><i class="fas fa-info"></i></button><span class="hint-panel">本地训练作为集中式基线；四节点联邦训练用于展示数据分散训练与 FedAvg 聚合流程。Paillier 用于展示安全聚合方向，不表示完整密文训练。</span></span>
+        </div>
         <div class="panel-body">
-          <div class="notice mb-3">本地训练作为集中式基线；四节点联邦训练用于展示数据分散训练与 FedAvg 聚合流程。Paillier 作为安全聚合方向说明，不表示完整密文训练。</div>
           <div class="training-flow">
             <div class="training-step"><b>1. 选择数据源</b>内置训练集或可训练提交</div>
             <div class="training-step"><b>2. 本地基线</b>集中式训练得到对照指标</div>
@@ -246,21 +251,26 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
             <div class="training-step"><b>5. 版本</b>写入模型版本用于检测追踪</div>
           </div>
           <div class="preview-card mb-3" id="trainingSourceBox">当前训练数据源：请先在数据管理页刷新数据。</div>
-          <label class="form-label fw-bold">聚合方式</label>
+          <label class="form-label fw-bold">聚合方式
+            <span class="hint"><button class="info-icon" type="button"><i class="fas fa-info"></i></button><span class="hint-panel">普通 FedAvg 展示基础参数聚合；Paillier 会额外展示参数量化、加密、密态聚合和解密耗时，用于体现安全增强与性能开销。</span></span>
+          </label>
           <select class="form-select mb-2" id="aggregationMethod">
             <option value="plain">普通 FedAvg</option>
             <option value="paillier">Paillier 安全聚合展示</option>
           </select>
-          <div class="notice mb-3">选择 Paillier 时，系统会展示参数量化、加密、密态聚合和解密耗时，用于体现安全增强与性能开销；当前不宣称完整密文机器学习。</div>
-          <button class="btn-main me-2" onclick="runAdminLocalTrain()">本地训练</button>
-          <button class="btn-main" onclick="runAdminFederatedTrain()">四节点联邦训练</button>
-          <div class="notice mt-3">指标说明：本地训练显示训练集指标；四节点联邦训练显示各节点本地留出验证指标的平均值。若未接入独立外部验证集，页面不会把结果描述为最终泛化能力。</div>
+          <div class="compact-actions mt-3">
+            <button class="btn-main" onclick="runAdminFullTraining()"><i class="fas fa-play"></i> 运行本地基线 + 四节点联邦训练</button>
+            <button class="btn-lightx" onclick="loadTrainingPage()">刷新训练数据源</button>
+            <span class="hint"><button class="info-icon" type="button"><i class="fas fa-info"></i></button><span class="hint-panel">点击后会先执行本地训练形成集中式基线，再执行四节点联邦训练，完成后右侧同步展示对比结果。</span></span>
+          </div>
           <div class="node-grid mt-3" id="fedNodes"></div>
-          <div class="notice mt-2" id="fedNodeExplain">四节点数据由训练数据池按标签分层划分得到，样本数来自实际切分结果。</div>
+          <div class="subtle-note mt-2" id="fedNodeExplain">四节点数据由训练数据池按标签分层划分得到。</div>
         </div>
       </div>
       <div class="panel">
-        <div class="panel-head">技术链路说明</div>
+        <div class="panel-head">技术链路
+          <span class="hint"><button class="info-icon" type="button"><i class="fas fa-info"></i></button><span class="hint-panel right">AES 用于归档保护，Paillier 用于密态字段和安全聚合展示，FedAvg 用于四节点联邦聚合流程。</span></span>
+        </div>
         <div class="panel-body">
           <div class="three-col">
             <div class="preview-card"><b>AES 加密归档</b><p class="muted small-text mb-0">保护用户上传文件的存储安全。</p></div>
@@ -269,7 +279,7 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
           </div>
           <div class="result-card" id="trainingResultSummary">
             <div class="title">训练结果反馈</div>
-            <div class="text-muted small-text">尚未执行训练。点击“本地训练”或“四节点联邦训练”后，这里会显示生成的模型版本、样本数、指标来源和 Paillier 聚合耗时。</div>
+            <div class="text-muted small-text">尚未执行训练。运行完整训练后，这里会显示模型版本、样本数、指标来源和 Paillier 聚合耗时。</div>
           </div>
           <div class="training-compare" id="trainingCompareBox">
             <div class="compare-head">
@@ -280,9 +290,11 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
             <div class="compare-row"><span>联邦训练</span><div class="bar-track"><div class="bar-fill fed" style="width:0%"></div></div><b>--</b></div>
             <div class="compare-cards">
               <div class="compare-card"><strong>--</strong><span>本地样本</span></div>
-              <div class="compare-card"><strong>--</strong><span>联邦节点样本</span></div>
+              <div class="compare-card"><strong>--</strong><span>联邦样本</span></div>
+              <div class="compare-card"><strong>--</strong><span>指标差异</span></div>
+              <div class="compare-card"><strong>--</strong><span>聚合方式</span></div>
             </div>
-            <div class="compare-note mt-2">本地训练是集中式基线；联邦训练展示四个节点分别训练后再聚合的流程。两者指标来源不同，不应直接当作生产评测结论。</div>
+            <div class="subtle-note mt-2"><i class="fas fa-circle-info text-primary"></i> 完成训练后显示样本数、精度、损失和 Paillier 聚合耗时。</div>
           </div>
         </div>
       </div>
@@ -298,7 +310,10 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
           </table>
         </div>
         <h6 class="fw-bold mt-3">模型版本</h6>
-        <div class="notice mb-2">新训练出的模型版本会默认成为对应模型类型的当前版本；如需回退，可在列表中手动切换。</div>
+        <div class="subtle-note mb-2"><i class="fas fa-circle-info text-primary"></i> 新训练出的模型版本会默认启用；如需回退，可在列表中切换。</div>
+        <div id="currentModelVersionCards" class="model-version-grid">
+          <div class="notice">暂无当前模型版本记录。执行本地训练或四节点联邦训练后，这里会显示当前启用模型。</div>
+        </div>
         <div class="scroll-box">
           <table class="table table-sm">
             <thead><tr><th>版本</th><th>模型类型</th><th>算法</th><th>来源</th><th>样本</th><th>准确率</th><th>召回率 / F1</th><th>当前启用</th><th>时间</th><th>备注</th><th>操作</th></tr></thead>
@@ -311,9 +326,10 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
 
   <section class="page" id="pg-audit">
     <div class="panel">
-      <div class="panel-head"><i class="fas fa-clipboard-check text-primary"></i> 系统审计 - 访问与安全事件</div>
+      <div class="panel-head"><i class="fas fa-clipboard-check text-primary"></i> 系统审计 - 访问与安全事件
+        <span class="hint"><button class="info-icon" type="button"><i class="fas fa-info"></i></button><span class="hint-panel">系统审计记录平台访问、安全事件和慢接口等运行信息；用户数据风险检测与系统审计分开统计。</span></span>
+      </div>
       <div class="panel-body">
-        <div class="notice mb-3">上方汇总需要关注的访问和安全事件；下方区分安全事件与页面访问记录，便于定位风险来源、查看原因和处理建议。</div>
         <div class="row g-2 align-items-end">
           <div class="col-md-2"><label class="form-label">风险等级</label><select class="form-select" id="auditRiskFilter"><option value="">全部</option><option value="critical">严重</option><option value="high">高</option><option value="medium">中</option><option value="low">低</option><option value="info">信息</option></select></div>
           <div class="col-md-2"><label class="form-label">事件类型</label><select class="form-select" id="auditTypeFilter"><option value="">全部类型</option><option value="site_visit">页面访问</option><option value="slow_api_detected">慢接口</option><option value="rate_limit_triggered">限流</option></select></div>
@@ -329,7 +345,7 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
     <div class="panel">
       <div class="panel-head">可疑 IP 聚合</div>
       <div class="panel-body">
-        <div class="notice mb-2">按 IP 汇总访问与安全事件，重点观察同一来源的访问次数、路径数量和风险权重。</div>
+        <div class="subtle-note mb-2"><i class="fas fa-circle-info text-primary"></i> IP 汇总用于快速查看访问频率、路径数量和风险权重。</div>
         <div class="scroll-box"><table class="table table-sm"><thead><tr><th>IP</th><th>次数</th><th>路径数</th><th>风险权重</th><th>最近时间</th><th>主要路径</th></tr></thead><tbody id="suspiciousIpTable"><tr><td colspan="6" class="text-muted">暂无聚合记录</td></tr></tbody></table></div>
       </div>
     </div>
@@ -599,7 +615,7 @@ function showPage(id){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-link').forEach(a=>a.classList.toggle('active',a.dataset.page===id));
   const el=document.getElementById('pg-'+id); if(el)el.classList.add('active');
-  if(id==='dataAdmin')loadAdminData(); if(id==='training'){loadNodes();loadTrainingRecords();loadModelVersions();} if(id==='audit')loadAudit();
+  if(id==='dataAdmin')loadAdminData(); if(id==='training')loadTrainingPage(); if(id==='audit')loadAudit();
 }
 async function init(){
   setupNav();
@@ -932,12 +948,15 @@ function renderTrainingResult(data,type){
   const metric=obj(d.metrics||d.result||d);
   const agg=obj(d.aggregation||d.secure_aggregation||metric.aggregation);
   const acc=Number(metric.accuracy??metric.avg_accuracy??d.accuracy??d.avg_accuracy);
+  const clients=arr(d.clients);
+  const avgLoss=clients.length?clients.reduce((s,c)=>s+Number(c.loss||0),0)/clients.length:Number(metric.loss||d.loss||0);
   const version=d.model_version||metric.model_version||d.version||'-';
   const samples=d.samples||metric.samples||currentDatasetSource?.samples||'-';
   const source=d.source||metric.source||currentDatasetSource?.source_type||currentDatasetSource?.source||'-';
   const method=d.aggregation_method||metric.aggregation_method||(aggregationMethod?.value||'plain');
-  const paillier=d.paillier_enabled||metric.paillier_enabled||agg.paillier_enabled||method==='paillier';
-  const paillierLine=paillier?`<div class="notice mt-2">Paillier 聚合展示：加密 ${esc(agg.encryption_time_ms??metric.encryption_time_ms??'-')} ms，密态聚合 ${esc(agg.aggregation_time_ms??metric.aggregation_time_ms??'-')} ms，解密 ${esc(agg.decryption_time_ms??metric.decryption_time_ms??'-')} ms，加密参数 ${esc(agg.encrypted_parameter_count??metric.encrypted_parameter_count??'-')} 个。</div>`:'';
+  const paillierObj=obj(d.paillier||metric.paillier||agg);
+  const paillier=d.paillier_enabled||metric.paillier_enabled||paillierObj.paillier_enabled||method==='paillier';
+  const paillierLine=paillier?`<div class="subtle-note mt-2"><i class="fas fa-lock text-primary"></i> Paillier：加密 ${esc(paillierObj.encryption_time_ms??agg.encryption_time_ms??metric.encryption_time_ms??'-')} ms，密态聚合 ${esc(paillierObj.aggregation_time_ms??agg.aggregation_time_ms??metric.aggregation_time_ms??'-')} ms，解密 ${esc(paillierObj.decryption_time_ms??agg.decryption_time_ms??metric.decryption_time_ms??'-')} ms，加密参数 ${esc(paillierObj.encrypted_parameter_count??agg.encrypted_parameter_count??metric.encrypted_parameter_count??'-')} 个。</div>`:'';
   trainingResultSummary.innerHTML=`
     <div class="title">${type==='local'?'本地训练完成':'四节点联邦训练完成'}</div>
     <div class="result-grid">
@@ -948,17 +967,25 @@ function renderTrainingResult(data,type){
     <div class="tag-line mt-2"><span class="mini-badge">来源：${esc(source)}</span><span class="mini-badge">方式：${esc(method)}</span><span class="mini-badge">版本已写入列表</span></div>
     ${paillierLine}
   `;
-  updateTrainingCompare(type,{accuracy:acc, samples, version, source, method, paillier});
+  updateTrainingCompare(type,{accuracy:acc, loss:avgLoss, samples, version, source, method, paillier:paillierObj, clients});
 }
 function trainingRecordToCompare(row){
   const metric=trainingMetricInfo(row);
+  const meta=parseJsonObject(row.metadata);
+  const nested=parseJsonObject(meta.metadata);
+  const m={...meta,...nested};
+  const clients=arr(m.clients);
+  const avgLoss=clients.length?clients.reduce((s,c)=>s+Number(c.loss||0),0)/clients.length:Number(m.loss||m.avg_loss||0);
   return {
-    accuracy:Number(row.accuracy||0),
-    samples:row.samples||'-',
-    version:row.model_version||row.version||'-',
-    source:row.source||'-',
-    method:(metric.aggregation_method||row.aggregation_method||String(row.task_type||'').replace('admin_',''))||'-',
-    paillier:String(metric.aggregation_method||row.aggregation_method||'').includes('paillier')
+    accuracy:Number(row.accuracy||m.accuracy||m.avg_accuracy||0),
+    loss:avgLoss,
+    samples:row.samples||m.samples||'-',
+    version:m.model_version||m.version||row.model_version||row.version||'-',
+    source:row.source||m.source||m.training_source||'-',
+    method:(metric.aggregation_method||m.aggregation_method||row.aggregation_method||String(row.task_type||'').replace('admin_',''))||'-',
+    paillier:m.paillier||{},
+    clients,
+    label_distribution:m.label_distribution||{}
   };
 }
 function updateTrainingCompare(type,data){
@@ -975,33 +1002,103 @@ function metricDisplay(v){
   const n=Number(v);
   return Number.isFinite(n)&&n>0?(n>1?n.toFixed(2):(n*100).toFixed(2)+'%'):'--';
 }
+function sampleBarValue(v,max){
+  const n=Number(v), m=Number(max);
+  if(!Number.isFinite(n)||n<=0||!Number.isFinite(m)||m<=0)return 0;
+  return Math.max(2,Math.min(100,n/m*100));
+}
+function lossDisplay(v){
+  const n=Number(v);
+  return Number.isFinite(n)&&n>0?n.toFixed(4):'--';
+}
 function renderTrainingCompare(){
   if(typeof trainingCompareBox==='undefined')return;
   const local=trainingCompareState.local||{};
   const fed=trainingCompareState.federated||{};
   const lp=pctValue(local.accuracy), fp=pctValue(fed.accuracy);
+  const maxSamples=Math.max(Number(local.samples)||0,Number(fed.samples)||0,1);
+  const lsp=sampleBarValue(local.samples,maxSamples), fsp=sampleBarValue(fed.samples,maxSamples);
+  const maxLoss=Math.max(Number(local.loss)||0,Number(fed.loss)||0,1);
+  const llp=sampleBarValue(local.loss,maxLoss), flp=sampleBarValue(fed.loss,maxLoss);
   const gap=(Number.isFinite(Number(local.accuracy))&&Number.isFinite(Number(fed.accuracy))&&Number(local.accuracy)>0&&Number(fed.accuracy)>0)
     ? ((Number(fed.accuracy)-Number(local.accuracy))*100).toFixed(2)+' 个百分点'
     : '--';
+  const paillier=fed.paillier||{};
+  const paillierText=paillier.paillier_enabled
+    ? `Paillier：加密 ${paillier.encryption_time_ms||'-'}ms，密态聚合 ${paillier.aggregation_time_ms||'-'}ms，解密 ${paillier.decryption_time_ms||'-'}ms`
+    : '普通 FedAvg：不展示密态聚合耗时';
   trainingCompareBox.innerHTML=`
     <div class="compare-head">
       <b>本地训练 vs 四节点联邦训练</b>
       <span class="mini-badge">${local.accuracy&&fed.accuracy?'已形成对比':'等待两类训练结果'}</span>
     </div>
-    <div class="compare-row"><span>本地训练</span><div class="bar-track"><div class="bar-fill" style="width:${lp}%"></div></div><b>${metricDisplay(local.accuracy)}</b></div>
-    <div class="compare-row"><span>联邦训练</span><div class="bar-track"><div class="bar-fill fed" style="width:${fp}%"></div></div><b>${metricDisplay(fed.accuracy)}</b></div>
+    <div class="compare-split">
+      <div class="compare-box">
+        <h6>本地训练基线</h6>
+        <div class="compare-row"><span>准确率</span><div class="bar-track"><div class="bar-fill" style="width:${lp}%"></div></div><b>${metricDisplay(local.accuracy)}</b></div>
+        <div class="compare-row"><span>样本数</span><div class="bar-track"><div class="bar-fill" style="width:${lsp}%"></div></div><b>${esc(local.samples||'--')}</b></div>
+        <div class="compare-row"><span>损失</span><div class="bar-track"><div class="bar-fill loss" style="width:${llp}%"></div></div><b>${lossDisplay(local.loss)}</b></div>
+        <div class="small-text text-muted">版本：${esc(local.version||'--')}；来源：${esc(modelSourceLabel(local.source))}</div>
+      </div>
+      <div class="compare-box">
+        <h6>四节点联邦训练</h6>
+        <div class="compare-row"><span>准确率</span><div class="bar-track"><div class="bar-fill fed" style="width:${fp}%"></div></div><b>${metricDisplay(fed.accuracy)}</b></div>
+        <div class="compare-row"><span>样本数</span><div class="bar-track"><div class="bar-fill fed" style="width:${fsp}%"></div></div><b>${esc(fed.samples||'--')}</b></div>
+        <div class="compare-row"><span>损失</span><div class="bar-track"><div class="bar-fill loss" style="width:${flp}%"></div></div><b>${lossDisplay(fed.loss)}</b></div>
+        <div class="small-text text-muted">版本：${esc(fed.version||'--')}；聚合：${esc(fed.method||'--')}</div>
+      </div>
+    </div>
     <div class="compare-cards">
       <div class="compare-card"><strong>${esc(local.samples||'--')}</strong><span>本地训练样本</span></div>
       <div class="compare-card"><strong>${esc(fed.samples||'--')}</strong><span>联邦训练样本</span></div>
       <div class="compare-card"><strong>${esc(gap)}</strong><span>联邦相对本地差异</span></div>
       <div class="compare-card"><strong>${esc(fed.method||local.method||'--')}</strong><span>当前聚合/训练方式</span></div>
     </div>
-    <div class="compare-note mt-2">
-      本地训练用于集中式基线，联邦训练用于展示四节点本地训练后再聚合。柱状图只对比当前接口返回的训练指标；如果联邦略低，通常表示节点数据分散、聚合后泛化折中或验证口径不同。
+    <div class="compare-explain">
+      <b>对比结论：</b>本地训练是集中式基线，联邦训练是四节点聚合结果。${esc(paillierText)}。
     </div>`;
 }
-async function runAdminLocalTrain(){const r=await api('/api/admin/training/local',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:10000,dataset_source_id:currentDatasetSourceId})});toast(r.ok?'本地训练完成':r.error,r.ok?'ok':'bad');if(r.ok)renderTrainingResult(r.data,'local');loadTrainingRecords();loadModelVersions();}
-async function runAdminFederatedTrain(){const method=(typeof aggregationMethod!=='undefined'?aggregationMethod.value:'plain');const r=await api('/api/admin/training/federated',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({epochs:3,limit:10000,dataset_source_id:currentDatasetSourceId,aggregation_method:method,secure_aggregation:method==='paillier'})});toast(r.ok?'联邦训练完成':r.error,r.ok?'ok':'bad');if(r.ok)renderTrainingResult(r.data,'federated');loadNodes();loadTrainingRecords();loadModelVersions();}
+function trainLimit(){
+  const n=Number(currentDatasetSource?.samples||0);
+  return Math.max(100,Math.min(50000,n||10000));
+}
+async function ensureTrainingSource(){
+  if(!currentDatasetSourceId)await loadAdminData();
+}
+async function runAdminLocalTrain(){
+  await ensureTrainingSource();
+  const r=await api('/api/admin/training/local',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:trainLimit(),dataset_source_id:currentDatasetSourceId})});
+  toast(r.ok?'本地训练完成':r.error,r.ok?'ok':'bad');
+  if(r.ok)renderTrainingResult(r.data,'local');
+  loadTrainingRecords();loadModelVersions();
+  return r;
+}
+async function runAdminFederatedTrain(){
+  await ensureTrainingSource();
+  const method=(typeof aggregationMethod!=='undefined'?aggregationMethod.value:'plain');
+  const r=await api('/api/admin/training/federated',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({epochs:3,limit:trainLimit(),dataset_source_id:currentDatasetSourceId,aggregation_method:method,secure_aggregation:method==='paillier'})});
+  toast(r.ok?'联邦训练完成':r.error,r.ok?'ok':'bad');
+  if(r.ok)renderTrainingResult(r.data,'federated');
+  loadNodes();loadTrainingRecords();loadModelVersions();
+  return r;
+}
+async function runAdminFullTraining(){
+  await ensureTrainingSource();
+  trainingResultSummary.innerHTML='<div class="title">训练进行中</div><div class="subtle-note"><i class="fas fa-spinner fa-spin text-primary"></i> 正在依次执行本地基线训练和四节点联邦训练，完成后右侧同步展示结果。</div>';
+  const local=await runAdminLocalTrain();
+  if(!local.ok)return;
+  const fed=await runAdminFederatedTrain();
+  if(local.ok&&fed.ok){
+    toast('本地基线与四节点联邦训练均已完成','ok');
+    renderTrainingCompare();
+  }
+}
+async function loadTrainingPage(){
+  await loadAdminData();
+  loadNodes();
+  loadTrainingRecords();
+  loadModelVersions();
+}
 async function loadTrainingRecords(){
   const r=await api('/api/admin/training/tasks?limit=50');
   const rows=arr(obj(r.data).tasks);
@@ -1025,15 +1122,68 @@ async function loadTrainingRecords(){
     </tr>`;
   }).join(''):'<tr><td colspan="8" class="text-muted">暂无训练记录</td></tr>'
 }
+function modelTypeLabel(type){
+  const t=String(type||'');
+  if(t.includes('federated'))return'四节点联邦模型';
+  if(t.includes('local')||t.includes('ensemble'))return'本地检测模型';
+  if(t.includes('runtime'))return'运行时检测模型';
+  return t||'检测模型';
+}
+function modelSourceLabel(source){
+  const s=String(source||'');
+  if(s==='managed_dataset_source')return'管理端训练数据池';
+  if(s==='encrypted_user_submissions')return'加密用户提交';
+  if(s==='runtime_model_manager')return'运行时模型管理器';
+  if(s==='local_generated')return'系统内置密码攻击训练集';
+  return s||'-';
+}
+function renderCurrentModelVersionCards(rows,runtime){
+  const list=arr(rows).filter(v=>Number(v.is_current||0)===1);
+  if(!list.length && runtime && (runtime.is_ready || runtime.model_version)){
+    const raw=obj(runtime.raw_status);
+    list.push({
+      version: runtime.model_version || raw.version || 'runtime',
+      model_type: 'runtime_detector',
+      source: runtime.source || 'runtime_model_manager',
+      samples: raw.samples || raw.train_samples || '-',
+      accuracy: runtime.accuracy,
+      metadata: JSON.stringify({algorithm:raw.algorithm||'ensemble_detector', metric_label:'运行中模型状态'}),
+      current_since: '-'
+    });
+  }
+  if(!list.length){
+    currentModelVersionCards.innerHTML='<div class="notice">暂无当前模型版本记录。请先执行“本地训练”或“四节点联邦训练”，系统会自动生成可回退的模型版本。</div>';
+    return;
+  }
+  currentModelVersionCards.innerHTML=list.map(v=>{
+    const meta=parseJsonObject(v.metadata);
+    const nested=parseJsonObject(meta.metadata);
+    const merged={...meta,...nested,...v};
+    const algorithm=merged.algorithm || (String(v.model_type||'').includes('federated')?'fedavg':'ensemble_detector');
+    return `<div class="model-version-card">
+      <h6>${esc(modelTypeLabel(v.model_type))}</h6>
+      <div class="model-version-meta">
+        <div><b>${esc(v.version||v.model_version||'-')}</b><span>当前版本</span></div>
+        <div><b>${esc(algorithm)}</b><span>算法</span></div>
+        <div><b>${esc(metricText(v.accuracy))}</b><span>指标</span></div>
+        <div><b>${esc(v.samples||merged.samples||'-')}</b><span>训练样本</span></div>
+        <div><b>${esc(modelSourceLabel(v.source))}</b><span>数据来源</span></div>
+        <div><b>${esc(fmtTime(v.current_since||v.timestamp))}</b><span>启用时间</span></div>
+      </div>
+    </div>`;
+  }).join('');
+}
 async function loadModelVersions(){
   const r=await api('/api/admin/model-versions?limit=50');
   if(!r.ok){
     modelVersionTable.innerHTML=`<tr><td colspan="11" class="text-muted">模型版本加载失败：${esc(r.error)}。请确认已经登录管理端。</td></tr>`;
+    currentModelVersionCards.innerHTML='<div class="notice">模型版本加载失败，无法显示当前启用模型。</div>';
     return;
   }
   const rows=arr(obj(r.data).versions);
+  const runtime=obj(obj(r.data).runtime_model);
+  renderCurrentModelVersionCards(rows,runtime);
   if(!rows.length){
-    const runtime=obj(obj(r.data).runtime_model);
     const raw=obj(runtime.raw_status);
     modelVersionTable.innerHTML=`<tr>
       <td>${esc(runtime.model_version||raw.version||'runtime')}</td>
@@ -1046,28 +1196,30 @@ async function loadModelVersions(){
       <td><span class="status-pill ${runtime.is_ready?'ok':'warn'}">${runtime.is_ready?'运行中':'未就绪'}</span></td>
       <td>-</td>
       <td class="small-text">${esc(runtime.note||'暂无持久化模型版本记录。')}</td>
-      <td><button class="btn-lightx" onclick="runAdminLocalTrain()">生成版本</button></td>
+      <td><button class="btn-lightx" onclick="runAdminLocalTrain()">执行训练生成版本</button></td>
     </tr>`;
     return;
   }
   modelVersionTable.innerHTML=rows.map(v=>{
     const current=Number(v.is_current||0)===1;
     const meta=parseJsonObject(v.metadata);
-    const metric=trainingMetricInfo({...meta,...v});
-    const algorithm=meta.algorithm || (String(v.model_type||'').includes('federated')?'fedavg':'ensemble_detector');
-    const note=meta.note || meta.metric_note || metric.note || '-';
+    const nested=parseJsonObject(meta.metadata);
+    const merged={...meta,...nested,...v};
+    const metric=trainingMetricInfo(merged);
+    const algorithm=merged.algorithm || (String(v.model_type||'').includes('federated')?'fedavg':'ensemble_detector');
+    const note=merged.note || merged.metric_note || metric.note || '-';
     return `<tr>
-      <td>${esc(v.version||'-')}</td>
-      <td>${esc(v.model_type||'-')}</td>
+      <td><b>${esc(v.version||'-')}</b><div class="small-text text-muted">ID ${esc(v.id||'-')}</div></td>
+      <td>${esc(modelTypeLabel(v.model_type))}<div class="small-text text-muted">${esc(v.model_type||'-')}</div></td>
       <td>${esc(algorithm)}</td>
-      <td>${esc(v.source||'-')}</td>
-      <td>${esc(v.samples||0)}<div class="small-text text-muted">${esc(labelDistText(meta.label_distribution))}</div></td>
+      <td>${esc(modelSourceLabel(v.source))}<div class="small-text text-muted">${esc(v.source||'-')}</div></td>
+      <td>${esc(v.samples||merged.samples||0)}<div class="small-text text-muted">${esc(labelDistText(merged.label_distribution))}</div></td>
       <td><b>${esc(metricText(v.accuracy))}</b><div class="small-text text-muted">${esc(metric.label)}</div></td>
-      <td>${esc(metricText(meta.recall))} / ${esc(metricText(meta.f1))}<div class="small-text text-muted">Precision ${esc(metricText(meta.precision))}</div></td>
+      <td>${esc(metricText(merged.recall))} / ${esc(metricText(merged.f1))}<div class="small-text text-muted">Precision ${esc(metricText(merged.precision))}</div></td>
       <td>${current?'<span class="status-pill ok">当前启用</span>':'<span class="status-pill info">可回退</span>'}</td>
       <td>${esc(fmtTime(v.timestamp))}</td>
       <td class="small-text">${esc(note)}</td>
-      <td>${current?'-':`<button class="btn-lightx" onclick="activateModelVersion(${Number(v.id)||0})">设为当前</button>`}</td>
+      <td>${current?'<span class="text-muted">当前版本</span>':`<button class="btn-lightx" onclick="activateModelVersion(${Number(v.id)||0})">回退/切换到此版本</button>`}</td>
     </tr>`;
   }).join('');
 }
