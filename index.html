@@ -223,8 +223,8 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
       <div class="panel-body">
         <div class="scroll-box">
           <table class="table table-sm">
-            <thead><tr><th>时间</th><th>文件</th><th>样本</th><th>字段</th><th>加密</th><th>审核状态</th><th>生命周期</th><th>最近操作</th><th>风险摘要</th><th>操作</th></tr></thead>
-            <tbody id="submissionTable"><tr><td colspan="10" class="text-muted">请先刷新数据</td></tr></tbody>
+            <thead><tr><th>时间</th><th>文件</th><th>样本</th><th>字段</th><th>安全字段</th><th>加密</th><th>审核状态</th><th>生命周期</th><th>最近操作</th><th>风险摘要</th><th>操作</th></tr></thead>
+            <tbody id="submissionTable"><tr><td colspan="11" class="text-muted">请先刷新数据</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -421,6 +421,14 @@ function maskPreviewValue(key,value){
   return text.slice(0,2)+'***'+text.slice(-2);
 }
 function maskPreviewRows(rows){return arr(rows).map(row=>Object.fromEntries(Object.entries(obj(row)).map(([k,v])=>[k,maskPreviewValue(k,v)])))}
+function loginPreviewRows(rows){
+  const keepVisible = new Set(['ip','client_ip','remote_ip','source_ip','src_ip','user_agent','device_type','browser','os','login_success','failed_attempts','request_frequency','response_time','session_duration','unusual_hour','password_strength','label','timestamp']);
+  return arr(rows).map(row=>Object.fromEntries(Object.entries(obj(row)).map(([k,v])=>{
+    const key=String(k||'').toLowerCase();
+    if(keepVisible.has(key))return [k,v];
+    return [k,maskPreviewValue(k,v)];
+  })));
+}
 function toast(msg,type='info'){const el=document.createElement('div');el.className='toastx';el.style.background=type==='bad'?'#C62828':type==='ok'?'#2E7D32':'#2F5F93';el.textContent=msg;document.body.appendChild(el);setTimeout(()=>el.remove(),2600)}
 async function api(url,opt={}){try{const r=await fetch(url,{credentials:'same-origin',...opt});const t=await r.text();let j={};try{j=t?JSON.parse(t):{}}catch(e){return{ok:false,error:'响应不是 JSON'}};if(!r.ok||j.code&&j.code!==200)return{ok:false,error:j.msg||r.statusText,data:j.data};return{ok:true,data:j.data??j,msg:j.msg}}catch(e){return{ok:false,error:e.message}}}
 function table(rows,cols){if(!rows.length)return '<div class="p-3 text-muted">暂无数据</div>';return '<table class="table table-sm"><thead><tr>'+cols.map(c=>`<th>${c[0]}</th>`).join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+cols.map(c=>`<td>${esc(typeof c[1]==='function'?c[1](r):r[c[1]])}</td>`).join('')+'</tr>').join('')+'</tbody></table>'}
@@ -432,7 +440,7 @@ function previewCols(row){
 }
 function loginPreviewCols(row){
   const keys=Object.keys(obj(row));
-  const preferred=['id','username','ip','device_type','browser','os','login_success','failed_attempts','request_frequency','response_time','session_duration','unusual_hour','password_strength','label'];
+  const preferred=['id','username','ip','user_agent','device_type','browser','os','login_success','failed_attempts','request_frequency','response_time','session_duration','unusual_hour','password_strength','label'];
   return preferred.filter(k=>keys.includes(k)).map(k=>[k,k]);
 }
 function privacyPlainCols(row){
@@ -547,6 +555,24 @@ function submissionActionButtons(row){
   if(actions.includes('reject'))buttons.push(`<button class="btn-lightx" onclick="rejectSubmission('${id}')">拒绝</button>`);
   return buttons.join('')||'<span class="text-muted">无操作</span>';
 }
+function submissionSecurityFields(row){
+  const preview=arr(row.masked_preview);
+  const columns=[...new Set([...(arr(row.columns)||[]),...Object.keys(obj(preview[0]))])].map(x=>String(x));
+  const lower=new Map(columns.map(c=>[c.toLowerCase(),c]));
+  const fields=[
+    ['ip','IP'],
+    ['user_agent','UA'],
+    ['device_type','设备'],
+    ['browser','浏览器'],
+    ['os','系统'],
+    ['failed_attempts','失败次数'],
+    ['request_frequency','请求频率'],
+    ['response_time','响应时间'],
+    ['label','标签']
+  ];
+  const matched=fields.filter(([k])=>lower.has(k)).map(([,label])=>`<span class="status-pill info me-1 mb-1">${label}</span>`);
+  return matched.length?matched.join(''):'<span class="status-pill warn">未识别登录安全字段</span>';
+}
 
 function setupNav(){
   const pages=APP_MODE==='admin'?ADMIN_PAGES:USER_PAGES;
@@ -630,11 +656,13 @@ async function generateLoginSamples(){
   const res=await api('/api/generate_login_security_dataset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({n_records:count})});
   if(!res.ok){toast(res.error,'bad');return}
   const rows=arr(res.data.dataset || res.data.records);
-  const masked=maskPreviewRows(rows);
+  const masked=loginPreviewRows(rows);
   const cols=loginPreviewCols(masked[0]||rows[0]);
-  plainPreview.innerHTML=`<div class="small-text text-muted p-2">共生成 ${rows.length} 条登录安全样本；预览包含 IP、设备、浏览器、系统、失败次数、请求频率、响应时间和标签字段。</div>`+table(masked.slice(0,300),cols.length?cols:previewCols(masked[0]));
+  const previewHtml=`<div class="small-text text-muted p-2">共生成 ${rows.length} 条登录安全样本；下表固定展示 IP、User-Agent、设备、浏览器、系统、失败次数、请求频率、响应时间和标签字段，用户名仅做脱敏显示。</div>`+table(masked.slice(0,300),cols.length?cols:previewCols(masked[0]));
+  plainPreview.innerHTML=previewHtml;
   encryptedPreview.innerHTML='<div class="p-3 text-muted">登录安全样本用于密码攻击风险检测；password 等敏感字段会在上传归档时转换为长度、强度等派生特征，不展示明文密码。</div>';
-  await uploadBlob('login_security_samples.csv',toCsv(rows));
+  const uploaded=await uploadBlob('login_security_samples.csv',toCsv(rows));
+  if(uploaded)plainPreview.innerHTML=previewHtml;
 }
 async function generatePrivacySamples(){
   const count=Math.max(20,Math.min(parseInt(sampleCount.value||200),1000));
@@ -836,13 +864,14 @@ async function loadAdminData(){
     <td>${esc(r.filename)}</td>
     <td>${esc(r.row_count)}</td>
     <td>${esc(r.column_count)}</td>
+    <td>${submissionSecurityFields(r)}</td>
     <td>${r.encrypted?'AES':'-'}</td>
     <td>${reviewStatusBadge(r)}<div class="small-text text-muted mt-1">${esc(r.review_status_note||'')}</div></td>
     <td>${lifecycleBadge(r)}</td>
     <td>${esc(fmtTime(r.recent_operation_time||r.upload_time))}</td>
     <td>${riskSummaryTags(r.risk_summary)}</td>
     <td>${submissionActionButtons(r)}</td>
-  </tr>`).join(''):'<tr><td colspan="10" class="text-muted">暂无用户提交</td></tr>';
+  </tr>`).join(''):'<tr><td colspan="11" class="text-muted">暂无用户提交</td></tr>';
 }
 async function processSystemDataset(){const r=await api('/api/dataset/unsw/process',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});toast(r.ok?'处理完成':r.error,r.ok?'ok':'bad');loadAdminData();loadNodes();}
 async function archiveSubmission(id){const r=await api(`/api/admin/submissions/${id}/archive`,{method:'POST'});toast(r.ok?'已归档':r.error,r.ok?'ok':'bad');loadAdminData();}
