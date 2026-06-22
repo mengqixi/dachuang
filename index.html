@@ -82,8 +82,8 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
               <span class="input-group-text">记录数</span>
               <input class="form-control" id="sampleCount" type="number" min="20" max="5000" value="200">
             </div>
-            <button class="btn-main me-2" onclick="generateLoginSamples()">生成登录安全样本</button>
-            <button class="btn-lightx" onclick="generatePrivacySamples()">生成隐私加密样本</button>
+            <button class="btn-main me-2" onclick="generateCombinedSamples()">生成综合样本</button>
+            <div class="small-text text-muted mt-2">一次生成登录安全样本和隐私密态样本：左侧用于风险检测，右侧用于 Paillier 密态字段展示。</div>
           </div>
         </div>
         <div class="metric-grid mt-3" id="uploadSummary">
@@ -666,29 +666,46 @@ async function uploadUserFile(){
   renderUploadSummary(res.data); plainPreview.innerHTML=table(masked,previewCols(masked[0])); setUploadStatus(`提交成功：${f.name} 已加密归档。可进入“风险检测”页面执行检测。`,'ok'); toast('上传成功','ok');
 }
 function toCsv(rows){if(!rows.length)return'';const keys=Object.keys(rows[0]);return keys.join(',')+'\n'+rows.map(r=>keys.map(k=>`"${String(r[k]??'').replace(/"/g,'""')}"`).join(',')).join('\n')}
-async function generateLoginSamples(){
-  const count=Math.max(20,Math.min(parseInt(sampleCount.value||200),5000));
-  const res=await api('/api/generate_login_security_dataset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({n_records:count})});
-  if(!res.ok){toast(res.error,'bad');return}
-  const rows=arr(res.data.dataset || res.data.records);
+function renderLoginSamplePreview(rows){
   const masked=loginPreviewRows(rows);
   const cols=loginPreviewCols(masked[0]||rows[0]);
-  const previewHtml=`<div class="small-text text-muted p-2">共生成 ${rows.length} 条登录安全样本；下表固定展示 IP、User-Agent、设备、浏览器、系统、失败次数、请求频率、响应时间和标签字段，用户名仅做脱敏显示。</div>`+table(masked.slice(0,300),cols.length?cols:previewCols(masked[0]));
+  return `<div class="small-text text-muted p-2">共生成 ${rows.length} 条登录安全样本；下表固定展示 IP、User-Agent、设备、浏览器、系统、失败次数、请求频率、响应时间和标签字段，用户名仅做脱敏显示。</div>`+table(masked.slice(0,300),cols.length?cols:previewCols(masked[0]));
+}
+function renderPrivacySamplePreview(data, showPlain=false){
+  const plaintext=maskPreviewRows(arr(data.plaintext));
+  const encrypted=arr(data.encrypted);
+  const algorithm=data.algorithm||data.encryption_method||data.encryption_algorithm||obj(encrypted[0]).algorithm||'Paillier';
+  const note=String(algorithm).toLowerCase().includes('mock')?'Paillier 初始化不可用，当前显示模拟密态片段。':'当前显示 Paillier 密文片段；密文较长，表格仅截取前段用于验证字段已进入密态展示流程。';
+  if(showPlain){
+    plainPreview.innerHTML=`<div class="small-text text-muted p-2">隐私样本只用于密态字段展示，不直接作为攻击检测原因。手机号、收入、信用分等字段会脱敏或加密显示。</div>`+table(plaintext.slice(0,200),privacyPlainCols(plaintext[0]));
+  }
+  encryptedPreview.innerHTML=`<div class="small-text text-muted p-2"><span class="mini-badge">${esc(algorithm)}</span> ${esc(note)}</div>`+table(encrypted.slice(0,200),privacyCipherCols(encrypted[0]));
+}
+async function generateCombinedSamples(){
+  const count=Math.max(20,Math.min(parseInt(sampleCount.value||200),5000));
+  const privacyCount=Math.min(count,1000);
+  const [loginRes,privacyRes]=await Promise.all([
+    api('/api/generate_login_security_dataset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({n_records:count})}),
+    api('/api/generate_privacy_dataset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({n_records:privacyCount,algorithm:'Paillier'})})
+  ]);
+  if(!loginRes.ok){toast(loginRes.error,'bad');return}
+  const rows=arr(loginRes.data.dataset || loginRes.data.records);
+  const previewHtml=renderLoginSamplePreview(rows);
   plainPreview.innerHTML=previewHtml;
-  encryptedPreview.innerHTML='<div class="p-3 text-muted">登录安全样本用于密码攻击风险检测；password 等敏感字段会在上传归档时转换为长度、强度等派生特征，不展示明文密码。</div>';
+  if(privacyRes.ok)renderPrivacySamplePreview(privacyRes.data,false);
+  else encryptedPreview.innerHTML=`<div class="p-3 text-muted">隐私密态样本生成失败：${esc(privacyRes.error)}。登录安全样本仍可用于风险检测。</div>`;
   const uploaded=await uploadBlob('login_security_samples.csv',toCsv(rows));
   if(uploaded)plainPreview.innerHTML=previewHtml;
+  toast(privacyRes.ok?'综合样本已生成：左侧可检测，右侧可查看 Paillier 密态字段。':'登录安全样本已生成，隐私密态样本生成失败。', privacyRes.ok?'ok':'info');
+}
+async function generateLoginSamples(){
+  return generateCombinedSamples();
 }
 async function generatePrivacySamples(){
   const count=Math.max(20,Math.min(parseInt(sampleCount.value||200),1000));
   const res=await api('/api/generate_privacy_dataset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({n_records:count,algorithm:'Paillier'})});
   if(!res.ok){toast(res.error,'bad');return}
-  const plaintext=maskPreviewRows(arr(res.data.plaintext));
-  const encrypted=arr(res.data.encrypted);
-  const algorithm=res.data.algorithm||res.data.encryption_method||res.data.encryption_algorithm||obj(encrypted[0]).algorithm||'Paillier';
-  const note=String(algorithm).toLowerCase().includes('mock')?'Paillier 初始化不可用，当前显示模拟密态片段。':'当前显示 Paillier 密文片段；密文较长，表格仅截取前段用于验证字段已进入密态展示流程。';
-  plainPreview.innerHTML=`<div class="small-text text-muted p-2">隐私样本只用于密态字段展示，不直接作为攻击检测原因。手机号、收入、信用分等字段会脱敏或加密显示。</div>`+table(plaintext.slice(0,200),privacyPlainCols(plaintext[0]));
-  encryptedPreview.innerHTML=`<div class="small-text text-muted p-2"><span class="mini-badge">${esc(algorithm)}</span> ${esc(note)}</div>`+table(encrypted.slice(0,200),privacyCipherCols(encrypted[0]));
+  renderPrivacySamplePreview(res.data,true);
   toast('已生成隐私加密样本。该样本用于密态展示，不直接进入攻击检测。','ok');
 }
 async function analyzeCurrentSubmission(){
