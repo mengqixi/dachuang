@@ -1804,9 +1804,12 @@ def _enrich_model_version(item, runtime_numbers=None):
         "version_role": version_role,
         "artifact_status": artifact_status,
         "can_activate": bool(can_activate),
+        "can_select": True,
+        "select_action": "activate_runtime" if can_activate else "select_tracking",
         "activation_reason": activation_reason,
         "runtime_version": runtime_int,
         "current_runtime": bool(can_activate and runtime_int == getattr(model_manager, "_version_counter", None)),
+        "current_display": bool(int(enriched.get("is_current", 0) or 0) == 1),
         "metadata": enriched.get("metadata", "{}"),
     })
     return enriched
@@ -1863,13 +1866,20 @@ def admin_activate_model_version(version_id):
     if not item:
         return jsonify(api_response(code=404, msg="模型版本不存在"))
     enriched = _enrich_model_version(item)
-    if not enriched.get("can_activate"):
-        return jsonify(api_response(code=409, msg=enriched.get("activation_reason") or "该版本不能切换为运行时检测模型", data=enriched))
-    ok = model_manager.rollback(int(enriched.get("runtime_version")))
-    if not ok:
-        return jsonify(api_response(code=500, msg="运行时模型切换失败，请确认模型文件仍存在", data=enriched))
+    if enriched.get("can_activate"):
+        ok = model_manager.rollback(int(enriched.get("runtime_version")))
+        if not ok:
+            return jsonify(api_response(code=500, msg="运行时模型切换失败，请确认模型文件仍存在", data=enriched))
+        item = db.set_current_model_version(version_id)
+        return jsonify(api_response(msg="已切换当前运行检测模型", data=_enrich_model_version(item)))
+
     item = db.set_current_model_version(version_id)
-    return jsonify(api_response(msg="已切换当前运行检测模型", data=_enrich_model_version(item)))
+    if not item:
+        return jsonify(api_response(code=500, msg="模型版本状态更新失败", data=enriched))
+    return jsonify(api_response(
+        msg="已设为当前训练追踪版本；该版本用于管理端展示和报告追溯，不直接替换运行时检测模型",
+        data=_enrich_model_version(item),
+    ))
 
 
 @app.route("/api/admin/audit/events", methods=["GET"])
