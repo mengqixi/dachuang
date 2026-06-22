@@ -35,13 +35,13 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
 .metric-value{font-size:26px;font-weight:900;color:#2F5F93;word-break:break-all}.metric-label{font-size:12px;color:#607D8B;margin-top:4px}
 .notice{background:#F8FAFC;border:1px dashed #C7D2DE;border-radius:10px;padding:12px 14px;color:#455A64;font-size:13px;line-height:1.65}
 .hint{position:relative;display:inline-flex;align-items:center;margin-left:6px;vertical-align:middle}.info-icon{width:22px;height:22px;border-radius:50%;border:1px solid #BBD3EC;background:#EAF3FF;color:#1E5C9A;display:inline-flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer}.hint-panel{display:none;position:absolute;z-index:50;top:28px;left:0;width:320px;max-width:70vw;background:#fff;border:1px solid #DDE7F0;border-radius:10px;box-shadow:0 12px 28px rgba(20,40,70,.16);padding:12px 14px;color:#455A64;font-size:13px;line-height:1.65;text-align:left;font-weight:400}.hint-panel.right{left:auto;right:0}.hint:hover .hint-panel,.hint:focus-within .hint-panel{display:block}.subtle-note{font-size:12px;color:#607D8B;line-height:1.6}.compact-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}.two-col.training-layout{grid-template-columns:minmax(460px,.95fr) minmax(520px,1.05fr);align-items:start}.three-col{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-.training-flow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:12px 0}.training-step{border:1px solid #DDE7F0;background:#F8FBFE;border-radius:10px;padding:10px;text-align:center;font-size:12px;color:#456;min-height:58px}.training-step b{display:block;color:#1E5C9A;margin-bottom:4px}.result-card{border:1px solid #DDE7F0;background:#fff;border-radius:10px;padding:12px;margin-top:12px}.result-card .title{font-weight:800;color:#1E5C9A;margin-bottom:8px}.result-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.result-item{background:#F8FBFE;border:1px solid #E6ECF2;border-radius:8px;padding:8px}.result-item b{display:block;font-size:16px;color:#2F5F93}.tag-line{display:flex;flex-wrap:wrap;gap:6px}.mini-badge{display:inline-block;background:#EAF3FF;color:#1E5C9A;border:1px solid #BBD3EC;border-radius:999px;padding:3px 8px;font-size:12px;font-weight:700}
-.training-compare{border:1px solid #DDE7F0;background:#FAFCFF;border-radius:10px;padding:12px;margin-top:12px}.compare-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}.compare-head b{color:#1E5C9A}.compare-row{display:grid;grid-template-columns:92px 1fr 74px;gap:10px;align-items:center;margin:10px 0}.bar-track{height:14px;background:#E9EEF5;border-radius:999px;overflow:hidden}.bar-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#6EA8FE,#2F5F93);min-width:2px}.bar-fill.fed{background:linear-gradient(90deg,#9CCC65,#2E7D32)}.bar-fill.loss{background:linear-gradient(90deg,#FFCC80,#EF6C00)}.compare-note{font-size:12px;color:#607D8B;line-height:1.65}.compare-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:10px}.compare-card{background:#fff;border:1px solid #E6ECF2;border-radius:8px;padding:9px}.compare-card strong{display:block;color:#2F5F93;font-size:18px}.compare-card span{font-size:12px;color:#607D8B}.compare-split{display:grid;grid-template-columns:1fr 1fr;gap:10px}.compare-box{background:#fff;border:1px solid #E6ECF2;border-radius:10px;padding:10px}.compare-box h6{font-size:13px;font-weight:800;color:#1E5C9A;margin:0 0 8px}.compare-explain{background:#F8FBFE;border:1px dashed #C7D2DE;border-radius:8px;padding:9px;margin-top:10px;font-size:12px;color:#455A64;line-height:1.65}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}.two-col>*{min-width:0}.two-col.training-layout{grid-template-columns:minmax(460px,.95fr) minmax(520px,1.05fr);align-items:stretch}.two-col.training-layout>.panel{height:100%}.three-col{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.training-flow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:12px 0}.training-step{border:1px solid #DDE7F0;background:#F8FBFE;border-radius:10px;padding:10px;text-align:center;font-size:12px;color:#456;min-height:58px}.training-step b{display:block;color:#1E5C9A;margin-bottom:4px}.aggregation-flow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:10px 0}.aggregation-step{border:1px solid #DDE7F0;background:#fff;border-radius:10px;padding:10px;text-align:center;font-size:12px;min-height:70px}.aggregation-step b{display:block;color:#1E5C9A;margin-bottom:5px}.aggregation-step.secure{border-color:#BBD3EC;background:#F6FBFF}.cost-bars{display:grid;gap:7px;margin-top:10px}.cost-row{display:grid;grid-template-columns:88px 1fr 54px;gap:8px;align-items:center;font-size:12px}.result-card{border:1px solid #DDE7F0;background:#fff;border-radius:10px;padding:12px;margin-top:12px}.result-card .title{font-weight:800;color:#1E5C9A;margin-bottom:8px}.result-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.result-item{background:#F8FBFE;border:1px solid #E6ECF2;border-radius:8px;padding:8px}.result-item b{display:block;font-size:16px;color:#2F5F93}.tag-line{display:flex;flex-wrap:wrap;gap:6px}.mini-badge{display:inline-block;background:#EAF3FF;color:#1E5C9A;border:1px solid #BBD3EC;border-radius:999px;padding:3px 8px;font-size:12px;font-weight:700}
+.training-compare{border:1px solid #DDE7F0;background:#FAFCFF;border-radius:10px;padding:12px;margin-top:12px}.compare-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}.compare-head b{color:#1E5C9A}.compare-row{display:grid;grid-template-columns:92px 1fr 74px;gap:10px;align-items:center;margin:10px 0}.bar-track{height:14px;background:#E9EEF5;border-radius:999px;overflow:hidden}.bar-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#6EA8FE,#2F5F93);min-width:2px}.bar-fill.fed{background:linear-gradient(90deg,#9CCC65,#2E7D32)}.bar-fill.loss{background:linear-gradient(90deg,#FFCC80,#EF6C00)}.bar-fill.cost{background:linear-gradient(90deg,#BBD3EC,#1E5C9A)}.compare-note{font-size:12px;color:#607D8B;line-height:1.65}.compare-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:10px}.compare-card{background:#fff;border:1px solid #E6ECF2;border-radius:8px;padding:9px}.compare-card strong{display:block;color:#2F5F93;font-size:18px}.compare-card span{font-size:12px;color:#607D8B}.compare-split{display:grid;grid-template-columns:1fr 1fr;gap:10px}.compare-box{background:#fff;border:1px solid #E6ECF2;border-radius:10px;padding:10px}.compare-box h6{font-size:13px;font-weight:800;color:#1E5C9A;margin:0 0 8px}.compare-explain{background:#F8FBFE;border:1px dashed #C7D2DE;border-radius:8px;padding:9px;margin-top:10px;font-size:12px;color:#455A64;line-height:1.65}
 .model-version-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:12px}.model-version-card{border:1px solid #DDE7F0;background:#FAFCFF;border-radius:10px;padding:12px}.model-version-card h6{font-weight:800;color:#1E5C9A;margin:0 0 8px}.model-version-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.model-version-meta div{background:#fff;border:1px solid #E6ECF2;border-radius:8px;padding:8px}.model-version-meta b{display:block;color:#2F5F93;font-size:15px}.model-version-meta span{font-size:12px;color:#607D8B}
 @media(max-width:1100px){.two-col.training-layout{grid-template-columns:1fr}.training-flow{grid-template-columns:repeat(2,minmax(0,1fr))}.compare-split{grid-template-columns:1fr}.compare-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .table-sm th{font-size:12px;color:#455A64;font-weight:800}.table-sm td{font-size:12px;vertical-align:middle}
-.scroll-box{max-height:340px;overflow:auto;border:1px solid #E6ECF2;border-radius:10px}.scroll-box table{margin-bottom:0}
+.scroll-box{max-height:340px;overflow:auto;border:1px solid #E6ECF2;border-radius:10px;max-width:100%}.scroll-box table{margin-bottom:0;white-space:nowrap}.preview-scroll{max-height:285px;overflow:auto}.preview-scroll .table-sm th,.preview-scroll .table-sm td{font-size:11px;padding:5px 8px;line-height:1.35}.cipher-preview table{table-layout:fixed;min-width:980px}.cipher-preview th,.cipher-preview td{max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cipher-preview td:nth-child(n+2){font-family:Consolas,"SFMono-Regular",monospace;color:#334155}.audit-table{table-layout:fixed;min-width:920px}.audit-table th,.audit-table td{white-space:normal}.audit-time{width:86px}.audit-risk{width:58px}.audit-type{width:126px}.audit-path{width:150px}.audit-reason{width:190px}.audit-advice{width:190px}.audit-action{width:68px}.visit-table{table-layout:fixed;min-width:920px}.visit-table th,.visit-table td{white-space:normal}.visit-time{width:86px}.visit-ip{width:120px}.visit-geo{width:130px}.visit-small{width:82px}.visit-path{width:130px}.short-cell{line-height:1.45;color:#455A64}
 .preview-card{border:1px solid #E6ECF2;border-radius:10px;padding:12px;background:#FAFBFC}
 .risk-low{color:#2E7D32;font-weight:800}.risk-medium{color:#8A6200;font-weight:800}.risk-high,.risk-critical{color:#B71C1C;font-weight:800}
 .node-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
@@ -101,11 +101,11 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
     <div class="two-col">
       <div class="panel">
         <div class="panel-head">样本预览</div>
-        <div class="panel-body"><div class="scroll-box" id="plainPreview">暂无数据</div></div>
+        <div class="panel-body"><div class="scroll-box preview-scroll" id="plainPreview">暂无数据</div></div>
       </div>
       <div class="panel">
         <div class="panel-head">Paillier 密态字段展示</div>
-        <div class="panel-body"><div class="scroll-box" id="encryptedPreview">生成隐私加密样本后显示密态字段。</div></div>
+        <div class="panel-body"><div class="scroll-box preview-scroll cipher-preview" id="encryptedPreview">生成隐私加密样本后显示密态字段。</div></div>
       </div>
     </div>
   </section>
@@ -258,6 +258,16 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
             <option value="plain">普通 FedAvg</option>
             <option value="paillier">Paillier 安全聚合展示</option>
           </select>
+          <div class="training-compare" id="aggregationVisualBox">
+            <div class="compare-head"><b>聚合方式可视化</b><span class="mini-badge">普通 FedAvg</span></div>
+            <div class="aggregation-flow">
+              <div class="aggregation-step"><b>1. 节点训练</b>四个节点本地训练</div>
+              <div class="aggregation-step"><b>2. 上传参数</b>上传模型参数摘要</div>
+              <div class="aggregation-step"><b>3. 加权平均</b>按样本数聚合</div>
+              <div class="aggregation-step"><b>4. 全局版本</b>写入模型版本</div>
+            </div>
+            <div class="compare-explain">普通 FedAvg 强调训练效率和流程清晰；Paillier 模式会增加量化、加密、密态聚合和解密环节，用于展示安全增强带来的额外开销。</div>
+          </div>
           <div class="compact-actions mt-3">
             <button class="btn-main" onclick="runAdminFullTraining()"><i class="fas fa-play"></i> 运行本地基线 + 四节点联邦训练</button>
             <button class="btn-lightx" onclick="loadTrainingPage()">刷新训练数据源</button>
@@ -316,7 +326,7 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
         </div>
         <div class="scroll-box">
           <table class="table table-sm">
-            <thead><tr><th>版本</th><th>模型类型</th><th>算法</th><th>来源</th><th>样本</th><th>准确率</th><th>召回率 / F1</th><th>当前启用</th><th>时间</th><th>备注</th><th>操作</th></tr></thead>
+            <thead><tr><th>版本</th><th>模型类型</th><th>算法</th><th>来源</th><th>样本</th><th>准确率</th><th>召回率 / F1</th><th>版本状态</th><th>时间</th><th>备注</th><th>操作</th></tr></thead>
             <tbody id="modelVersionTable"><tr><td colspan="11" class="text-muted">暂无模型版本</td></tr></tbody>
           </table>
         </div>
@@ -354,7 +364,7 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
         <div class="panel-head">安全事件</div>
         <div class="panel-body">
           <div class="small-text text-muted mb-2">记录慢接口、限流和安全异常等事件，展示风险等级、原因、建议和 TraceId。</div>
-          <div class="scroll-box"><table class="table table-sm"><thead><tr><th>时间</th><th>风险</th><th>类型</th><th>路径</th><th>原因</th><th>建议</th><th>详情</th></tr></thead><tbody id="eventTable"></tbody></table></div>
+          <div class="scroll-box"><table class="table table-sm audit-table"><thead><tr><th class="audit-time">时间</th><th class="audit-risk">风险</th><th class="audit-type">类型</th><th class="audit-path">路径</th><th class="audit-reason">原因摘要</th><th class="audit-advice">建议摘要</th><th class="audit-action">详情</th></tr></thead><tbody id="eventTable"></tbody></table></div>
           <div class="d-flex justify-content-between align-items-center mt-2"><button class="btn-lightx" onclick="pageAudit(-1,'events')">上一页</button><span class="small-text text-muted" id="eventPageInfo">第 0/0 条</span><button class="btn-lightx" onclick="pageAudit(1,'events')">下一页</button></div>
         </div>
       </div>
@@ -362,7 +372,7 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
         <div class="panel-head">最近访问记录</div>
         <div class="panel-body">
           <div class="small-text text-muted mb-2">记录页面访问流水，包含 IP、归属地、设备、系统、浏览器、端口、路径和 TraceId。</div>
-          <div class="scroll-box"><table class="table table-sm"><thead><tr><th>时间</th><th>IP</th><th>归属地</th><th>设备</th><th>系统</th><th>浏览器</th><th>方法</th><th>端口</th><th>路径</th><th>详情</th></tr></thead><tbody id="visitTable"></tbody></table></div>
+          <div class="scroll-box"><table class="table table-sm visit-table"><thead><tr><th class="visit-time">时间</th><th class="visit-ip">IP</th><th class="visit-geo">归属地</th><th class="visit-small">设备</th><th class="visit-small">系统</th><th class="visit-small">浏览器</th><th class="visit-small">方法</th><th class="visit-small">端口</th><th class="visit-path">路径</th><th class="audit-action">详情</th></tr></thead><tbody id="visitTable"></tbody></table></div>
           <div class="d-flex justify-content-between align-items-center mt-2"><button class="btn-lightx" onclick="pageAudit(-1,'visits')">上一页</button><span class="small-text text-muted" id="visitPageInfo">第 0/0 条</span><button class="btn-lightx" onclick="pageAudit(1,'visits')">下一页</button></div>
         </div>
       </div>
@@ -427,6 +437,13 @@ function fmtTime(value){
   const m=normalized.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})/);
   if(m)return `${m[1]} ${m[2]}`;
   return normalized;
+}
+function fmtCompactTime(value){
+  const full=fmtTime(value);
+  if(!full||full==='-')return '-';
+  const m=String(full).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}:\d{2})/);
+  if(m)return `${m[2]}-${m[3]} ${m[4]}`;
+  return shortText(full,16);
 }
 function isSensitivePreviewKey(key){
   const k=String(key||'').toLowerCase().replace(/[^a-z0-9_\u4e00-\u9fa5]/g,'_');
@@ -619,6 +636,10 @@ function showPage(id){
 }
 async function init(){
   setupNav();
+  if(typeof aggregationMethod!=='undefined'){
+    aggregationMethod.onchange=renderAggregationVisual;
+    renderAggregationVisual();
+  }
   if(APP_MODE==='admin'){
     const s=await api('/api/admin/session');
     const sessionData=obj(s.data);
@@ -685,7 +706,7 @@ function toCsv(rows){if(!rows.length)return'';const keys=Object.keys(rows[0]);re
 function renderLoginSamplePreview(rows){
   const masked=loginPreviewRows(rows);
   const cols=loginPreviewCols(masked[0]||rows[0]);
-  return `<div class="small-text text-muted p-2">共生成 ${rows.length} 条登录安全样本；下表固定展示 IP、User-Agent、设备、浏览器、系统、失败次数、请求频率、响应时间和标签字段，用户名仅做脱敏显示。</div>`+table(masked.slice(0,300),cols.length?cols:previewCols(masked[0]));
+  return `<div class="small-text text-muted p-2">共生成 ${rows.length} 条登录安全样本；当前仅预览前 20 条，完整数据已用于上传/检测。下表固定展示 IP、User-Agent、设备、浏览器、系统、失败次数、请求频率、响应时间和标签字段，用户名仅做脱敏显示。</div>`+table(masked.slice(0,20),cols.length?cols:previewCols(masked[0]));
 }
 function renderPrivacySamplePreview(data, showPlain=false){
   const plaintext=maskPreviewRows(arr(data.plaintext));
@@ -693,9 +714,9 @@ function renderPrivacySamplePreview(data, showPlain=false){
   const algorithm=data.algorithm||data.encryption_method||data.encryption_algorithm||obj(encrypted[0]).algorithm||'Paillier';
   const note=String(algorithm).toLowerCase().includes('mock')?'Paillier 初始化不可用，当前显示模拟密态片段。':'当前显示 Paillier 密文片段；密文较长，表格仅截取前段用于验证字段已进入密态展示流程。';
   if(showPlain){
-    plainPreview.innerHTML=`<div class="small-text text-muted p-2">隐私样本只用于密态字段展示，不直接作为攻击检测原因。手机号、收入、信用分等字段会脱敏或加密显示。</div>`+table(plaintext.slice(0,200),privacyPlainCols(plaintext[0]));
+    plainPreview.innerHTML=`<div class="small-text text-muted p-2">隐私样本只用于密态字段展示，不直接作为攻击检测原因。当前仅预览前 20 条，手机号、收入、信用分等字段会脱敏或加密显示。</div>`+table(plaintext.slice(0,20),privacyPlainCols(plaintext[0]));
   }
-  encryptedPreview.innerHTML=`<div class="small-text text-muted p-2"><span class="mini-badge">${esc(algorithm)}</span> ${esc(note)}</div>`+table(encrypted.slice(0,200),privacyCipherCols(encrypted[0]));
+  encryptedPreview.innerHTML=`<div class="small-text text-muted p-2"><span class="mini-badge">${esc(algorithm)}</span> ${esc(note)} 当前仅预览前 20 条，完整密文字段保留在返回数据中。</div>`+table(encrypted.slice(0,20),privacyCipherCols(encrypted[0]));
 }
 async function generateCombinedSamples(){
   const count=Math.max(20,Math.min(parseInt(sampleCount.value||200),5000));
@@ -991,6 +1012,7 @@ function trainingRecordToCompare(row){
 function updateTrainingCompare(type,data){
   if(type==='local')trainingCompareState.local=data;
   if(type==='federated')trainingCompareState.federated=data;
+  renderAggregationVisual();
   renderTrainingCompare();
 }
 function pctValue(v){
@@ -1010,6 +1032,39 @@ function sampleBarValue(v,max){
 function lossDisplay(v){
   const n=Number(v);
   return Number.isFinite(n)&&n>0?n.toFixed(4):'--';
+}
+function renderAggregationVisual(){
+  if(typeof aggregationVisualBox==='undefined')return;
+  const method=(typeof aggregationMethod!=='undefined'?aggregationMethod.value:'plain');
+  const secure=method==='paillier';
+  const steps=secure
+    ? [
+        ['1. 节点训练','各节点本地训练参数'],
+        ['2. 参数量化','浮点参数转整数表示'],
+        ['3. Paillier 加密','节点上传密态参数'],
+        ['4. 密态聚合/解密','服务端聚合后解密全局参数'],
+      ]
+    : [
+        ['1. 节点训练','各节点本地训练参数'],
+        ['2. 上传参数','上传明文参数摘要'],
+        ['3. 加权平均','按样本数执行 FedAvg'],
+        ['4. 全局版本','生成全局模型版本'],
+      ];
+  const cost=secure
+    ? [['通信/计算开销',74,'较高'],['隐私保护强度',88,'较高'],['训练效率',48,'中等']]
+    : [['通信/计算开销',34,'较低'],['隐私保护强度',42,'基础'],['训练效率',86,'较高']];
+  aggregationVisualBox.innerHTML=`
+    <div class="compare-head">
+      <b>聚合方式可视化</b>
+      <span class="mini-badge">${secure?'Paillier 安全聚合':'普通 FedAvg'}</span>
+    </div>
+    <div class="aggregation-flow">
+      ${steps.map(s=>`<div class="aggregation-step ${secure?'secure':''}"><b>${esc(s[0])}</b>${esc(s[1])}</div>`).join('')}
+    </div>
+    <div class="cost-bars">
+      ${cost.map(c=>`<div class="cost-row"><span>${esc(c[0])}</span><div class="bar-track"><div class="bar-fill ${secure?'cost':''}" style="width:${c[1]}%"></div></div><b>${esc(c[2])}</b></div>`).join('')}
+    </div>
+    <div class="compare-explain">${secure?'Paillier 模式用于展示参数密态聚合链路，安全性更强但会增加加密、聚合和解密耗时。':'普通 FedAvg 流程更轻量，适合作为联邦训练基线；它不展示密态聚合开销。'}</div>`;
 }
 function renderTrainingCompare(){
   if(typeof trainingCompareBox==='undefined')return;
@@ -1137,22 +1192,44 @@ function modelSourceLabel(source){
   if(s==='local_generated')return'系统内置密码攻击训练集';
   return s||'-';
 }
+function modelRoleLabel(v){
+  const role=String(v.version_role||'');
+  if(role==='runtime_detector')return'运行时检测模型';
+  if(role==='training_tracking')return'训练追踪版本';
+  return role||'版本记录';
+}
+function modelArtifactLabel(v){
+  const status=String(v.artifact_status||'');
+  if(status==='available')return'模型文件可用';
+  if(status==='tracking_only')return'仅记录训练结果';
+  if(status==='not_applicable')return'不适用';
+  return status||'未知';
+}
+function modelStatusBadge(v){
+  if(v.current_runtime)return'<span class="status-pill ok">当前运行</span>';
+  if(v.can_activate)return'<span class="status-pill info">可设为检测模型</span>';
+  if(Number(v.is_current||0)===1)return'<span class="status-pill warn">当前追踪</span>';
+  return'<span class="status-pill info">仅追踪</span>';
+}
 function renderCurrentModelVersionCards(rows,runtime){
-  const list=arr(rows).filter(v=>Number(v.is_current||0)===1);
-  if(!list.length && runtime && (runtime.is_ready || runtime.model_version)){
+  const list=arr(rows).filter(v=>v.current_runtime);
+  if(runtime && (runtime.is_ready || runtime.model_version)){
     const raw=obj(runtime.raw_status);
-    list.push({
+    list.unshift({
       version: runtime.model_version || raw.version || 'runtime',
       model_type: 'runtime_detector',
       source: runtime.source || 'runtime_model_manager',
       samples: raw.samples || raw.train_samples || '-',
       accuracy: runtime.accuracy,
       metadata: JSON.stringify({algorithm:raw.algorithm||'ensemble_detector', metric_label:'运行中模型状态'}),
-      current_since: '-'
+      current_since: '-',
+      version_role:'runtime_detector',
+      artifact_status:runtime.artifact_status||'available',
+      current_runtime:true
     });
   }
   if(!list.length){
-    currentModelVersionCards.innerHTML='<div class="notice">暂无当前模型版本记录。请先执行“本地训练”或“四节点联邦训练”，系统会自动生成可回退的模型版本。</div>';
+    currentModelVersionCards.innerHTML='<div class="notice">暂无当前运行检测模型状态。训练中心仍可生成训练追踪版本，但只有绑定运行时模型文件的版本才支持切换。</div>';
     return;
   }
   currentModelVersionCards.innerHTML=list.map(v=>{
@@ -1168,7 +1245,7 @@ function renderCurrentModelVersionCards(rows,runtime){
         <div><b>${esc(metricText(v.accuracy))}</b><span>指标</span></div>
         <div><b>${esc(v.samples||merged.samples||'-')}</b><span>训练样本</span></div>
         <div><b>${esc(modelSourceLabel(v.source))}</b><span>数据来源</span></div>
-        <div><b>${esc(fmtTime(v.current_since||v.timestamp))}</b><span>启用时间</span></div>
+        <div><b>${esc(modelArtifactLabel(v))}</b><span>artifact 状态</span></div>
       </div>
     </div>`;
   }).join('');
@@ -1201,32 +1278,36 @@ async function loadModelVersions(){
     return;
   }
   modelVersionTable.innerHTML=rows.map(v=>{
-    const current=Number(v.is_current||0)===1;
     const meta=parseJsonObject(v.metadata);
     const nested=parseJsonObject(meta.metadata);
     const merged={...meta,...nested,...v};
     const metric=trainingMetricInfo(merged);
     const algorithm=merged.algorithm || (String(v.model_type||'').includes('federated')?'fedavg':'ensemble_detector');
     const note=merged.note || merged.metric_note || metric.note || '-';
+    const action=v.current_runtime
+      ? '<span class="text-muted">当前运行</span>'
+      : v.can_activate
+        ? `<button class="btn-lightx" onclick="activateModelVersion(${Number(v.id)||0})">设为检测模型</button>`
+        : `<button class="btn-lightx" disabled title="${esc(v.activation_reason||'该版本不能直接切换运行模型')}">仅追踪</button>`;
     return `<tr>
       <td><b>${esc(v.version||'-')}</b><div class="small-text text-muted">ID ${esc(v.id||'-')}</div></td>
-      <td>${esc(modelTypeLabel(v.model_type))}<div class="small-text text-muted">${esc(v.model_type||'-')}</div></td>
+      <td>${esc(modelTypeLabel(v.model_type))}<div class="small-text text-muted">${esc(modelRoleLabel(v))}</div></td>
       <td>${esc(algorithm)}</td>
       <td>${esc(modelSourceLabel(v.source))}<div class="small-text text-muted">${esc(v.source||'-')}</div></td>
       <td>${esc(v.samples||merged.samples||0)}<div class="small-text text-muted">${esc(labelDistText(merged.label_distribution))}</div></td>
       <td><b>${esc(metricText(v.accuracy))}</b><div class="small-text text-muted">${esc(metric.label)}</div></td>
       <td>${esc(metricText(merged.recall))} / ${esc(metricText(merged.f1))}<div class="small-text text-muted">Precision ${esc(metricText(merged.precision))}</div></td>
-      <td>${current?'<span class="status-pill ok">当前启用</span>':'<span class="status-pill info">可回退</span>'}</td>
+      <td>${modelStatusBadge(v)}<div class="small-text text-muted">${esc(modelArtifactLabel(v))}</div></td>
       <td>${esc(fmtTime(v.timestamp))}</td>
-      <td class="small-text">${esc(note)}</td>
-      <td>${current?'<span class="text-muted">当前版本</span>':`<button class="btn-lightx" onclick="activateModelVersion(${Number(v.id)||0})">回退/切换到此版本</button>`}</td>
+      <td class="small-text" title="${esc(v.activation_reason||note)}">${esc(shortText(v.activation_reason||note,70))}</td>
+      <td>${action}</td>
     </tr>`;
   }).join('');
 }
 async function activateModelVersion(id){
   if(!id)return;
   const r=await api(`/api/admin/model-versions/${id}/activate`,{method:'POST'});
-  toast(r.ok?'已切换当前模型版本':r.error,r.ok?'ok':'bad');
+  toast(r.ok?'已切换当前运行检测模型':r.error,r.ok?'ok':'bad');
   loadModelVersions();
 }
 function eventExtra(e){return obj(e.extra)}
@@ -1288,7 +1369,7 @@ function renderSuspiciousIps(events,visits){
   });
   const rows=[...map.values()].sort((a,b)=>b.risk-a.risk||b.count-a.count).slice(0,10);
   suspiciousIpTable.innerHTML=rows.length?rows.map(r=>`<tr>
-    <td>${esc(r.ip)}</td><td>${r.count}</td><td>${r.paths.size}</td><td>${r.risk}</td><td>${esc(fmtTime(r.last))}</td><td title="${esc(r.topPath||'-')}">${esc(shortText(r.topPath,42))}</td>
+    <td>${esc(r.ip)}</td><td>${r.count}</td><td>${r.paths.size}</td><td>${r.risk}</td><td>${auditTimeCell(r.last)}</td><td title="${esc(r.topPath||'-')}">${esc(shortText(r.topPath,42))}</td>
   </tr>`).join(''):'<tr><td colspan="6" class="text-muted">暂无聚合记录</td></tr>';
 }
 function renderAuditDetail(e,kind){
@@ -1307,6 +1388,9 @@ function renderAuditDetail(e,kind){
     <div class="audit-detail-json">${esc(extraText)}</div>
   `;
   auditDetailBox.scrollIntoView({behavior:'smooth',block:'center'});
+}
+function auditTimeCell(value){
+  return `<span title="${esc(fmtTime(value))}">${esc(fmtCompactTime(value))}</span>`;
 }
 async function loadAudit(){
   const type=encodeURIComponent(auditTypeFilter?.value||'');
@@ -1328,10 +1412,10 @@ async function loadAudit(){
   visitPageInfo.textContent=`第 ${Math.min(auditState.visitOffset+visits.length,totalVisits)}/${totalVisits} 条`;
   renderSuspiciousIps(events,visits);
   eventTable.innerHTML=events.length?events.map((e,i)=>`<tr>
-    <td>${esc(fmtTime(e.timestamp))}</td><td class="risk-${esc(e.risk_level)}">${esc(e.risk_level||'-')}</td><td>${esc(e.event_type)}</td><td title="${esc(e.path||'-')}">${esc(shortText(e.path,34))}</td><td>${esc(eventReason(e))}</td><td>${esc(eventAdvice(e))}</td><td><button class="btn-lightx" onclick="renderAuditDetail(auditState.events[${i}],'event')">详情</button></td>
+    <td>${auditTimeCell(e.timestamp)}</td><td class="risk-${esc(e.risk_level)}">${esc(e.risk_level||'-')}</td><td title="${esc(e.event_type||'-')}">${esc(shortText(e.event_type,18))}</td><td title="${esc(e.path||'-')}">${esc(shortText(e.path,28))}</td><td class="short-cell" title="${esc(eventReason(e))}">${esc(shortText(eventReason(e),46))}</td><td class="short-cell" title="${esc(eventAdvice(e))}">${esc(shortText(eventAdvice(e),46))}</td><td><button class="btn-lightx" onclick="renderAuditDetail(auditState.events[${i}],'event')">详情</button></td>
   </tr>`).join(''):'<tr><td colspan="7" class="text-muted">暂无安全事件</td></tr>';
   visitTable.innerHTML=visits.length?visits.map((e,i)=>{const ex=obj(e.extra);return`<tr>
-    <td>${esc(fmtTime(e.timestamp))}</td><td>${esc(e.ip)}</td><td>${esc(geoText(e))}</td><td>${esc(ex.device_type||'-')}</td><td>${esc(ex.os||'-')}</td><td>${esc(ex.browser||'-')}</td><td>${esc(e.method||'-')}</td><td>${esc(ex.server_port||'-')}</td><td title="${esc(e.path||'-')}">${esc(shortText(e.path,28))}</td><td><button class="btn-lightx" onclick="renderAuditDetail(auditState.visits[${i}],'visit')">详情</button></td>
+    <td>${auditTimeCell(e.timestamp)}</td><td>${esc(e.ip)}</td><td title="${esc(geoText(e))}">${esc(shortText(geoText(e),16))}</td><td>${esc(ex.device_type||'-')}</td><td>${esc(shortText(ex.os||'-',10))}</td><td>${esc(shortText(ex.browser||'-',10))}</td><td>${esc(e.method||'-')}</td><td>${esc(ex.server_port||'-')}</td><td title="${esc(e.path||'-')}">${esc(shortText(e.path,24))}</td><td><button class="btn-lightx" onclick="renderAuditDetail(auditState.visits[${i}],'visit')">详情</button></td>
   </tr>`}).join(''):'<tr><td colspan="10" class="text-muted">暂无访问记录，刷新页面后会自动产生记录</td></tr>';
 }
 

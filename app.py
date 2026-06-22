@@ -1753,6 +1753,65 @@ def admin_training_tasks():
     }))
 
 
+def _parse_meta(value):
+    if isinstance(value, dict):
+        return value
+    if not value:
+        return {}
+    try:
+        parsed = json.loads(value)
+        return parsed if isinstance(parsed, dict) else {}
+    except Exception:
+        return {}
+
+
+def _runtime_version_numbers():
+    try:
+        return {int(v.get("version")) for v in model_manager.get_version_list() if str(v.get("version", "")).isdigit()}
+    except Exception:
+        return set()
+
+
+def _enrich_model_version(item, runtime_numbers=None):
+    runtime_numbers = runtime_numbers if runtime_numbers is not None else _runtime_version_numbers()
+    enriched = dict(item)
+    meta = _parse_meta(enriched.get("metadata"))
+    nested = _parse_meta(meta.get("metadata"))
+    merged = {**meta, **nested}
+    model_type = str(enriched.get("model_type") or merged.get("model_type") or "")
+    runtime_version = merged.get("runtime_version") or merged.get("model_manager_version")
+    runtime_int = None
+    if runtime_version is not None and str(runtime_version).isdigit():
+        runtime_int = int(runtime_version)
+    elif model_type == "runtime_detector" and str(enriched.get("version", "")).isdigit():
+        runtime_int = int(enriched.get("version"))
+
+    can_activate = runtime_int is not None and runtime_int in runtime_numbers
+    if can_activate:
+        version_role = "runtime_detector"
+        artifact_status = "available"
+        activation_reason = "该版本存在运行时模型文件，可切换为当前检测模型。"
+    elif "federated" in model_type:
+        version_role = "training_tracking"
+        artifact_status = "tracking_only"
+        activation_reason = "该版本记录四节点联邦训练结果，用于训练追踪；当前未生成可直接切换的运行时检测模型文件。"
+    else:
+        version_role = "training_tracking"
+        artifact_status = "tracking_only"
+        activation_reason = "该版本记录训练任务和指标，用于追踪训练来源；当前未绑定运行时模型文件，不能作为检测模型回退。"
+
+    enriched.update({
+        "version_role": version_role,
+        "artifact_status": artifact_status,
+        "can_activate": bool(can_activate),
+        "activation_reason": activation_reason,
+        "runtime_version": runtime_int,
+        "current_runtime": bool(can_activate and runtime_int == getattr(model_manager, "_version_counter", None)),
+        "metadata": enriched.get("metadata", "{}"),
+    })
+    return enriched
+
+
 @app.route("/api/admin/model-versions", methods=["GET"])
 def admin_model_versions():
     limit = max(1, min(int(request.args.get("limit", 50) or 50), 200))
@@ -1761,14 +1820,18 @@ def admin_model_versions():
         backfilled = db.backfill_model_versions_from_training_tasks()
     except Exception as backfill_error:
         logger.warning("Backfill model versions failed: %s", backfill_error)
-    versions = db.get_model_versions(limit)
+    runtime_numbers = _runtime_version_numbers()
+    versions = [_enrich_model_version(v, runtime_numbers) for v in db.get_model_versions(limit)]
     runtime_status = {}
+    runtime_versions = []
     try:
         runtime_status = model_manager.get_status()
+        runtime_versions = model_manager.get_version_list()
     except Exception as status_error:
         runtime_status = {"error": str(status_error)}
     return jsonify(api_response(msg="success", data={
         "versions": versions,
+        "runtime_versions": runtime_versions,
         "runtime_model": {
             "available": bool(runtime_status),
             "is_ready": bool(runtime_status.get("is_ready") or runtime_status.get("ready")),
@@ -1778,6 +1841,8 @@ def admin_model_versions():
             "source": "runtime_model_manager",
             "note": "当前运行中的检测模型状态；若尚未产生训练版本记录，可先通过训练中心执行本地训练或联邦训练生成可追溯版本。",
             "raw_status": runtime_status,
+            "current_runtime": True,
+            "artifact_status": "available" if runtime_status else "unknown",
         },
         "backfilled": backfilled,
         "limit": limit,
@@ -1793,10 +1858,18 @@ def current_model_versions():
 
 @app.route("/api/admin/model-versions/<int:version_id>/activate", methods=["POST"])
 def admin_activate_model_version(version_id):
-    item = db.set_current_model_version(version_id)
+    versions = db.get_model_versions(500)
+    item = next((v for v in versions if int(v.get("id", 0)) == int(version_id)), None)
     if not item:
         return jsonify(api_response(code=404, msg="模型版本不存在"))
-    return jsonify(api_response(msg="已切换当前启用模型版本", data=item))
+    enriched = _enrich_model_version(item)
+    if not enriched.get("can_activate"):
+        return jsonify(api_response(code=409, msg=enriched.get("activation_reason") or "该版本不能切换为运行时检测模型", data=enriched))
+    ok = model_manager.rollback(int(enriched.get("runtime_version")))
+    if not ok:
+        return jsonify(api_response(code=500, msg="运行时模型切换失败，请确认模型文件仍存在", data=enriched))
+    item = db.set_current_model_version(version_id)
+    return jsonify(api_response(msg="已切换当前运行检测模型", data=_enrich_model_version(item)))
 
 
 @app.route("/api/admin/audit/events", methods=["GET"])
