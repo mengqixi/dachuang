@@ -1,0 +1,70 @@
+{
+  "default_output": "data/datasets/processed/security_training_sample.csv",
+  "default_metadata": "data/datasets/processed/security_dataset_metadata.json",
+  "per_class_limit": 20000,
+  "sources": [
+    {
+      "id": "local_generated_train",
+      "name": "系统内置密码攻击训练集",
+      "type": "local_generated",
+      "paths": [
+        "data/generated/train.csv"
+      ],
+      "enabled": true,
+      "description": "项目内置登录安全训练样本，可用于密码攻击风险检测、本地训练和四节点切分。"
+    },
+    {
+      "id": "local_generated_test",
+      "name": "系统内置密码攻击测试集",
+      "type": "local_generated",
+      "paths": [
+        "data/generated/test.csv"
+      ],
+      "enabled": true,
+      "description": "项目内置登录安全测试样本，可用于抽样检测和模型效果观察。"
+    },
+    {
+      "id": "unsw_nb15",
+      "name": "UNSW-NB15",
+      "type": "UNSW-NB15",
+      "paths": [
+        "data/datasets/raw/UNSW-NB15/UNSW_NB15_training-set.csv",
+        "data/datasets/raw/UNSW-NB15/UNSW_NB15_testing-set.csv",
+        "data/datasets/UNSW-NB15/UNSW_NB15_training-set.csv",
+        "data/datasets/UNSW-NB15/UNSW_NB15_testing-set.csv"
+      ],
+      "enabled": true,
+      "description": "公开入侵检测数据集，可扩展异常流量、扫描和入侵检测类风险识别。"
+    },
+    {
+      "id": "cic_ids2017",
+      "name": "CIC-IDS2017",
+      "type": "CIC-IDS2017",
+      "paths": [
+        "data/datasets/raw/CIC-IDS2017/*.csv"
+      ],
+      "enabled": true,
+      "description": "公开入侵检测数据集，可用于高频访问、Web Attack、SSH/FTP 暴力破解等类别抽样导入。"
+    },
+    {
+      "id": "cse_cic_ids2018",
+      "name": "CSE-CIC-IDS2018",
+      "type": "CSE-CIC-IDS2018",
+      "paths": [
+        "data/datasets/raw/CSE-CIC-IDS2018/**/*.csv"
+      ],
+      "enabled": true,
+      "description": "公开入侵检测数据集，适合分块采样后导入统一训练字段。"
+    },
+    {
+      "id": "cic_ddos2019",
+      "name": "CIC-DDoS2019",
+      "type": "CIC-DDoS2019",
+      "paths": [
+        "data/datasets/raw/CIC-DDoS2019/**/*.csv"
+      ],
+      "enabled": true,
+      "description": "公开 DDoS 数据集；当前作为高频访问异常和流量型风险扩展数据源。"
+    }
+  ]
+}

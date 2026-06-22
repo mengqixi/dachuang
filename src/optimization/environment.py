@@ -38,7 +38,7 @@ class EncryptionEnv(gym.Env):
 
     RISK_LEVELS = ["low", "medium", "high", "critical"]
     KEY_LENGTHS = [1024, 2048, 4096]
-    ROUNDS = [10, 12]
+    ROUNDS = [10, 12, 14]
 
     def __init__(self):
         super().__init__()
@@ -55,7 +55,7 @@ class EncryptionEnv(gym.Env):
 
         # 加密参数配置成本模型
         self._key_length_cost = {1024: 1.0, 2048: 2.5, 4096: 6.0}
-        self._rounds_cost = {10: 1.0, 12: 1.2}
+        self._rounds_cost = {10: 1.0, 12: 1.2, 14: 1.4}
 
         # 攻击成功概率 (取决于密钥长度)
         self._attack_success_prob = {
@@ -87,8 +87,10 @@ class EncryptionEnv(gym.Env):
         r_idx = EncryptionEnv.ROUNDS.index(rounds)
         return kl_idx * len(EncryptionEnv.ROUNDS) + r_idx
 
-    def reset(self):
+    def reset(self, *, seed=None, options=None):
         """重置环境状态"""
+        if seed is not None:
+            self.seed(seed)
         risk_level = self.np_random.randint(0, 4)
         cpu_usage = self.np_random.uniform(0.1, 0.9)
         memory_usage = self.np_random.uniform(0.1, 0.9)
@@ -99,9 +101,9 @@ class EncryptionEnv(gym.Env):
             dtype=np.float32,
         )
         self._steps = 0
-        return self.state
+        return self.state, {}
 
-    def step(self, action: int) -> Tuple[np.ndarray, float, bool, Dict]:
+    def step(self, action: int) -> Tuple[np.ndarray, float, bool, bool, Dict]:
         """执行动作并返回新状态和奖励
 
         Returns:
@@ -165,7 +167,7 @@ class EncryptionEnv(gym.Env):
             "attack_success_prob": float(attack_prob),
         }
 
-        return self.state, float(reward), terminated or truncated, info
+        return self.state, float(reward), bool(terminated), bool(truncated), info
 
     def _evolve_risk_level(self, current_level: int, key_length: int, rounds: int) -> int:
         """风险等级动态演化"""

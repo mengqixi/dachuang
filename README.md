@@ -1,310 +1,228 @@
 # 密码攻击检测与隐私训练平台
 
-> 一个基于 Flask + SQLite 的双端口安全分析平台，面向高隐私账号安全场景，提供用户端密码攻击风险检测、原因解释、报告生成，以及管理端加密归档、本地训练、四节点联邦训练、Paillier 安全聚合展示和系统审计能力。
+本项目是一个基于 Flask + SQLite 的双端口安全分析平台，面向账号登录安全和高隐私数据训练场景，提供用户端密码攻击风险检测、原因解释、分析报告，以及管理端用户提交审核、数据处理、模型版本追踪和系统审计能力。
 
-[![Python](https://img.shields.io/badge/Python-3.8%2B-blue)](https://www.python.org/)
-[![Flask](https://img.shields.io/badge/Backend-Flask-lightgrey)](https://flask.palletsprojects.com/)
-[![SQLite](https://img.shields.io/badge/Storage-SQLite-003B57)](https://www.sqlite.org/)
+核心技术主线：
 
-## 项目定位
+- AES 加密归档：保护用户上传文件的存储安全。
+- Paillier 密态保护：展示敏感数值字段的密态能力，并作为安全聚合方向。
+- FedAvg 四节点联邦训练：用于展示数据分散场景下的训练与聚合流程。
+- 统一风险检测：融合规则评分、行为特征评分和轻量模型评分。
+- 模型版本追踪：记录训练来源、指标、运行状态和可启用状态。
+- 系统审计：记录平台访问、安全事件、TraceId 和访问环境信息。
 
-本项目面向“用户提交数据后的风险分析”和“管理端隐私保护训练”两个场景，串联了数据上传、AES 加密归档、Paillier 密态字段展示、攻击检测、报告生成、本地训练、四节点联邦训练和系统审计。
-
-系统当前采用双端口模式：
+## 端口与角色
 
 | 端口 | 角色 | 页面 |
 | --- | --- | --- |
 | `5000` | 用户端 | 上传数据、风险检测、分析报告 |
-| `5001` | 管理端 | 数据管理、训练中心、系统审计 |
+| `5001` | 管理端 | 用户提交、数据处理、模型版本、系统审计 |
 
-> 说明：本项目是尽可能接近实际平台流程的实验原型，不等同于完整生产级 WAF、企业安全运营平台或真实跨机构联邦学习系统。联邦训练、Paillier 密态展示、自适应优化等能力以当前代码和接口返回为准。
+用户端负责数据接入、风险检测和报告生成。管理端负责用户提交审核、训练数据处理、模型版本管理和平台审计。训练能力服务于检测模型更新，不作为独立产品主线。
 
-## 核心能力
+## 当前能力
 
-### 1. 用户端风险分析
+### 用户端
 
-- 支持上传 CSV / JSON 登录安全数据。
-- 支持生成登录安全样本，用于快速测试上传、检测和报告流程。
-- 登录安全样本预览包含用户名、IP、设备类型、浏览器、系统、失败次数、请求频率、响应时间和标签字段。
-- 上传文件会进入服务端加密归档流程，管理端默认只查看摘要和脱敏预览。
-- 风险检测会输出：
-  - 总样本数
-  - 高 / 中 / 低风险数量
-  - 风险分数
-  - 攻击类型
-  - 触发特征
-  - 中文原因解释
-  - 处理建议
-- 分析报告页面提供结构化展示和 Markdown 下载。
+- 上传 CSV / JSON 登录安全数据。
+- 生成登录安全样本和隐私加密样本。
+- 自动识别样本数、字段数、缺失率和安全字段。
+- 对用户名、手机号、邮箱、密码、token、收入、证件号等敏感字段进行脱敏或派生处理。
+- 执行密码攻击风险检测，输出风险等级、风险分数、攻击类型、触发因素和处置建议。
+- 按风险分数展示风险排名，不单独设置风险详情页面。
+- 生成可下载 Markdown 分析报告。
 
-### 2. 隐私保护数据管理
+### 管理端
 
-- 用户上传数据归档时使用 AES 加密存储。
-- 密码、手机号、用户名等敏感字段会脱敏或转换为派生特征。
-- 管理端默认不展示原始明文密码。
-- Paillier 密态字段展示会标明当前算法状态，并展示手机号、收入、信用分等敏感数值字段的密文片段。
-- 支持将已审核数据标记为可训练数据源。
-- 支持本地已有 `data/generated/train.csv` / `test.csv` 作为管理端初始训练数据。
+- 查看用户提交、加密归档状态、审核状态和训练状态。
+- 查看当前训练数据源、公开数据集状态和四节点准备状态。
+- 执行本地训练与四节点联邦训练。
+- 查看当前检测模型、训练任务记录和模型版本列表。
+- 查看系统审计、安全事件和最近访问记录。
 
-### 3. 攻击检测
+### 数据集
 
-- 支持基于登录行为特征的风险检测。
-- 支持从已处理数据集中抽样检测。
-- 检测结果包含风险等级、风险分数、攻击类型、原因和建议。
-- 现有检测链路包含 Isolation Forest、XGBoost 风格检测器、NumPy LSTM 等模块，具体运行能力以当前接口返回为准。
+系统支持三类数据来源：
 
-### 4. 本地训练与联邦训练
+1. 内置密码攻击训练集：`data/generated/train.csv` 和 `data/generated/test.csv`。
+2. 用户上传数据：用户端上传后进入加密归档和风险检测流程。
+3. 公开安全数据集：通过轻量导入脚本接入 UNSW-NB15、CIC-IDS2017、CSE-CIC-IDS2018、CIC-DDoS2019。
 
-- 管理端“训练中心”合并本地训练和四节点联邦训练。
-- 本地训练用于形成集中式基线。
-- 四节点联邦训练使用：
-  - `hospital`
-  - `bank`
-  - `insurance`
-  - `government`
-- 页面展示节点样本数、标签分布、节点指标、FedAvg 聚合结果和模型版本。
-- 训练中心展示“选择数据源 → 本地基线 → 四节点训练 → 聚合 → 模型版本”的流程，并在训练完成后给出模型版本、样本数、指标来源和聚合方式反馈。
-- Paillier 用于展示密态字段保护和安全聚合扩展方向，不表示完整密文训练平台。
+公开数据集不会提交到 Git。原始数据建议放在 `data/datasets/raw/`，处理后的训练样本放在 `data/datasets/processed/`。
 
-### 5. 自适应优化
+## 统一风险结果
 
-- 展示风险驱动的加密参数调整过程。
-- 支持查看当前风险、密钥长度、轮数、奖励反馈和优化历史。
-- Q-learning 模块用于表达参数调整策略流程。
-- AES / Paillier 指标用于解释安全与性能权衡。
+风险检测结果统一使用以下核心字段：
 
-### 6. 系统审计
+```json
+{
+  "is_risk": true,
+  "risk_score": 0.82,
+  "risk_level": "high",
+  "attack_type": "疑似暴力破解",
+  "confidence": 0.91,
+  "action_suggestion": "强制改密并开启二次验证",
+  "detection_time_ms": 12.3,
+  "trigger_features": ["failed_attempts", "request_frequency"],
+  "score_breakdown": {
+    "failed_attempts_score": 0.25,
+    "request_frequency_score": 0.20,
+    "unusual_time_score": 0.10,
+    "response_time_score": 0.05,
+    "device_ip_score": 0.12,
+    "model_score": 0.10
+  },
+  "reason": "登录失败次数和请求频率偏高。",
+  "suggestion": "建议提醒用户改密并开启二次验证。",
+  "source_dataset": "user_submission",
+  "model_version": "v20260622"
+}
+```
 
-- 管理端“系统审计”展示安全事件和最近访问记录。
-- 访问记录包含 IP、归属地、设备类型、系统、浏览器、请求方法、端口、路径和 TraceId。
-- 安全事件包含慢接口、限流、异常访问等事件的判断依据、中文原因和处理建议。
-- TraceId 用于串联请求生命周期日志。
+风险等级为 `low`、`medium`、`high`、`critical`。检测动作建议聚焦账号安全处置，例如观察、提醒改密、强制改密、开启二次验证、人工复核。
 
-## 当前版本展示重点
+## 数据集导入
 
-- 用户端：围绕“上传账号安全数据 → 密码攻击风险检测 → 原因解释 → 报告生成”组织流程。
-- 管理端：围绕“加密归档 → 数据审核 → 本地训练 → 四节点联邦训练 → 模型版本 → 系统审计”组织流程。
-- 所有时间字段在前端统一格式化为 `YYYY-MM-DD HH:mm:ss`，避免 ISO 原始时间和 Unix 时间戳混用。
-- 样本统计区分“当前训练数据源样本数”和“用户提交统计”，避免把内置训练集与用户上传提交混为一类。
-- 系统审计区分“安全事件”和“最近访问记录”：前者用于判断风险和处置，后者作为访问流水和 TraceId 追踪依据。
+数据源配置位于：
 
-## 快速开始
+```text
+config/dataset_sources.json
+```
 
-### 1. 安装依赖
+导入脚本位于：
+
+```text
+scripts/import_security_datasets.py
+```
+
+示例：
+
+```bash
+python scripts/import_security_datasets.py --dataset local_generated_train
+python scripts/import_security_datasets.py --dataset unsw_nb15 --per-class-limit 20000
+python scripts/import_security_datasets.py --dataset cic_ids2017 --per-class-limit 20000
+```
+
+导入脚本会将不同来源转换为统一训练字段：
+
+```text
+sample_id, source_dataset, attack_type, label, src_ip, dst_ip, protocol,
+flow_duration, total_fwd_packets, total_bwd_packets, flow_bytes_s,
+flow_packets_s, request_frequency, response_time, failed_attempts,
+unusual_hour, payload_size, device_type, browser, os, username_masked
+```
+
+服务器资源有限时，脚本采用分块读取和按类别采样，避免一次性加载全量大文件。
+
+## 快速启动
+
+安装依赖：
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. 启动服务
+配置管理端账号：
+
+```bash
+export ADMIN_USERNAME=root
+export ADMIN_PASSWORD=root
+```
+
+Windows PowerShell：
+
+```powershell
+$env:ADMIN_USERNAME="root"
+$env:ADMIN_PASSWORD="root"
+```
+
+启动服务：
 
 ```bash
 python app.py
 ```
 
-启动后访问：
+访问地址：
 
 ```text
 用户端：http://127.0.0.1:5000/
 管理端：http://127.0.0.1:5001/
 ```
 
-### 3. 管理端密码
+公网部署时建议将 `ADMIN_PASSWORD` 改为强密码，并配置 HTTPS、反向代理和访问控制。
 
-管理端登录需要配置环境变量：
+## 常用接口
 
-```bash
-export ADMIN_USERNAME=root
-export ADMIN_PASSWORD=root
-python app.py
-```
-
-Windows PowerShell：
-
-```powershell
-$env:ADMIN_USERNAME = "root"
-$env:ADMIN_PASSWORD = "root"
-python app.py
-```
-
-如果未配置 `ADMIN_PASSWORD`，公网访问管理端登录会被禁用。默认密码只用于本地调试。
-
-## 常用验证命令
-
-```bash
-# 健康检查
-curl http://127.0.0.1:5000/api/system/health
-
-# 用户端：上传数据
-curl -X POST http://127.0.0.1:5000/api/user/datasets/upload \
-  -F "file=@sample_data.csv"
-
-# 用户端：生成登录安全样本
-curl -X POST http://127.0.0.1:5000/api/generate_login_security_dataset \
-  -H "Content-Type: application/json" \
-  -d "{\"n_records\":200}"
-
-# 管理端：查看会话状态
-curl http://127.0.0.1:5001/api/admin/session
-
-# 管理端：查看提交列表
-curl http://127.0.0.1:5001/api/admin/submissions
-
-# 管理端：本地训练
-curl -X POST http://127.0.0.1:5001/api/admin/training/local \
-  -H "Content-Type: application/json" \
-  -d "{\"limit\":10000}"
-
-# 管理端：四节点联邦训练
-curl -X POST http://127.0.0.1:5001/api/admin/training/federated \
-  -H "Content-Type: application/json" \
-  -d "{\"epochs\":3,\"limit\":10000}"
-
-# 管理端：审计事件
-curl "http://127.0.0.1:5001/api/admin/audit/events?limit=100"
-```
-
-## 主要接口
-
-### 用户端接口
-
-| 方法 | 路由 | 说明 |
-| --- | --- | --- |
-| `POST` | `/api/user/datasets/upload` | 上传 CSV / JSON 并加密归档 |
-| `POST` | `/api/user/datasets/<submission_id>/analyze` | 对用户提交执行风险检测 |
-| `GET` | `/api/user/reports/<submission_id>` | 获取风险分析报告 |
-| `POST` | `/api/generate_login_security_dataset` | 生成登录安全样本 |
-| `POST` | `/api/generate_privacy_dataset` | 生成隐私字段样本，用于加密展示 |
-
-### 管理端接口
-
-| 方法 | 路由 | 说明 |
-| --- | --- | --- |
-| `POST` | `/api/admin/login` | 管理员登录 |
-| `POST` | `/api/admin/logout` | 管理员退出 |
-| `GET` | `/api/admin/session` | 查看管理端会话状态 |
-| `GET` | `/api/admin/submissions` | 查看用户提交列表 |
-| `GET` | `/api/admin/submissions/<submission_id>` | 查看提交摘要和脱敏预览 |
-| `POST` | `/api/admin/submissions/<submission_id>/mark-trainable` | 标记提交为可训练 |
-| `POST` | `/api/admin/training/local` | 执行本地训练 |
-| `POST` | `/api/admin/training/federated` | 执行四节点联邦训练 |
-| `GET` | `/api/admin/training/tasks` | 查看训练任务记录 |
-| `GET` | `/api/admin/model-versions` | 查看模型版本 |
-| `GET` | `/api/admin/audit/events` | 查看系统审计事件 |
-
-### 兼容接口
-
-| 方法 | 路由 | 说明 |
-| --- | --- | --- |
-| `GET` | `/api/system/health` | 系统健康检查 |
-| `GET` | `/api/dataset/unsw/status` | 查看 UNSW-NB15 / 本地数据源状态 |
-| `POST` | `/api/dataset/unsw/process` | 处理数据集并生成四节点数据 |
-| `GET` | `/api/federated/nodes` | 查看四个联邦节点状态 |
-| `POST` | `/api/federated/round` | 执行一轮兼容联邦训练 |
-| `POST` | `/api/ensemble/detect` | 直接传入特征执行融合检测 |
-| `POST` | `/api/ensemble/detect_from_dataset` | 从已处理数据集中抽样检测 |
-| `POST` | `/api/compare_encryption` | AES / Paillier 指标对比 |
-| `GET` | `/api/optimization/status` | 自适应优化状态 |
-| `POST` | `/api/optimization/auto` | 触发一次自动优化 |
-
-## 项目结构
+用户端：
 
 ```text
-dachuang/
-├── app.py                         # Flask 主入口与 API
-├── index.html                     # 双端口前端页面
-├── requirements.txt               # Python 依赖
-├── config/                        # 安全、检测、联邦等配置
-├── scripts/
-│   ├── download_dataset.py        # 数据集下载 / 本地数据生成脚本
-│   └── smoke_check.py             # 部署后冒烟检查
-├── src/
-│   ├── detection/                 # 攻击检测与融合检测模块
-│   ├── encryption/                # AES / Paillier 相关实现
-│   ├── federated/                 # FedAvg、联邦客户端和聚合逻辑
-│   ├── optimization/              # Q-learning 与自适应优化
-│   ├── preprocess/                # 特征提取和联邦节点划分
-│   ├── security/                  # TraceId、限流、慢接口、安全事件和访问记录
-│   ├── user_submission_manager.py # 用户提交、加密归档、分析报告
-│   └── utils/                     # SQLite 存储、模型管理等工具
-├── data/                          # 运行期数据、模型、数据库和日志，通常不提交
-├── tests/                         # 单元测试和回归测试
-└── DEPLOYMENT_RUNBOOK.md          # 部署操作手册
+POST /api/user/datasets/upload
+POST /api/user/datasets/<submission_id>/analyze
+GET  /api/user/reports/<submission_id>
+POST /api/generate_login_security_dataset
+POST /api/generate_privacy_dataset
 ```
 
-## 技术栈
+管理端：
 
-| 层级 | 技术 |
-| --- | --- |
-| 前端 | HTML、Bootstrap、Chart.js、Font Awesome |
-| 后端 | Flask、Loguru、PyYAML |
-| 存储 | SQLite、本地 JSON Lines 日志、本地模型文件 |
-| 数据处理 | NumPy、Pandas、scikit-learn |
-| 检测 | Isolation Forest、XGBoost 风格检测器、NumPy LSTM |
-| 加密 | AES-256、Paillier 同态加密 |
-| 联邦训练 | NumPy 逻辑回归、FedAvg、四节点本地流程 |
-| 优化 | Q-learning 风险驱动参数调整 |
-| 审计 | TraceId、慢接口、限流、访问 IP 记录 |
+```text
+GET  /api/admin/submissions
+POST /api/admin/submissions/<submission_id>/archive
+POST /api/admin/submissions/<submission_id>/reject
+POST /api/admin/submissions/<submission_id>/mark-trainable
+GET  /api/admin/datasets/sources
+POST /api/admin/datasets/<source_id>/prepare
+POST /api/admin/datasets/<source_id>/split-federated
+GET  /api/admin/federated/nodes/detail
+POST /api/admin/training/local
+POST /api/admin/training/federated
+GET  /api/admin/training/tasks
+GET  /api/admin/model-versions
+POST /api/admin/model-versions/<id>/activate
+GET  /api/admin/audit/events
+```
 
-## 开发与测试
+系统：
+
+```text
+GET  /api/system/health
+POST /api/ensemble/detect_from_dataset
+```
+
+## 验证命令
 
 ```bash
-# Python 语法检查
 python -m py_compile app.py src/**/*.py
-
-# 单元测试
 python -m unittest discover tests -v
-
-# 冒烟检查
-python scripts/smoke_check.py \
-  --user-base http://127.0.0.1:5000 \
-  --admin-base http://127.0.0.1:5001
 ```
 
-PowerShell 中如果 `src/**/*.py` 不自动展开，可使用：
-
-```powershell
-$files = @("app.py") + (Get-ChildItem -Path src -Recurse -Filter *.py | ForEach-Object { $_.FullName })
-python -m py_compile @files
-```
-
-## 部署说明
-
-服务器上可直接使用：
+如需做双端口烟测：
 
 ```bash
-cd /root/dachuang
-git fetch origin
-git reset --hard origin/master
-export ADMIN_USERNAME=root
-export ADMIN_PASSWORD=root
-nohup python3 app.py > app.log 2>&1 &
+python scripts/smoke_check.py --user-base http://127.0.0.1:5000 --admin-base http://127.0.0.1:5001 --check-admin-login
 ```
 
-如果服务器无法 `git fetch`，可以按 `DEPLOYMENT_RUNBOOK.md` 使用 SFTP 同步已跟踪代码文件，再重启 Flask。
+## Git 忽略策略
 
-## 部署安全检查
+以下内容不应提交到 Git：
 
-上线或公网展示前，请先阅读并执行 [DEPLOYMENT_SECURITY_CHECKLIST.md](DEPLOYMENT_SECURITY_CHECKLIST.md)。
+```text
+data/system.db
+data/datasets/raw/
+data/datasets/processed/*.csv
+data/models/
+data/user_submissions/
+logs/
+uploads/
+*.pkl
+*.npy
+*.npz
+```
 
-必须确认：
+仓库只保留代码、配置、导入脚本、小型说明文件和文档。
 
-- 已配置 `FLASK_SECRET_KEY`，且不是默认值。
-- 已配置 `ADMIN_USERNAME` / `ADMIN_PASSWORD`，且管理端不使用默认弱口令。
-- 公网环境不启用 Flask debug。
-- 上传文件限制、空文件检查、CSV/JSON 格式检查已生效。
-- `data/`、`logs/`、密钥、数据库、模型文件和真实凭据不提交到 Git。
-- 如面向公网长期运行，建议启用 HTTPS、限制 CORS，并使用 systemd 或等价方式托管服务。
+## 平台边界
 
-## 数据与安全边界
+当前系统已经具备用户端风险检测、管理端训练管理、统一风险结果、轻量数据集导入和系统审计的核心闭环。真实生产部署仍需要进一步补充 HTTPS、完整账号权限、独立节点部署、外部评估集、密钥托管、审计留存策略和安全运维配置。
 
-- `data/` 下的数据库、模型、日志、上传文件和数据集通常不应提交到 Git。
-- 用户上传文件会加密归档，但本系统仍是实验原型，不应直接承载真实生产敏感数据。
-- 管理端需要强密码，并建议放在内网、VPN 或反向代理认证之后。
-- Paillier 当前用于密态字段展示和安全聚合方向说明，不代表完整密文训练系统。
-- 联邦训练当前以本机四节点流程为主，不代表真实跨机构部署。
-- IP 归属地和设备信息主要基于请求头、User-Agent 和离线解析，不能保证完全准确。
-
-## License
-
-当前仓库未单独提供 `LICENSE` 文件。正式开源前建议补充许可证，并在此处同步说明。
+本项目不定位为 WAF、防火墙、漏洞扫描器或大而全网络安全平台。DDoS 和流量型攻击数据集作为可扩展方向，当前核心能力聚焦账号登录安全和密码攻击风险识别。

@@ -373,9 +373,17 @@ def _source_display_name(source_type):
 def _list_dataset_sources():
     """Return all known trainable dataset sources with lightweight metadata."""
     from src.preprocess.feature_engineering import inspect_csv
+    from glob import glob
 
     seen = set()
     sources = []
+    configured_sources = []
+
+    try:
+        with open(os.path.join("config", "dataset_sources.json"), "r", encoding="utf-8") as f:
+            configured_sources = json.load(f).get("sources", [])
+    except Exception:
+        configured_sources = []
 
     first = _find_dataset_source()
     candidates = []
@@ -411,11 +419,49 @@ def _list_dataset_sources():
                     "source_type": "local_csv",
                 })
 
+    for cfg in configured_sources:
+        if not cfg.get("enabled", True):
+            continue
+        paths = cfg.get("paths") or []
+        matched = []
+        for pattern in paths:
+            hits = sorted(glob(pattern, recursive=True))
+            matched.extend([p for p in hits if os.path.isfile(p)])
+        if matched:
+            for path in matched:
+                candidates.append({
+                    "id": cfg.get("id"),
+                    "path": path,
+                    "source": path,
+                    "source_type": cfg.get("type") or cfg.get("source_type"),
+                    "name": cfg.get("name"),
+                    "description": cfg.get("description"),
+                    "configured": True,
+                })
+        else:
+            sources.append({
+                "id": cfg.get("id") or _dataset_source_id({"source_type": cfg.get("type"), "source": cfg.get("name")}),
+                "name": cfg.get("name") or _source_display_name(cfg.get("type")),
+                "source": ", ".join(paths) if paths else "-",
+                "source_type": cfg.get("type") or "-",
+                "path": None,
+                "samples": 0,
+                "features": 0,
+                "label_column": None,
+                "trainable": False,
+                "configured": True,
+                "exists": False,
+                "prepared_for_federated": False,
+                "status": "missing",
+                "description": cfg.get("description") or "已配置数据源，但本地尚未发现对应 CSV 文件。",
+            })
+
     for source in candidates:
         path = source.get("path")
-        if not path or path in seen or not os.path.exists(path):
+        seen_key = os.path.normcase(os.path.abspath(path)) if path else ""
+        if not path or seen_key in seen or not os.path.exists(path):
             continue
-        seen.add(path)
+        seen.add(seen_key)
         try:
             info = inspect_csv(path)
         except Exception:
@@ -425,8 +471,8 @@ def _list_dataset_sources():
                 "label_column": None,
             }
         item = {
-            "id": _dataset_source_id(source),
-            "name": _source_display_name(source.get("source_type")),
+            "id": source.get("id") or _dataset_source_id(source),
+            "name": source.get("name") or _source_display_name(source.get("source_type")),
             "source": source.get("source"),
             "source_type": source.get("source_type"),
             "path": path,
@@ -434,15 +480,24 @@ def _list_dataset_sources():
             "features": int(info.get("features", 0) or 0),
             "label_column": info.get("label_column"),
             "trainable": True,
+            "configured": bool(source.get("configured")),
+            "exists": True,
+            "status": "ready",
             "prepared_for_federated": _processed_dataset_ready(),
-            "description": "用于密码攻击风险检测、模型训练和四节点联邦切分的数据源。",
+            "description": source.get("description") or "用于密码攻击风险检测、模型训练和四节点联邦切分的数据源。",
         }
-        if source.get("source_type") == "UNSW-NB15":
+        if source.get("source_type") == "UNSW-NB15" and not source.get("description"):
             item["description"] = "公开入侵检测数据集，可用于扩展异常流量、扫描和入侵检测类风险识别。"
-        if source.get("source_type") == "local_generated":
+        if source.get("source_type") == "local_generated" and not source.get("description"):
             item["description"] = "项目内置密码攻击训练样本库，当前管理端初始训练和联邦切分优先使用该数据源。"
         sources.append(item)
 
+    sources.sort(key=lambda x: (
+        0 if x.get("trainable") and x.get("source_type") == "local_generated" else
+        1 if x.get("trainable") else
+        2,
+        str(x.get("id") or x.get("name") or "")
+    ))
     return sources
 
 
@@ -2701,29 +2756,67 @@ def ensemble_detect_from_dataset():
         ensemble_detector.load_or_init()
 
     preds, scores, risk_levels = ensemble_detector.predict(sample_x)
-    risk_names = {0: "低", 1: "中", 2: "高", 3: "危险"}
+    risk_names = {0: "low", 1: "medium", 2: "high", 3: "critical"}
+    action_suggestions = {
+        "low": "观察",
+        "medium": "提醒用户改密",
+        "high": "强制改密并开启二次验证",
+        "critical": "临时冻结账号并人工复核",
+    }
     metadata = _load_processed_metadata()
 
     results = []
     for i in range(len(sample_x)):
         pred = int(preds[i])
         label = int(sample_y[i])
-        attack_type = "正常访问" if pred == 0 else "账号风险行为"
+        score = round(float(scores[i]), 4)
+        level = risk_names.get(int(risk_levels[i]), "low")
+        attack_type = "正常访问" if pred == 0 else ("疑似暴力破解" if score >= 0.75 else "账号风险行为")
+        trigger_features = []
+        if score >= 0.7:
+            trigger_features.append("model_score")
+        if label != pred:
+            trigger_features.append("label_mismatch")
+        if not trigger_features:
+            trigger_features.append("model_score")
+        reason = "当前检测模型给出的风险分数为 %.4f，预测类型为%s。" % (score, attack_type)
+        if label != pred:
+            reason += " 该样本标签与模型判断不一致，建议结合数据来源复核。"
         results.append({
             "id": int(indices[i] + 1),
+            "sample_id": int(indices[i] + 1),
             "is_attack": bool(pred),
+            "is_risk": bool(level in ("medium", "high", "critical")),
             "actual_label": label,
-            "risk_score": round(float(scores[i]), 4),
-            "risk_level": risk_names.get(int(risk_levels[i]), "低"),
+            "risk_score": score,
+            "risk_level": level,
             "attack_type": attack_type,
+            "confidence": round(min(0.99, 0.5 + abs(score - 0.5)), 4),
+            "action_suggestion": action_suggestions.get(level, "观察"),
+            "detection_time_ms": 0,
+            "trigger_features": trigger_features,
+            "score_breakdown": {
+                "failed_attempts_score": 0,
+                "request_frequency_score": 0,
+                "unusual_time_score": 0,
+                "response_time_score": 0,
+                "device_ip_score": 0,
+                "model_score": score,
+            },
+            "reason": reason,
+            "suggestion": action_suggestions.get(level, "观察"),
+            "source_dataset": metadata.get("source_type") or metadata.get("source") or "processed_dataset",
+            "model_version": "runtime",
         })
 
     return jsonify(api_response(data={
         "total": len(results),
         "anomalies": int(np.sum(preds)),
         "detections": results,
+        "risk_ranking": sorted(results, key=lambda x: float(x.get("risk_score", 0)), reverse=True)[:100],
         "source": metadata.get("source", "processed dataset"),
         "source_type": metadata.get("source_type", "processed"),
+        "model_version": "runtime",
         "offset": offset,
         "limit": limit,
         "sample_mode": "offset" if has_offset else "random",

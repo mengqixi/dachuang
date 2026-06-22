@@ -15,6 +15,7 @@ import json
 import os
 import re
 import shutil
+import time
 import uuid
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
@@ -97,6 +98,13 @@ RISK_LEVEL_ZH = {
     "medium": "中风险",
     "high": "高风险",
     "critical": "严重风险",
+}
+
+ACTION_SUGGESTIONS = {
+    "low": "观察",
+    "medium": "提醒用户改密",
+    "high": "强制改密并开启二次验证",
+    "critical": "临时冻结账号并人工复核",
 }
 
 REVIEW_STATUS = {
@@ -640,9 +648,79 @@ def _attack_type_for_detection(det: Dict, row: Optional[Dict] = None) -> str:
     return "正常访问"
 
 
+def _clip_score(value: float) -> float:
+    try:
+        return round(max(0.0, min(1.0, float(value))), 4)
+    except Exception:
+        return 0.0
+
+
+def _component_scores(row: Optional[Dict], det: Dict) -> Dict:
+    """Lightweight multi-source score fusion for account/password risk."""
+    row = row or {}
+    model_score = _clip_score(det.get("risk_score", det.get("score", 0)))
+    failed = _num(row, "failed_attempts", "ct_dst_src_ltm")
+    freq = _num(row, "request_rate", "request_frequency", "rate")
+    response = _num(row, "response_time_ms", "response_time", "latency", "dur")
+    unusual_hour = _num(row, "unusual_hour")
+    password_strength = _num(row, "password_strength", default=3)
+    login_success = _num(row, "login_success", default=1)
+
+    failed_score = _clip_score(min(failed, 20) / 20)
+    request_score = _clip_score(min(freq, 200) / 200)
+    unusual_score = _clip_score(0.75 if unusual_hour >= 1 else 0.0)
+    response_score = _clip_score(min(response, 3000) / 3000)
+    device_ip_score = 0.0
+    if row.get("ip") or row.get("src_ip") or row.get("source_ip") or row.get("srcip"):
+        device_ip_score += 0.15
+    if row.get("device_type") or row.get("browser") or row.get("os") or row.get("user_agent"):
+        device_ip_score += 0.10
+    if login_success == 0 and failed >= 3:
+        device_ip_score += 0.10
+    if password_strength and password_strength <= 2:
+        device_ip_score += 0.10
+    device_ip_score = _clip_score(device_ip_score)
+
+    return {
+        "failed_attempts_score": failed_score,
+        "request_frequency_score": request_score,
+        "unusual_time_score": unusual_score,
+        "response_time_score": response_score,
+        "device_ip_score": device_ip_score,
+        "model_score": model_score,
+    }
+
+
+def _fusion_score(row: Optional[Dict], det: Dict) -> float:
+    parts = _component_scores(row, det)
+    weights = {
+        "failed_attempts_score": 0.23,
+        "request_frequency_score": 0.20,
+        "unusual_time_score": 0.12,
+        "response_time_score": 0.10,
+        "device_ip_score": 0.15,
+        "model_score": 0.20,
+    }
+    score = sum(parts[k] * weights[k] for k in weights)
+    # Keep the detector signal visible: if the model is already more severe,
+    # do not suppress it with missing behavioral fields.
+    return _clip_score(max(score, float(parts["model_score"]) * 0.85))
+
+
+def _level_from_score(score: float) -> str:
+    if score >= 0.85:
+        return "critical"
+    if score >= 0.65:
+        return "high"
+    if score >= 0.35:
+        return "medium"
+    return "low"
+
+
 def _risk_breakdown(row: Optional[Dict], det: Dict) -> Dict:
     row = row or {}
     score = float(det.get("risk_score", det.get("score", 0)) or 0)
+    component_scores = _component_scores(row, det)
     failed = _num(row, "failed_attempts", "ct_dst_src_ltm")
     freq = _num(row, "request_rate", "request_frequency", "rate")
     response = _num(row, "response_time_ms", "response_time", "latency", "dur")
@@ -715,6 +793,7 @@ def _risk_breakdown(row: Optional[Dict], det: Dict) -> Dict:
     dominant = triggered[0]["name"] if triggered else ("模型分数" if score >= 0.35 else "未发现明显触发项")
     return {
         "final_score": round(score, 4),
+        **component_scores,
         "score_range": "0 到 1，越接近 1 表示模型认为异常概率越高",
         "level_explain": level_explain,
         "model_signal": "融合检测模型输出的风险分数",
@@ -966,6 +1045,7 @@ class UserSubmissionManager:
                 pass
 
     def analyze(self, submission_id: str, detector=None, limit: int = 500) -> Optional[Dict]:
+        started = time.perf_counter()
         data = _read_index()
         item = next((x for x in data.get("submissions", []) if x.get("id") == submission_id), None)
         if item is None:
@@ -1019,14 +1099,55 @@ class UserSubmissionManager:
                     }, row),
                 })
 
+        row_by_id = {i + 1: row for i, row in enumerate(rows)}
+        model_version = "runtime"
+        if detector is not None:
+            try:
+                status = detector.status() if hasattr(detector, "status") else {}
+                model_version = str(status.get("version") or status.get("model_version") or "runtime")
+            except Exception:
+                model_version = "runtime"
+        source_dataset = item.get("source") or "user_submission"
+        elapsed_ms = round((time.perf_counter() - started) * 1000, 2)
+        for det in detections:
+            row = row_by_id.get(det.get("id")) or {}
+            fused = _fusion_score(row, det)
+            level = _level_from_score(fused)
+            det["raw_model_score"] = det.get("risk_score")
+            det["risk_score"] = fused
+            det["risk_level"] = level
+            det["is_risk"] = level in ("medium", "high", "critical")
+            det["attack_type"] = _attack_type_for_detection(det, row)
+            det["confidence"] = _clip_score(0.55 + abs(fused - 0.5) * 0.8)
+            det["action_suggestion"] = ACTION_SUGGESTIONS.get(level, "观察")
+            det["trigger_features"] = _trigger_features(row)
+            det["score_breakdown"] = _risk_breakdown(row, det)
+            det["reason"] = _clean_reason_for_detection(det, row)
+            det["suggestion"] = _clean_suggestion_for_detection(det, row)
+            det["source_dataset"] = source_dataset
+            det["model_version"] = model_version
+            det["detection_time_ms"] = elapsed_ms
+
         summary = {"low": 0, "medium": 0, "high": 0, "critical": 0}
         attack_types = {}
+        risk_score_buckets = {"0.00-0.35": 0, "0.35-0.65": 0, "0.65-0.85": 0, "0.85-1.00": 0}
+        trigger_feature_stats = {}
         for det in detections:
             rl = det.get("risk_level", "low")
             summary[rl] = summary.get(rl, 0) + 1
             attack_types[det.get("attack_type", "unknown")] = attack_types.get(det.get("attack_type", "unknown"), 0) + 1
+            score = float(det.get("risk_score") or 0)
+            if score >= 0.85:
+                risk_score_buckets["0.85-1.00"] += 1
+            elif score >= 0.65:
+                risk_score_buckets["0.65-0.85"] += 1
+            elif score >= 0.35:
+                risk_score_buckets["0.35-0.65"] += 1
+            else:
+                risk_score_buckets["0.00-0.35"] += 1
+            for feature in det.get("trigger_features", []) or []:
+                trigger_feature_stats[feature] = trigger_feature_stats.get(feature, 0) + 1
 
-        row_by_id = {i + 1: row for i, row in enumerate(rows)}
         def _attention_key(d):
             row = row_by_id.get(d.get("id")) or {}
             triggers = _trigger_features(row)
@@ -1042,7 +1163,7 @@ class UserSubmissionManager:
         ]
         high_items = sorted(high_items, key=_attention_key, reverse=True)
         reasons = []
-        for det in high_items[:20]:
+        for det in high_items[:100]:
             row = row_by_id.get(det.get("id")) or {}
             breakdown = _risk_breakdown(row, det)
             reasons.append({
@@ -1054,13 +1175,18 @@ class UserSubmissionManager:
                 "risk_level": det.get("risk_level"),
                 "risk_level_zh": RISK_LEVEL_ZH.get(det.get("risk_level"), det.get("risk_level")),
                 "attack_type": det.get("attack_type", "unknown"),
+                "confidence": det.get("confidence"),
+                "action_suggestion": det.get("action_suggestion"),
+                "detection_time_ms": det.get("detection_time_ms"),
+                "source_dataset": det.get("source_dataset"),
+                "model_version": det.get("model_version"),
                 "model_judgement": "异常/攻击倾向" if det.get("is_attack") else "正常倾向",
-                "trigger_features": _trigger_features(row),
+                "trigger_features": det.get("trigger_features") or _trigger_features(row),
                 "dominant_factor": breakdown.get("dominant_factor"),
                 "triggered_count": breakdown.get("triggered_count", 0),
                 "score_breakdown": breakdown,
-                "reason": _clean_reason_for_detection(det, row),
-                "suggestion": _clean_suggestion_for_detection(det, row),
+                "reason": det.get("reason") or _clean_reason_for_detection(det, row),
+                "suggestion": det.get("suggestion") or _clean_suggestion_for_detection(det, row),
             })
 
         analysis = {
@@ -1070,9 +1196,36 @@ class UserSubmissionManager:
             "label_column": item.get("label_column"),
             "risk_summary": summary,
             "attack_types": attack_types,
+            "risk_score_distribution": risk_score_buckets,
+            "trigger_feature_stats": trigger_feature_stats,
+            "detection_pipeline": {
+                "sources": [
+                    "规则评分",
+                    "登录失败次数评分",
+                    "请求频率评分",
+                    "异常时间评分",
+                    "响应时间评分",
+                    "设备/IP 异常评分",
+                    "当前轻量模型评分",
+                ],
+                "result_schema": [
+                    "is_risk",
+                    "risk_score",
+                    "risk_level",
+                    "attack_type",
+                    "confidence",
+                    "action_suggestion",
+                    "trigger_features",
+                    "score_breakdown",
+                ],
+            },
+            "average_risk_score": round(float(np.mean([d.get("risk_score", 0) for d in detections])) if detections else 0.0, 4),
             "detections": detections[:200],
+            "risk_ranking": reasons,
             "high_risk_reasons": reasons,
-            "top_reason_limit": 20,
+            "risk_ranking_limit": 100,
+            "risk_ranking_order": "risk_score_desc",
+            "top_reason_limit": 100,
             "top_reason_order": "risk_score_desc",
             "suggestions": _clean_suggestions(summary),
             "sensitive_columns": item.get("sensitive_columns", []),
@@ -1119,16 +1272,21 @@ class UserSubmissionManager:
             "- 低风险样本：%s" % low_count,
             "- 主要风险类型：%s" % ("、".join(attack_types.keys()) or "未发现明显风险类型"),
             "",
-            "## 三、高风险样本 Top 20 与原因解释",
+            "## 三、风险排名摘要",
             "",
         ]
-        reasons = analysis.get("high_risk_reasons", [])[:10]
+        reasons = (analysis.get("risk_ranking") or analysis.get("high_risk_reasons", []))[:10]
         if reasons:
             for reason in reasons:
                 triggers = "、".join(reason.get("trigger_features", []) or ["无明显触发特征"])
                 lines.append(
-                    "- 样本 %s：%s；触发特征：%s；建议：%s" % (
-                        reason.get("id"), reason.get("reason"), triggers, reason.get("suggestion")
+                    "- 排名 %s / 样本 %s：风险等级 %s，风险分数 %s；主要因素：%s；建议：%s" % (
+                        reason.get("rank"),
+                        reason.get("id"),
+                        reason.get("risk_level_zh", reason.get("risk_level", "-")),
+                        reason.get("risk_score", "-"),
+                        triggers,
+                        reason.get("suggestion"),
                     )
                 )
         else:

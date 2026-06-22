@@ -93,7 +93,7 @@ class AdaptiveOptimizer:
             target_kl = _SMOOTH_KL_REV.get(self.current_key_length, target_kl)
 
         # 限制加密轮数每次最多±2
-        target_r = max(10, min(12, target_r))
+        target_r = max(10, min(14, target_r))
         if target_r > self.current_rounds + 2:
             target_r = self.current_rounds + 2
         elif target_r < self.current_rounds - 2:
@@ -148,6 +148,33 @@ class AdaptiveOptimizer:
                 "stage": "cooldown",
                 "policy_source": "cooldown_guard",
             }
+            self.history.append(OptimizationRecord(
+                timestamp=now,
+                risk_level=self.current_risk_level,
+                risk_score=round(anomaly_score, 4),
+                cpu_usage=round(self._last_signal.get("cpu_usage", 0.3), 4),
+                memory_usage=round(self._last_signal.get("memory_usage", 0.4), 4),
+                model_accuracy=round(self._last_signal.get("model_accuracy", 0.95), 4),
+                key_length=self.current_key_length,
+                rounds=self.current_rounds,
+                reward=0.0,
+                performance_gain=round(self.performance_gain, 2),
+                security_strength=round(current_strength, 1),
+                security_delta=0.0,
+                cost_delta_percent=0.0,
+                old_security_strength=round(current_strength, 1),
+                old_key_length=self.current_key_length,
+                old_rounds=self.current_rounds,
+                reason_detail=result["reason"],
+                policy_source="cooldown_guard",
+                stage="cooldown",
+                risk_change=result["risk_change"],
+                recommended_key_length=self.current_key_length,
+                recommended_rounds=self.current_rounds,
+                applied=False,
+                protection_score=result["protection_score"],
+                efficiency_cost=result["efficiency_cost"],
+            ))
             self._last_decision = result
             return result
 
@@ -394,19 +421,19 @@ class AdaptiveOptimizer:
     @staticmethod
     def _calc_cost(key_length: int, rounds: int) -> float:
         kl_cost = {1024: 1.0, 2048: 2.5, 4096: 6.0}
-        r_cost = {10: 1.0, 12: 1.2}
+        r_cost = {10: 1.0, 12: 1.2, 14: 1.4}
         return kl_cost.get(key_length, 2.5) * r_cost.get(rounds, 1.0)
 
     @staticmethod
     def _calc_security_strength(key_length: int, rounds: int) -> float:
         key_score = {1024: 35.0, 2048: 70.0, 4096: 100.0}.get(key_length, 70.0)
-        round_bonus = {10: 0.0, 12: 8.0}.get(rounds, 0.0)
+        round_bonus = {10: 0.0, 12: 8.0, 14: 12.0}.get(rounds, 0.0)
         return min(100.0, key_score + round_bonus)
 
     @staticmethod
     def _protection_score(key_length: int, rounds: int) -> float:
         key_factor = {1024: 0.35, 2048: 0.70, 4096: 1.0}.get(key_length, 0.70)
-        round_factor = {10: 0.90, 12: 1.0}.get(rounds, 0.90)
+        round_factor = {10: 0.90, 12: 1.0, 14: 1.05}.get(rounds, 0.90)
         return min(1.0, key_factor * round_factor)
 
     @staticmethod

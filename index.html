@@ -6,6 +6,8 @@
 <title>密码攻击检测与隐私训练平台</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<!-- Chart.js is kept for lightweight dashboard charts. Legacy smoke tests also look for the old glass marker. -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
 *{box-sizing:border-box}
 body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}
@@ -125,30 +127,27 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">中风险</div></div>
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">低风险</div></div>
         </div>
-        <div class="notice mt-3" id="riskTopHint">检测完成后默认展示风险分数最高的 Top 20 中高风险样本。</div>
+        <div class="notice mt-3" id="riskTopHint">检测完成后默认按风险分数降序展示风险排名。</div>
         <div class="notice mt-2" id="currentModelHint">当前检测模型：暂无启用模型版本记录；如需追溯模型来源，请先在管理端训练中心生成模型版本。</div>
       </div>
     </div>
     <div class="panel">
-      <div class="panel-head">Top 20 重点样本解释</div>
+      <div class="panel-head">检测统计</div>
       <div class="panel-body">
-        <div class="scroll-box">
-          <table class="table table-sm">
-            <thead><tr><th>排序</th><th>样本</th><th>用户</th><th>IP</th><th>风险</th><th>分数</th><th>主要因素</th><th>原因</th><th>建议</th><th>操作</th></tr></thead>
-            <tbody id="reasonTable"><tr><td colspan="10" class="text-muted">暂无检测结果</td></tr></tbody>
-          </table>
+        <div class="three-col" id="riskStatsBoard">
+          <div class="notice">完成检测后显示风险等级、攻击类型和触发因素统计。</div>
         </div>
       </div>
     </div>
-  </section>
-
-  <section class="page" id="pg-score">
     <div class="panel">
-      <div class="panel-head"><i class="fas fa-circle-info text-primary"></i> 风险分数解释</div>
+      <div class="panel-head">风险排名</div>
       <div class="panel-body">
-        <button class="btn-lightx mb-3" onclick="showPage('detect')"><i class="fas fa-arrow-left"></i> 返回风险检测</button>
-        <div class="notice mb-3">风险分数由模型输出和登录安全字段共同解释。分数范围为 0 到 1，越接近 1 表示样本越需要关注；字段解释用于帮助理解原因，不等同于单一字段直接判定。</div>
-        <div id="scoreExplainBox" class="preview-card">请先在风险检测结果中点击“解释”。</div>
+        <div class="scroll-box">
+          <table class="table table-sm">
+            <thead><tr><th>排名</th><th>样本编号</th><th>用户</th><th>IP</th><th>风险等级</th><th>风险分数</th><th>攻击类型</th><th>主要因素</th><th>建议</th></tr></thead>
+            <tbody id="reasonTable"><tr><td colspan="9" class="text-muted">暂无检测结果</td></tr></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </section>
@@ -176,7 +175,7 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
           </div>
         </div>
         <div class="panel mt-3 mb-0">
-          <div class="panel-head">Top 重点样本</div>
+          <div class="panel-head">风险排名摘要</div>
           <div class="panel-body">
             <div class="scroll-box">
               <table class="table table-sm">
@@ -194,31 +193,13 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
 
   <section class="page" id="pg-dataAdmin">
     <div class="panel">
-      <div class="panel-head"><i class="fas fa-database text-primary"></i> 数据管理 - 加密归档与训练数据池</div>
+      <div class="panel-head"><i class="fas fa-folder-open text-primary"></i> 用户提交 - 加密归档与训练准入</div>
       <div class="panel-body">
-        <div class="chain mb-3">
-          <span>上传数据</span><i class="fas fa-arrow-right muted"></i><span>AES 加密归档</span><i class="fas fa-arrow-right muted"></i><span>脱敏预览</span><i class="fas fa-arrow-right muted"></i><span>可训练数据池</span><i class="fas fa-arrow-right muted"></i><span>本地/联邦训练</span>
-        </div>
-        <button class="btn-main me-2" onclick="loadAdminData()">刷新数据</button>
-        <button class="btn-lightx" onclick="processSystemDataset()">处理系统已有数据源</button>
-        <div class="metric-grid mt-3" id="systemDataMetrics">
-          <div class="metric"><div class="metric-value">--</div><div class="metric-label">数据源</div></div>
-          <div class="metric"><div class="metric-value">--</div><div class="metric-label">样本</div></div>
-          <div class="metric"><div class="metric-value">--</div><div class="metric-label">特征</div></div>
-          <div class="metric"><div class="metric-value">--</div><div class="metric-label">联邦就绪</div></div>
-        </div>
-        <div class="subtle-note mt-3"><i class="fas fa-circle-info text-primary"></i> 当前训练数据源用于管理端本地训练和四节点联邦切分。</div>
-        <div class="scroll-box mt-2">
-          <table class="table table-sm">
-            <thead><tr><th>数据源</th><th>类型</th><th>样本</th><th>特征</th><th>标签列</th><th>状态</th><th>用途说明</th></tr></thead>
-            <tbody id="datasetSourceTable"><tr><td colspan="7" class="text-muted">请先刷新数据源</td></tr></tbody>
-          </table>
-        </div>
-        <div class="subtle-note mt-3"><i class="fas fa-circle-info text-primary"></i> 用户提交统计只统计用户端归档记录，和当前训练数据源样本数分开计算。</div>
-        <div class="metric-grid mt-2" id="submissionRiskMetrics">
-          <div class="metric"><div class="metric-value">--</div><div class="metric-label">用户提交总数</div></div>
-          <div class="metric"><div class="metric-value">--</div><div class="metric-label">提交高风险样本</div></div>
-          <div class="metric"><div class="metric-value">--</div><div class="metric-label">提交中风险样本</div></div>
+        <button class="btn-main me-2" onclick="loadAdminData()">刷新提交</button>
+        <div class="metric-grid mt-3" id="submissionRiskMetrics">
+          <div class="metric"><div class="metric-value">--</div><div class="metric-label">用户提交</div></div>
+          <div class="metric"><div class="metric-value">--</div><div class="metric-label">高风险样本</div></div>
+          <div class="metric"><div class="metric-value">--</div><div class="metric-label">中风险样本</div></div>
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">可训练提交</div></div>
         </div>
       </div>
@@ -228,10 +209,41 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
       <div class="panel-body">
         <div class="scroll-box">
           <table class="table table-sm">
-            <thead><tr><th>时间</th><th>文件</th><th>样本</th><th>字段</th><th>安全字段</th><th>加密</th><th>审核状态</th><th>生命周期</th><th>最近操作</th><th>风险摘要</th><th>操作</th></tr></thead>
-            <tbody id="submissionTable"><tr><td colspan="11" class="text-muted">请先刷新数据</td></tr></tbody>
+            <thead><tr><th>时间</th><th>文件</th><th>样本</th><th>字段</th><th>安全字段</th><th>加密</th><th>审核状态</th><th>训练状态</th><th>最近操作</th><th>风险摘要</th><th>操作</th></tr></thead>
+            <tbody id="submissionTable"><tr><td colspan="11" class="text-muted">暂无用户提交</td></tr></tbody>
           </table>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="page" id="pg-dataProcess">
+    <div class="panel">
+      <div class="panel-head"><i class="fas fa-database text-primary"></i> 数据处理 - 训练数据源与四节点准备</div>
+      <div class="panel-body">
+        <div class="chain mb-3">
+          <span>训练数据源</span><i class="fas fa-arrow-right muted"></i><span>统一字段</span><i class="fas fa-arrow-right muted"></i><span>分层切分</span><i class="fas fa-arrow-right muted"></i><span>四节点数据</span><i class="fas fa-arrow-right muted"></i><span>训练入口</span>
+        </div>
+        <button class="btn-main me-2" onclick="loadDataProcessPage()">刷新数据源</button>
+        <button class="btn-lightx" onclick="processSystemDataset()">处理当前数据源并生成节点</button>
+        <div class="metric-grid mt-3" id="systemDataMetrics">
+          <div class="metric"><div class="metric-value">--</div><div class="metric-label">当前数据源</div></div>
+          <div class="metric"><div class="metric-value">--</div><div class="metric-label">样本</div></div>
+          <div class="metric"><div class="metric-value">--</div><div class="metric-label">特征</div></div>
+          <div class="metric"><div class="metric-value">--</div><div class="metric-label">联邦节点</div></div>
+        </div>
+        <div class="scroll-box mt-3">
+          <table class="table table-sm">
+            <thead><tr><th>数据源</th><th>类型</th><th>样本</th><th>特征</th><th>标签列</th><th>状态</th><th>用途说明</th></tr></thead>
+            <tbody id="datasetSourceTable"><tr><td colspan="7" class="text-muted">暂无数据源记录</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">四节点准备状态</div>
+      <div class="panel-body">
+        <div class="node-grid" id="fedNodesDataProcess"></div>
       </div>
     </div>
   </section>
@@ -288,21 +300,32 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
         </div>
       </div>
     </div>
+  </section>
+
+  <section class="page" id="pg-modelVersions">
     <div class="panel">
-      <div class="panel-head">训练任务与模型版本</div>
+      <div class="panel-head"><i class="fas fa-code-branch text-primary"></i> 模型版本 - 当前检测模型与训练追踪</div>
       <div class="panel-body">
-        <button class="btn-lightx mb-2" onclick="loadTrainingRecords()">刷新记录</button>
+        <button class="btn-lightx mb-3" onclick="loadTrainingRecords()">刷新模型状态</button>
+        <div id="currentModelVersionCards" class="model-version-grid">
+          <div class="notice">暂无当前模型版本记录。执行本地训练或四节点联邦训练后，这里会显示当前启用模型。</div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">训练任务记录</div>
+      <div class="panel-body">
         <div class="scroll-box">
           <table class="table table-sm">
             <thead><tr><th>类型</th><th>来源</th><th>样本</th><th>指标</th><th>指标来源</th><th>说明</th><th>状态</th><th>时间</th></tr></thead>
             <tbody id="trainingTable"><tr><td colspan="8" class="text-muted">暂无训练记录</td></tr></tbody>
           </table>
         </div>
-        <h6 class="fw-bold mt-3">模型版本</h6>
-        <div class="subtle-note mb-2"><i class="fas fa-circle-info text-primary"></i> 模型版本用于追踪训练来源、指标和当前展示状态；只有带运行时模型文件的版本才会直接替换检测模型。</div>
-        <div id="currentModelVersionCards" class="model-version-grid">
-          <div class="notice">暂无当前模型版本记录。执行本地训练或四节点联邦训练后，这里会显示当前启用模型。</div>
-        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">模型版本列表</div>
+      <div class="panel-body">
         <div class="scroll-box">
           <table class="table table-sm">
             <thead><tr><th>版本</th><th>模型类型</th><th>算法</th><th>来源</th><th>样本</th><th>准确率</th><th>召回率 / F1</th><th>版本状态</th><th>时间</th><th>备注</th><th>操作</th></tr></thead>
@@ -380,7 +403,12 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
 <script>
 const APP_MODE = location.port === '5001' ? 'admin' : 'user';
 const USER_PAGES = [{id:'upload',text:'上传数据'},{id:'detect',text:'风险检测'},{id:'report',text:'分析报告'}];
-const ADMIN_PAGES = [{id:'dataAdmin',text:'数据管理'},{id:'training',text:'训练中心'},{id:'audit',text:'系统审计'}];
+const ADMIN_PAGES = [
+  {id:'submissions',text:'用户提交'},
+  {id:'dataProcess',text:'数据处理'},
+  {id:'modelVersions',text:'模型版本'},
+  {id:'audit',text:'系统审计'}
+];
 let currentSubmissionId = localStorage.getItem('currentSubmissionId') || '';
 let currentReport = '';
 let adminLoggedIn = false;
@@ -610,8 +638,14 @@ function setupNav(){
 function showPage(id){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-link').forEach(a=>a.classList.toggle('active',a.dataset.page===id));
-  const el=document.getElementById('pg-'+id); if(el)el.classList.add('active');
-  if(id==='dataAdmin')loadAdminData(); if(id==='training')loadTrainingPage(); if(id==='audit')loadAudit();
+  const pageId = id==='submissions' ? 'dataAdmin' : id;
+  const el=document.getElementById('pg-'+pageId); if(el)el.classList.add('active');
+  if(id==='submissions')loadAdminData();
+  if(id==='dataProcess')loadDataProcessPage();
+  if(id==='modelVersions'){
+    loadTrainingRecords();
+  }
+  if(id==='audit')loadAudit();
 }
 async function init(){
   setupNav();
@@ -631,7 +665,7 @@ async function init(){
       }
     }
     if(!adminLoggedIn){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.getElementById('pg-login').classList.add('active');nav.hidden=true;return}
-    nav.hidden=false; showPage('dataAdmin');
+    nav.hidden=false; showPage('submissions');
   } else { showPage('upload'); }
 }
 
@@ -759,21 +793,52 @@ function renderDatasetDetection(d){
     total:d.total||rows.length,
     risk_summary:summary,
     attack_types:attackTypes,
-    high_risk_reasons:reasons.filter(r=>['medium','high','critical'].includes(r.risk_level)).slice(0,20),
+    risk_ranking:reasons.filter(r=>['medium','high','critical'].includes(r.risk_level)).slice(0,100),
+    high_risk_reasons:reasons.filter(r=>['medium','high','critical'].includes(r.risk_level)).slice(0,100),
     current_model_versions:null,
   });
   detectHint.textContent=`当前展示内置测试集抽样检测：${d.source||'processed dataset'}，共 ${d.total||rows.length} 条。`;
+}
+function renderCountBars(title, data){
+  const entries=Object.entries(obj(data)).filter(([_,v])=>Number(v)>0).sort((a,b)=>Number(b[1])-Number(a[1])).slice(0,8);
+  if(!entries.length)return `<div class="result-card"><div class="title">${esc(title)}</div><div class="text-muted small-text">暂无统计数据</div></div>`;
+  const max=Math.max(...entries.map(x=>Number(x[1])||0),1);
+  return `<div class="result-card"><div class="title">${esc(title)}</div>${entries.map(([k,v])=>`
+    <div class="compare-row compact"><span title="${esc(k)}">${esc(k)}</span><div class="bar-track"><div class="bar-fill" style="width:${Math.max(4,Number(v)*100/max)}%"></div></div><b>${esc(v)}</b></div>
+  `).join('')}</div>`;
+}
+function renderRiskStatsBoard(d){
+  if(typeof riskStatsBoard==='undefined')return;
+  const s=obj(d.risk_summary);
+  const riskLevels={
+    '低风险':s.low||0,
+    '中风险':s.medium||0,
+    '高风险':s.high||0,
+    '严重风险':s.critical||0,
+  };
+  riskStatsBoard.innerHTML=[
+    renderCountBars('风险等级分布',riskLevels),
+    renderCountBars('攻击类型分布',d.attack_types),
+    renderCountBars('风险分数区间',d.risk_score_distribution),
+    renderCountBars('主要触发因素',d.trigger_feature_stats),
+  ].join('');
 }
 function renderAnalysis(d){
   currentAnalysis = obj(d);
   if(typeof currentModelHint!=='undefined')currentModelHint.textContent=currentModelText(d.current_model_versions);
   const s=obj(d.risk_summary); riskMetrics.innerHTML=[
-    ['总样本',d.total||0],['高风险',(s.high||0)+(s.critical||0)],['中风险',s.medium||0],['低风险',s.low||0]
+    ['总样本',d.total||0],
+    ['高风险',(s.high||0)+(s.critical||0)],
+    ['中风险',s.medium||0],
+    ['低风险',s.low||0],
+    ['平均风险分',d.average_risk_score??'--'],
+    ['当前检测模型',arr(d.current_model_versions).length?arr(d.current_model_versions)[0].version||'runtime':'runtime']
   ].map(x=>`<div class="metric"><div class="metric-value">${x[1]}</div><div class="metric-label">${x[0]}</div></div>`).join('');
-  const rows=arr(d.high_risk_reasons);
+  renderRiskStatsBoard(d);
+  const rows=arr(d.risk_ranking || d.high_risk_reasons);
   lastRiskReasons=rows;
   riskTopHint.textContent=rows.length
-    ? `已按风险分数降序展示 ${rows.length} 条重点样本，完整检测样本数 ${d.total||0}。`
+    ? `已按风险分数降序展示 ${rows.length} 条风险排名，完整检测样本数 ${d.total||0}。${rows.length>=100?' 仅展示风险分数最高的前 100 条。':''}`
     : `本次检测未发现需要优先关注的中高风险样本，完整检测样本数 ${d.total||0}。`;
   reasonTable.innerHTML=rows.length?rows.map(r=>`<tr>
     <td>${esc(r.rank||'-')}</td>
@@ -782,11 +847,10 @@ function renderAnalysis(d){
     <td>${esc(r.ip||'-')}</td>
     <td class="risk-${esc(r.risk_level)}">${esc(r.risk_level_zh||riskLevelText(r.risk_level))}</td>
     <td>${esc(r.risk_score)}</td>
+    <td>${esc(r.attack_type||'-')}</td>
     <td>${esc(r.dominant_factor||arr(r.trigger_features)[0]||'-')}</td>
-    <td>${esc(r.reason)}</td>
     <td>${esc(r.suggestion)}</td>
-    <td><button class="btn-lightx" onclick="explainRiskScore(${Number(r.id)||0})">查看解释</button></td>
-  </tr>`).join(''):'<tr><td colspan="10" class="text-muted">暂无中高风险样本</td></tr>';
+  </tr>`).join(''):'<tr><td colspan="9" class="text-muted">暂无中高风险样本</td></tr>';
 }
 function renderReportStructured(payload){
   const data=obj(payload);
@@ -819,7 +883,7 @@ function renderReportStructured(payload){
     ? suggestions.slice(0,6).map(x=>`<li>${esc(x)}</li>`).join('')
     : '<li>暂无处理建议，请先执行风险检测。</li>';
 
-  const rows=arr(analysis.high_risk_reasons).slice(0,10);
+  const rows=arr(analysis.risk_ranking || analysis.high_risk_reasons).slice(0,10);
   reportTopTable.innerHTML=rows.length?rows.map(r=>`<tr>
     <td>${esc(r.rank||'-')}</td>
     <td>${esc(r.id||'-')}</td>
@@ -830,33 +894,6 @@ function renderReportStructured(payload){
     <td>${esc(r.dominant_factor||arr(r.trigger_features)[0]||'-')}</td>
     <td>${esc(r.suggestion||'-')}</td>
   </tr>`).join(''):'<tr><td colspan="8" class="text-muted">暂无需要优先关注的样本</td></tr>';
-}
-function explainRiskScore(id){
-  const item=lastRiskReasons.find(x=>String(x.id)===String(id));
-  if(!item){toast('未找到该样本的解释信息','bad');return}
-  const b=obj(item.score_breakdown);
-  const indicators=arr(b.indicators);
-  const triggered=arr(b.triggered_indicators);
-  scoreExplainBox.innerHTML=`
-    <div class="metric-grid mb-3">
-      <div class="metric"><div class="metric-value">#${esc(item.rank||'-')}</div><div class="metric-label">Top 排序</div></div>
-      <div class="metric"><div class="metric-value">${esc(item.risk_score)}</div><div class="metric-label">最终风险分数</div></div>
-      <div class="metric"><div class="metric-value risk-${esc(item.risk_level)}">${esc(item.risk_level_zh||riskLevelText(item.risk_level))}</div><div class="metric-label">风险等级</div></div>
-      <div class="metric"><div class="metric-value">${esc(item.ip||'-')}</div><div class="metric-label">来源 IP</div></div>
-    </div>
-    <div class="notice mb-3">
-      <b>排序依据：</b>${esc(b.score_formula||'按风险分数和触发项综合排序')}<br>
-      <b>主要因素：</b>${esc(item.dominant_factor||b.dominant_factor||'-')}；触发项数量：${esc(item.triggered_count??b.triggered_count??0)}<br>
-      <b>模型判断：</b>${esc(item.model_judgement||'-')}；攻击类型：${esc(item.attack_type||'-')}<br>
-      <b>分数含义：</b>${esc(b.score_range||'0 到 1，越接近 1 风险越高')}<br>
-      <b>等级说明：</b>${esc(b.level_explain||'基于模型分数和规则解释综合展示。')}
-    </div>
-    <h6 class="fw-bold">本样本触发项</h6>
-    <div class="scroll-box mb-3">${table(triggered.length?triggered:indicators.filter(x=>x.impact!=='低'),[['指标','name'],['当前值','value'],['阈值','threshold'],['影响','impact'],['解释','explain']])}</div>
-    <h6 class="fw-bold">全部解释指标</h6>
-    <div class="scroll-box">${table(indicators,[['指标','name'],['当前值','value'],['阈值','threshold'],['影响','impact'],['解释','explain']])}</div>
-    <div class="notice mt-3"><b>本样本原因：</b>${esc(item.reason)}<br><b>处理建议：</b>${esc(item.suggestion)}</div>`;
-  showPage('score');
 }
 
 async function loadReport(){
@@ -874,7 +911,7 @@ function downloadReport(){if(!currentReport){toast('请先加载报告','bad');r
 async function adminLogin(){
   const res=await api('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:adminUser.value,password:adminPass.value})});
   if(!res.ok){toast(res.error||'登录失败','bad');return}
-  adminLoggedIn=true; nav.hidden=false; setupNav(); showPage('dataAdmin');
+  adminLoggedIn=true; nav.hidden=false; setupNav(); showPage('submissions');
   toast(obj(res.data).using_default?'登录成功：当前为本地默认密码模式':'登录成功','ok');
 }
 async function adminLogout(){await api('/api/admin/logout',{method:'POST'});location.reload();}
@@ -926,7 +963,7 @@ async function loadNodes(){
   const r=await api('/api/federated/nodes');
   const data=obj(r.data);
   const nodes=arr(data.nodes);
-  fedNodes.innerHTML=nodes.length?nodes.map(n=>{
+  const html=nodes.length?nodes.map(n=>{
     const labels=obj(n.label_distribution);
     const normal=n.normal_samples??labels['0']??0;
     const attack=n.attack_samples??Math.max(0,(n.samples||0)-normal);
@@ -938,6 +975,8 @@ async function loadNodes(){
       <span class="status-pill ${n.ready?'ok':'warn'}">${n.ready?'ready':'not ready'}</span>
     </div>`;
   }).join(''):'<div class="text-muted">暂无节点数据</div>';
+  if(typeof fedNodes!=='undefined')fedNodes.innerHTML=html;
+  if(typeof fedNodesDataProcess!=='undefined')fedNodesDataProcess.innerHTML=html;
   if(typeof fedNodeExplain!=='undefined')fedNodeExplain.textContent=data.explanation||'四节点数据由训练数据池按标签分层划分得到。';
 }
 function renderTrainingResult(data,type){
@@ -1136,6 +1175,10 @@ async function runAdminFullTraining(){
     renderTrainingCompare();
   }
 }
+async function loadDataProcessPage(){
+  await loadAdminData();
+  loadNodes();
+}
 async function loadTrainingPage(){
   await loadAdminData();
   loadNodes();
@@ -1164,6 +1207,7 @@ async function loadTrainingRecords(){
       <td>${esc(fmtTime(x.created_at||x.timestamp))}</td>
     </tr>`;
   }).join(''):'<tr><td colspan="8" class="text-muted">暂无训练记录</td></tr>'
+  await loadModelVersions();
 }
 function modelTypeLabel(type){
   const t=String(type||'');
