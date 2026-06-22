@@ -370,6 +370,50 @@ def _source_display_name(source_type):
     return mapping.get(source_type, source_type or "未知数据源")
 
 
+def _dataset_distribution_stats(path, max_rows=50000):
+    """Return lightweight label and attack-type stats without loading full CSV."""
+    stats = {
+        "label_distribution": {},
+        "attack_type_distribution": {},
+        "scanned_rows": 0,
+    }
+    if not path or not os.path.exists(path):
+        return stats
+    try:
+        from src.preprocess.feature_engineering import infer_label
+        from src.datasets.security_dataset_importer import map_attack_type
+
+        with open(path, "r", encoding="utf-8", errors="replace", newline="") as f:
+            reader = csv.DictReader(f)
+            for i, row in enumerate(reader):
+                if i >= max_rows:
+                    break
+                label = int(infer_label(row))
+                raw_attack = (
+                    row.get("attack_type")
+                    or row.get("attack_cat")
+                    or row.get("Label")
+                    or row.get("label")
+                    or row.get("class")
+                    or ""
+                )
+                mapped_attack, mapped_label = map_attack_type(raw_attack)
+                if raw_attack and str(raw_attack).strip() not in {"0", "1"}:
+                    attack_type = mapped_attack
+                elif label == 0:
+                    attack_type = "benign"
+                else:
+                    attack_type = mapped_attack if mapped_label else "password_attack"
+
+                label_key = str(label)
+                stats["label_distribution"][label_key] = stats["label_distribution"].get(label_key, 0) + 1
+                stats["attack_type_distribution"][attack_type] = stats["attack_type_distribution"].get(attack_type, 0) + 1
+                stats["scanned_rows"] += 1
+    except Exception as exc:
+        logger.warning(f"Dataset distribution scan failed for {path}: {exc}")
+    return stats
+
+
 def _list_dataset_sources():
     """Return all known trainable dataset sources with lightweight metadata."""
     from src.preprocess.feature_engineering import inspect_csv
@@ -453,6 +497,9 @@ def _list_dataset_sources():
                 "exists": False,
                 "prepared_for_federated": False,
                 "status": "missing",
+                "label_distribution": {},
+                "attack_type_distribution": {},
+                "scanned_rows": 0,
                 "description": cfg.get("description") or "已配置数据源，但本地尚未发现对应 CSV 文件。",
             })
 
@@ -486,6 +533,7 @@ def _list_dataset_sources():
             "prepared_for_federated": _processed_dataset_ready(),
             "description": source.get("description") or "用于密码攻击风险检测、模型训练和四节点联邦切分的数据源。",
         }
+        item.update(_dataset_distribution_stats(path))
         if source.get("source_type") == "UNSW-NB15" and not source.get("description"):
             item["description"] = "公开入侵检测数据集，可用于扩展异常流量、扫描和入侵检测类风险识别。"
         if source.get("source_type") == "local_generated" and not source.get("description"):
