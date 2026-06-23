@@ -227,7 +227,8 @@ def _get_key() -> bytes:
     if AES is None or get_random_bytes is None:
         raise RuntimeError("pycryptodome is required for AES encrypted archive storage")
     if os.path.exists(KEY_FILE):
-        raw = open(KEY_FILE, "rb").read().strip()
+        with open(KEY_FILE, "rb") as f:
+            raw = f.read().strip()
         try:
             key = base64.b64decode(raw)
             if len(key) == 32:
@@ -244,7 +245,8 @@ def _encrypt_file(src_path: str, dest_path: str) -> Dict:
     key = _get_key()
     nonce = get_random_bytes(12)
     cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
-    plaintext = open(src_path, "rb").read()
+    with open(src_path, "rb") as f:
+        plaintext = f.read()
     ciphertext, tag = cipher.encrypt_and_digest(plaintext)
     with open(dest_path, "wb") as f:
         f.write(b"DCENC1")
@@ -260,7 +262,8 @@ def _encrypt_file(src_path: str, dest_path: str) -> Dict:
 
 def _decrypt_file(enc_path: str) -> bytes:
     key = _get_key()
-    raw = open(enc_path, "rb").read()
+    with open(enc_path, "rb") as f:
+        raw = f.read()
     if not raw.startswith(b"DCENC1") or len(raw) < 34:
         raise ValueError("invalid encrypted archive format")
     nonce = raw[6:18]
