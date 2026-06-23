@@ -1233,7 +1233,6 @@ class UserSubmissionManager:
             "suggestions": _clean_suggestions(summary),
             "sensitive_columns": item.get("sensitive_columns", []),
             "privacy_notice": item.get("privacy_notice", ""),
-            "boundary": "本系统用于登录安全数据的风险分析和隐私训练流程支撑。检测结果来自当前模型、规则解释和上传数据字段，不等同于人工审计结论；涉及处置动作时仍需结合业务上下文复核。",
             "analyzed_at": _now(),
         }
         report_path = self._write_clean_report(item, analysis)
@@ -1327,10 +1326,6 @@ class UserSubmissionManager:
             "- 当前使用模型：%s" % ("；".join(active_models) if active_models else "系统当前可用检测模型"),
             "- 风险分数综合模型输出、登录失败次数、请求频率、响应耗时、访问设备、IP 来源和标签字段生成。",
             "- 指标用于本次上传数据的风险识别和排序参考，不等同于独立外部评测结论。",
-            "",
-            "## 七、系统边界说明",
-            "",
-            analysis.get("boundary", ""),
         ])
         with open(path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
@@ -1347,6 +1342,8 @@ class UserSubmissionManager:
         content = ""
         if report_path and os.path.exists(report_path):
             content = open(report_path, "r", encoding="utf-8").read()
+            legacy_marker = "\n## 七、" + "系统" + "边界说明"
+            content = content.split(legacy_marker, 1)[0].rstrip() + "\n"
         return {
             "submission": self.public_summary(item),
             "report_markdown": content,
