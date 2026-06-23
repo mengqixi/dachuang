@@ -435,6 +435,8 @@ let trainingCompareState = {local:null, federated:null};
 let trainingCompareChartObj = null;
 let modelVersionCompareChartObj = null;
 let latestTrainingTasks = [];
+const ADMIN_CACHE_TTL = 15000;
+const adminCache = new Map();
 
 function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function arr(v){return Array.isArray(v)?v:[]}
@@ -515,6 +517,26 @@ async function api(url,opt={}){
     if(!r.ok||j.code&&j.code!==200)return{ok:false,error:j.msg||r.statusText,data:j.data};
     return{ok:true,data:j.data??j,msg:j.msg}
   }catch(e){return{ok:false,error:e.message}}
+}
+function cacheKey(url){return String(url||'');}
+function clearAdminCache(prefix=''){
+  for(const key of Array.from(adminCache.keys())){
+    if(!prefix || key.startsWith(prefix))adminCache.delete(key);
+  }
+}
+async function cachedApi(url,opt={},ttl=ADMIN_CACHE_TTL){
+  const method=String(opt.method||'GET').toUpperCase();
+  if(method!=='GET')return api(url,opt);
+  const key=cacheKey(url);
+  const hit=adminCache.get(key);
+  const now=Date.now();
+  if(hit && now-hit.time<ttl)return hit.value;
+  const pending=api(url,opt);
+  adminCache.set(key,{time:now,value:pending});
+  const value=await pending;
+  if(value && value.ok)adminCache.set(key,{time:Date.now(),value});
+  else adminCache.delete(key);
+  return value;
 }
 function table(rows,cols){if(!rows.length)return '<div class="p-3 text-muted">暂无数据</div>';return '<table class="table table-sm"><thead><tr>'+cols.map(c=>`<th>${c[0]}</th>`).join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+cols.map(c=>`<td>${esc(typeof c[1]==='function'?c[1](r):r[c[1]])}</td>`).join('')+'</tr>').join('')+'</tbody></table>'}
 
@@ -956,7 +978,7 @@ async function adminLogin(){
 async function adminLogout(){await api('/api/admin/logout',{method:'POST'});location.reload();}
 async function loadAdminData(){
   try{
-  const [stRes,subsRes,sourcesApiRes]=await Promise.allSettled([api('/api/dataset/unsw/status'),api('/api/admin/submissions'),api('/api/admin/datasets/sources')]);
+  const [stRes,subsRes,sourcesApiRes]=await Promise.allSettled([cachedApi('/api/dataset/unsw/status'),cachedApi('/api/admin/submissions'),cachedApi('/api/admin/datasets/sources')]);
   const st=stRes.status==='fulfilled'?stRes.value:{ok:false,data:{}};
   const subs=subsRes.status==='fulfilled'?subsRes.value:{ok:false,data:{submissions:[]},error:'用户提交接口不可用'};
   const sourcesRes=sourcesApiRes.status==='fulfilled'?sourcesApiRes.value:{ok:false,data:{sources:[]}};
@@ -1012,12 +1034,12 @@ async function loadAdminData(){
     toast('管理端数据加载失败','bad');
   }
 }
-async function processSystemDataset(){const r=await api('/api/dataset/unsw/process',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});toast(r.ok?'处理完成':r.error,r.ok?'ok':'bad');loadAdminData();loadNodes();}
-async function archiveSubmission(id){const r=await api(`/api/admin/submissions/${id}/archive`,{method:'POST'});toast(r.ok?'已归档':r.error,r.ok?'ok':'bad');loadAdminData();}
-async function markTrainable(id){const r=await api(`/api/admin/submissions/${id}/mark-trainable`,{method:'POST'});toast(r.ok?'已标记可训练':r.error,r.ok?'ok':'bad');loadAdminData();}
-async function rejectSubmission(id){const r=await api(`/api/admin/submissions/${id}/reject`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:'管理员确认暂不进入训练池'})});toast(r.ok?'已拒绝进入训练池':r.error,r.ok?'ok':'bad');loadAdminData();}
+async function processSystemDataset(){const r=await api('/api/dataset/unsw/process',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});clearAdminCache();toast(r.ok?'处理完成':r.error,r.ok?'ok':'bad');loadAdminData();loadNodes();}
+async function archiveSubmission(id){const r=await api(`/api/admin/submissions/${id}/archive`,{method:'POST'});clearAdminCache('/api/admin/submissions');toast(r.ok?'已归档':r.error,r.ok?'ok':'bad');loadAdminData();}
+async function markTrainable(id){const r=await api(`/api/admin/submissions/${id}/mark-trainable`,{method:'POST'});clearAdminCache('/api/admin/submissions');toast(r.ok?'已标记可训练':r.error,r.ok?'ok':'bad');loadAdminData();}
+async function rejectSubmission(id){const r=await api(`/api/admin/submissions/${id}/reject`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:'管理员确认暂不进入训练池'})});clearAdminCache('/api/admin/submissions');toast(r.ok?'已拒绝进入训练池':r.error,r.ok?'ok':'bad');loadAdminData();}
 async function loadNodes(){
-  const r=await api('/api/federated/nodes');
+  const r=await cachedApi('/api/federated/nodes');
   const data=obj(r.data);
   const nodes=arr(data.nodes);
   const html=nodes.length?nodes.map(n=>{
@@ -1265,6 +1287,7 @@ async function runAdminLocalTrain(){
   const r=await api('/api/admin/training/local',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:trainLimit(),dataset_source_id:currentDatasetSourceId})});
   toast(r.ok?'本地训练完成':r.error,r.ok?'ok':'bad');
   if(r.ok)renderTrainingResult(r.data,'local');
+  if(r.ok)clearAdminCache();
   loadTrainingRecords();loadModelVersions();
   return r;
 }
@@ -1274,6 +1297,7 @@ async function runAdminFederatedTrain(){
   const r=await api('/api/admin/training/federated',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({epochs:3,limit:trainLimit(),dataset_source_id:currentDatasetSourceId,aggregation_method:method,secure_aggregation:true})});
   toast(r.ok?'联邦训练完成':r.error,r.ok?'ok':'bad');
   if(r.ok)renderTrainingResult(r.data,'federated');
+  if(r.ok)clearAdminCache();
   loadNodes();loadTrainingRecords();loadModelVersions();
   return r;
 }
@@ -1289,18 +1313,13 @@ async function runAdminFullTraining(){
   }
 }
 async function loadDataProcessPage(){
-  await loadAdminData();
-  loadNodes();
-  loadTrainingRecords();
+  await Promise.allSettled([loadAdminData(),loadNodes(),loadTrainingRecords()]);
 }
 async function loadTrainingPage(){
-  await loadAdminData();
-  loadNodes();
-  loadTrainingRecords();
-  loadModelVersions();
+  await Promise.allSettled([loadAdminData(),loadNodes(),loadTrainingRecords()]);
 }
 async function loadTrainingRecords(){
-  const r=await api('/api/admin/training/tasks?limit=50');
+  const r=await cachedApi('/api/admin/training/tasks?limit=50');
   const rows=arr(obj(r.data).tasks);
   latestTrainingTasks=rows;
   const latestLocal=rows.find(x=>String(x.task_type||'').includes('local'));
@@ -1434,7 +1453,7 @@ function trainingTaskToModelVersion(task,idx=0){
   };
 }
 async function loadModelVersions(){
-  const r=await api('/api/admin/model-versions?limit=50');
+  const r=await cachedApi('/api/admin/model-versions?limit=50');
   if(!r.ok){
     modelVersionTable.innerHTML=`<tr><td colspan="11" class="text-muted">模型版本加载失败：${esc(r.error)}。请确认已经登录管理端。</td></tr>`;
     currentModelVersionCards.innerHTML='<div class="notice">模型版本加载失败，无法显示当前启用模型。</div>';
@@ -1444,7 +1463,7 @@ async function loadModelVersions(){
   const runtime=obj(obj(r.data).runtime_model);
   if(!rows.length){
     if(!latestTrainingTasks.length){
-      const tr=await api('/api/admin/training/tasks?limit=50');
+      const tr=await cachedApi('/api/admin/training/tasks?limit=50');
       latestTrainingTasks=arr(obj(tr.data).tasks);
     }
     rows=latestTrainingTasks.map((task,idx)=>trainingTaskToModelVersion(task,idx));

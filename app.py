@@ -126,6 +126,9 @@ _real_detector = None
 _real_detector_trained = False
 _real_federated = None
 _init_lock = threading.Lock()
+_dataset_sources_cache = {"time": 0.0, "value": None}
+_dataset_sources_cache_lock = threading.Lock()
+DATASET_SOURCES_CACHE_SECONDS = 30
 
 
 def _ensure_paillier():
@@ -549,11 +552,31 @@ def _list_dataset_sources():
     return sources
 
 
+def _clear_dataset_sources_cache():
+    with _dataset_sources_cache_lock:
+        _dataset_sources_cache["time"] = 0.0
+        _dataset_sources_cache["value"] = None
+
+
+def _list_dataset_sources_cached(force=False):
+    now = time.time()
+    with _dataset_sources_cache_lock:
+        cached = _dataset_sources_cache.get("value")
+        cached_at = float(_dataset_sources_cache.get("time") or 0)
+        if not force and cached is not None and now - cached_at < DATASET_SOURCES_CACHE_SECONDS:
+            return cached
+    fresh = _list_dataset_sources()
+    with _dataset_sources_cache_lock:
+        _dataset_sources_cache["time"] = now
+        _dataset_sources_cache["value"] = fresh
+    return fresh
+
+
 def _load_training_dataset_source(source_id=None, limit=50000):
     """Load a managed dataset source for admin local/federated training."""
     from src.preprocess.feature_engineering import load_security_csv, minmax_normalize
 
-    sources = _list_dataset_sources()
+    sources = _list_dataset_sources_cached()
     selected = None
     if source_id:
         selected = next((s for s in sources if s.get("id") == source_id), None)
@@ -1546,7 +1569,8 @@ def admin_submissions():
 @app.route("/api/admin/datasets/sources", methods=["GET"])
 def admin_dataset_sources():
     """List trainable dataset sources for the management portal."""
-    sources = _list_dataset_sources()
+    force = str(request.args.get("force", "")).lower() in {"1", "true", "yes"}
+    sources = _list_dataset_sources_cached(force=force)
     processed_meta = _load_processed_metadata()
     return jsonify(api_response(msg="success", data={
         "sources": sources,
@@ -1560,7 +1584,7 @@ def admin_dataset_sources():
 @app.route("/api/admin/datasets/<source_id>/prepare", methods=["POST"])
 def admin_dataset_prepare(source_id):
     """Prepare a selected dataset source for training and federated splitting."""
-    sources = _list_dataset_sources()
+    sources = _list_dataset_sources_cached()
     selected = next((s for s in sources if s.get("id") == source_id), None)
     if selected is None:
         return jsonify(api_response(code=404, msg="数据源不存在"))
@@ -2745,7 +2769,7 @@ def dataset_unsw_process():
         source = _find_dataset_source()
         source_id = req.get("source_id")
         if source_id:
-            selected = next((s for s in _list_dataset_sources() if s.get("id") == source_id), None)
+            selected = next((s for s in _list_dataset_sources_cached() if s.get("id") == source_id), None)
             if selected:
                 source = {
                     "path": selected.get("path"),
@@ -2793,6 +2817,7 @@ def dataset_unsw_process():
         with open(PROCESSED_META_PATH, "w", encoding="utf-8") as f:
             json.dump(metadata, f, ensure_ascii=False, indent=2)
 
+        _clear_dataset_sources_cache()
         return jsonify(api_response(data={
             **metadata,
             "nodes": [{"name": n[0], "samples": int(n[1]), "ready": True} for n in nodes],
