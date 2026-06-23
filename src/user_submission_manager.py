@@ -202,16 +202,121 @@ def validate_upload_file(path: str, filename: str) -> Dict:
     return {"filename": safe, "extension": ext, "size": size, "rows": min(len(records), MAX_UPLOAD_ROWS), "columns": len(columns)}
 
 
+def _submission_id_from_filename(filename: str) -> Optional[str]:
+    """Extract sub_YYYYMMDDHHMMSS_xxxxxxxx from a managed file name."""
+    match = re.match(r"^(sub_\d{14}_[0-9a-fA-F]+)", filename or "")
+    return match.group(1) if match else None
+
+
+def _safe_file_time(path: str) -> str:
+    try:
+        return datetime.fromtimestamp(os.path.getmtime(path)).strftime("%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return _now()
+
+
+def _rebuild_index_from_files() -> Dict:
+    """Best-effort recovery when the JSON index is missing but stored files exist."""
+    _ensure_dirs()
+    items: Dict[str, Dict] = {}
+
+    def ensure_item(submission_id: str, path: str) -> Dict:
+        item = items.setdefault(submission_id, {
+            "id": submission_id,
+            "filename": "unknown.csv",
+            "upload_time": _safe_file_time(path),
+            "status": "已加密归档",
+            "review_status": REVIEW_STATUS["pending"],
+            "review_status_note": REVIEW_STATUS_NOTE[REVIEW_STATUS["pending"]],
+            "trainable": False,
+            "encrypted": False,
+            "row_count": 0,
+            "column_count": 0,
+            "columns": [],
+            "label_column": None,
+            "risk_summary": {},
+            "sensitive_columns": [],
+            "masked_preview": [],
+            "source": "用户上传数据",
+        })
+        if path and _safe_file_time(path) < item.get("upload_time", _now()):
+            item["upload_time"] = _safe_file_time(path)
+        return item
+
+    if os.path.isdir(TEMP_DIR):
+        for name in os.listdir(TEMP_DIR):
+            path = os.path.join(TEMP_DIR, name)
+            if not os.path.isfile(path):
+                continue
+            submission_id = _submission_id_from_filename(name)
+            if not submission_id:
+                continue
+            item = ensure_item(submission_id, path)
+            filename = name[len(submission_id) + 1:] if name.startswith(submission_id + "_") else name
+            item["filename"] = filename or item["filename"]
+            item["plain_temp_path"] = path
+            try:
+                rows, columns = _load_rows(path, filename, limit=MAX_PREVIEW_ROWS)
+                item["columns"] = columns
+                item["column_count"] = len(columns)
+                item["label_column"] = _detect_label_column(columns)
+                item["sensitive_columns"] = _detect_sensitive_columns(columns)
+                item["masked_preview"] = [_mask_row(row) for row in rows[:MAX_PREVIEW_ROWS]]
+                if item["row_count"] <= 0:
+                    if filename.lower().endswith(".csv"):
+                        with open(path, "r", encoding="utf-8", errors="replace", newline="") as f:
+                            item["row_count"] = max(0, sum(1 for _ in f) - 1)
+                    else:
+                        all_rows, _ = _load_rows(path, filename, limit=MAX_UPLOAD_ROWS)
+                        item["row_count"] = len(all_rows)
+            except Exception:
+                pass
+
+    if os.path.isdir(ARCHIVE_DIR):
+        for name in os.listdir(ARCHIVE_DIR):
+            path = os.path.join(ARCHIVE_DIR, name)
+            if not os.path.isfile(path):
+                continue
+            submission_id = _submission_id_from_filename(name)
+            if not submission_id:
+                continue
+            item = ensure_item(submission_id, path)
+            item["encrypted_path"] = path
+            item["encrypted"] = True
+            item.setdefault("encryption", {"algorithm": "AES-256-GCM", "cipher_size": os.path.getsize(path)})
+
+    if os.path.isdir(REPORT_DIR):
+        for name in os.listdir(REPORT_DIR):
+            path = os.path.join(REPORT_DIR, name)
+            if not os.path.isfile(path):
+                continue
+            submission_id = _submission_id_from_filename(name)
+            if not submission_id:
+                continue
+            item = ensure_item(submission_id, path)
+            item["report_path"] = path
+
+    rebuilt = {"submissions": sorted(items.values(), key=lambda v: v.get("upload_time", ""), reverse=True)}
+    if rebuilt["submissions"]:
+        try:
+            _write_index(rebuilt)
+        except Exception:
+            pass
+    return rebuilt
+
+
 def _read_index() -> Dict:
     _ensure_dirs()
     try:
         with open(INDEX_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
         if not isinstance(data, dict) or not isinstance(data.get("submissions"), list):
-            return {"submissions": []}
+            return _rebuild_index_from_files()
+        if not data.get("submissions"):
+            return _rebuild_index_from_files()
         return data
     except Exception:
-        return {"submissions": []}
+        return _rebuild_index_from_files()
 
 
 def _write_index(data: Dict) -> None:

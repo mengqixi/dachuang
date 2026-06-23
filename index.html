@@ -311,13 +311,13 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
       <div class="panel-head"><i class="fas fa-code-branch text-primary"></i> 模型版本 - 当前检测模型与训练追踪</div>
       <div class="panel-body">
         <button class="btn-lightx mb-3" onclick="loadTrainingRecords()">刷新模型状态</button>
-        <div id="currentModelVersionCards" class="model-version-grid">
-          <div class="notice">暂无当前模型版本记录。执行本地训练或四节点联邦训练后，这里会显示当前启用模型。</div>
-        </div>
         <div class="chart-card mt-3">
           <div class="compare-head"><b>本地训练 / 四节点联邦训练对比</b><span class="mini-badge">来自训练任务记录</span></div>
           <div class="chart-canvas-wrap"><canvas id="modelVersionCompareChart"></canvas></div>
           <div class="chart-fallback" id="modelVersionCompareFallback"></div>
+        </div>
+        <div id="currentModelVersionCards" class="model-version-grid mt-3">
+          <div class="notice">暂无可展示模型摘要。执行训练后，这里会显示最近训练版本和可用指标。</div>
         </div>
       </div>
     </div>
@@ -937,7 +937,11 @@ async function adminLogin(){
 }
 async function adminLogout(){await api('/api/admin/logout',{method:'POST'});location.reload();}
 async function loadAdminData(){
-  const [st,subs,sourcesRes]=await Promise.all([api('/api/dataset/unsw/status'),api('/api/admin/submissions'),api('/api/admin/datasets/sources')]);
+  try{
+  const [stRes,subsRes,sourcesApiRes]=await Promise.allSettled([api('/api/dataset/unsw/status'),api('/api/admin/submissions'),api('/api/admin/datasets/sources')]);
+  const st=stRes.status==='fulfilled'?stRes.value:{ok:false,data:{}};
+  const subs=subsRes.status==='fulfilled'?subsRes.value:{ok:false,data:{submissions:[]},error:'用户提交接口不可用'};
+  const sourcesRes=sourcesApiRes.status==='fulfilled'?sourcesApiRes.value:{ok:false,data:{sources:[]}};
   const sd=obj(st.data);
   const sources=arr(obj(sourcesRes.data).sources);
   currentDatasetSource = sources.find(s=>s.trainable)||sources[0]||sd;
@@ -979,7 +983,16 @@ async function loadAdminData(){
     <td>${esc(fmtTime(r.recent_operation_time||r.upload_time))}</td>
     <td>${riskSummaryTags(r.risk_summary)}</td>
     <td>${submissionActionButtons(r)}</td>
-  </tr>`).join(''):'<tr><td colspan="11" class="text-muted">暂无用户提交</td></tr>';
+  </tr>`).join(''):`<tr><td colspan="11" class="text-muted">${subs.ok?'暂无用户提交':'用户提交加载失败，请刷新或检查登录状态'}</td></tr>`;
+  }catch(err){
+    console.error('loadAdminData failed',err);
+    submissionRiskMetrics.innerHTML=[
+      ['用户提交',0],['高风险样本',0],['中风险样本',0],['可训练提交',0]
+    ].map(x=>`<div class="metric"><div class="metric-value">${esc(x[1])}</div><div class="metric-label">${x[0]}</div></div>`).join('');
+    submissionTable.innerHTML='<tr><td colspan="11" class="text-muted">用户提交加载失败，请刷新页面或重新登录管理端。</td></tr>';
+    if(typeof datasetSourceTable!=='undefined')datasetSourceTable.innerHTML='<tr><td colspan="9" class="text-muted">训练数据源加载失败</td></tr>';
+    toast('管理端数据加载失败','bad');
+  }
 }
 async function processSystemDataset(){const r=await api('/api/dataset/unsw/process',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});toast(r.ok?'处理完成':r.error,r.ok?'ok':'bad');loadAdminData();loadNodes();}
 async function archiveSubmission(id){const r=await api(`/api/admin/submissions/${id}/archive`,{method:'POST'});toast(r.ok?'已归档':r.error,r.ok?'ok':'bad');loadAdminData();}
@@ -1116,6 +1129,8 @@ function renderModelVersionCompareChart(){
   });
 }
 function renderCompareChartCore(canvas,fallback,local={},fed={},chartRef){
+  const hasLocal=Number(local.accuracy)>0 || Number(local.samples)>0 || Number(local.loss)>0;
+  const hasFed=Number(fed.accuracy)>0 || Number(fed.samples)>0 || Number(fed.loss)>0;
   const lAcc=pctValue(local.accuracy);
   const fAcc=pctValue(fed.accuracy);
   const lLoss=Number(local.loss)||0;
@@ -1136,25 +1151,31 @@ function renderCompareChartCore(canvas,fallback,local={},fed={},chartRef){
         <div class="bar-track"><div class="bar-fill fed" style="width:${safeWidth(fv)}%"></div></div>
         <span class="value">${esc(fs)}</span>
       </div>`;
-    fallback.innerHTML=`
+    fallback.innerHTML=!hasLocal&&!hasFed
+      ? '<div class="notice mb-0">暂无训练对比数据。请先在数据处理页执行本地训练和四节点联邦训练。</div>'
+      : `
       <div class="chart-fallback-row small-text text-muted">
         <span></span><b>本地训练</b><span></span><b>四节点联邦</b><span></span>
       </div>
       ${row('准确率',lAcc,fAcc,metricDisplay(local.accuracy),metricDisplay(fed.accuracy))}
       ${row('损失表现',lLossScore,fLossScore,lossDisplay(local.loss),lossDisplay(fed.loss))}
-      ${row('样本覆盖',lSamples,fSamples,local.samples||'--',fed.samples||'--')}`;
+      ${row('样本覆盖',lSamples,fSamples,local.samples||'--',fed.samples||'--')}
+      ${!hasFed?'<div class="small-text text-muted mt-2">当前只有本地训练记录，四节点联邦训练完成后会自动加入对比。</div>':''}
+      ${!hasLocal?'<div class="small-text text-muted mt-2">当前只有联邦训练记录，本地训练完成后会自动加入对比。</div>':''}`;
   }
   if(!canvas || typeof Chart==='undefined')return;
   const oldChart=chartRef&&chartRef.get?chartRef.get():null;
   if(oldChart)oldChart.destroy();
+  const datasets=[];
+  if(hasLocal)datasets.push({label:'本地训练',data:[lAcc,lLossScore,lSamples],backgroundColor:'#4F83C2'});
+  if(hasFed)datasets.push({label:'四节点联邦',data:[fAcc,fLossScore,fSamples],backgroundColor:'#73A942'});
+  if(!datasets.length){canvas.style.display='none';return}
+  canvas.style.display='block';
   const chart=new Chart(canvas,{
     type:'bar',
     data:{
       labels:['准确率','损失表现','样本覆盖'],
-      datasets:[
-        {label:'本地训练',data:[lAcc,lLossScore,lSamples],backgroundColor:'#4F83C2'},
-        {label:'四节点联邦',data:[fAcc,fLossScore,fSamples],backgroundColor:'#73A942'}
-      ]
+      datasets
     },
     options:{
       responsive:true,
@@ -1320,8 +1341,9 @@ function modelStatusBadge(v){
   return'<span class="status-pill info">仅追踪</span>';
 }
 function renderCurrentModelVersionCards(rows,runtime){
-  const list=arr(rows).filter(v=>v.current_runtime);
-  if(runtime && (runtime.is_ready || runtime.model_version)){
+  const runtimeHasMetrics=runtime && (runtime.model_version || runtime.accuracy || obj(runtime.raw_status).samples || obj(runtime.raw_status).train_samples);
+  const list=arr(rows).filter(v=>v.current_runtime || v.current_display || Number(v.accuracy)>0 || Number(v.samples)>0).slice(0,4);
+  if(runtimeHasMetrics){
     const raw=obj(runtime.raw_status);
     list.unshift({
       version: runtime.model_version || raw.version || 'runtime',
@@ -1336,11 +1358,12 @@ function renderCurrentModelVersionCards(rows,runtime){
       current_runtime:true
     });
   }
-  if(!list.length){
-    currentModelVersionCards.innerHTML='<div class="notice">暂无当前模型版本状态。执行训练后可在下方选择一个版本作为当前展示版本；如版本带运行时模型文件，才会同步切换检测模型。</div>';
+  const visible=list.filter(Boolean).slice(0,4);
+  if(!visible.length){
+    currentModelVersionCards.innerHTML='<div class="notice">暂无可展示模型摘要。请先执行本地训练或四节点联邦训练，系统会在下方生成训练任务和版本追踪记录。</div>';
     return;
   }
-  currentModelVersionCards.innerHTML=list.map(v=>{
+  currentModelVersionCards.innerHTML=visible.map(v=>{
     const meta=parseJsonObject(v.metadata);
     const nested=parseJsonObject(meta.metadata);
     const merged={...meta,...nested,...v};
@@ -1348,15 +1371,21 @@ function renderCurrentModelVersionCards(rows,runtime){
     return `<div class="model-version-card">
       <h6>${esc(modelTypeLabel(v.model_type))}</h6>
       <div class="model-version-meta">
-        <div><b>${esc(v.version||v.model_version||'-')}</b><span>当前版本</span></div>
+        <div><b>${esc(v.version||v.model_version||'-')}</b><span>版本</span></div>
         <div><b>${esc(algorithm)}</b><span>算法</span></div>
         <div><b>${esc(metricText(v.accuracy))}</b><span>指标</span></div>
         <div><b>${esc(v.samples||merged.samples||'-')}</b><span>训练样本</span></div>
         <div><b>${esc(modelSourceLabel(v.source))}</b><span>数据来源</span></div>
-        <div><b>${esc(modelArtifactLabel(v))}</b><span>artifact 状态</span></div>
+        <div><b>${esc(modelStatusText(v))}</b><span>状态</span></div>
       </div>
     </div>`;
   }).join('');
+}
+function modelStatusText(v){
+  if(v.current_runtime)return'当前运行';
+  if(v.current_display)return'当前展示';
+  if(v.can_activate)return'可启用';
+  return modelArtifactLabel(v);
 }
 function trainingTaskToModelVersion(task,idx=0){
   const meta=parseJsonObject(task.metadata);
