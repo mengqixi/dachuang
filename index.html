@@ -247,6 +247,16 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
         <div class="node-grid" id="fedNodesDataProcess"></div>
       </div>
     </div>
+    <div class="panel">
+      <div class="panel-head">本地训练 / 四节点联邦训练对比</div>
+      <div class="panel-body">
+        <div class="chart-card mt-2">
+          <div class="compare-head"><b>训练结果对比</b><span class="mini-badge">来自训练任务记录</span></div>
+          <div class="chart-canvas-wrap"><canvas id="modelVersionCompareChart"></canvas></div>
+          <div class="chart-fallback" id="modelVersionCompareFallback"></div>
+        </div>
+      </div>
+    </div>
   </section>
 
   <section class="page" id="pg-training">
@@ -311,11 +321,6 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
       <div class="panel-head"><i class="fas fa-code-branch text-primary"></i> 模型版本 - 当前检测模型与训练追踪</div>
       <div class="panel-body">
         <button class="btn-lightx mb-3" onclick="loadTrainingRecords()">刷新模型状态</button>
-        <div class="chart-card mt-3">
-          <div class="compare-head"><b>本地训练 / 四节点联邦训练对比</b><span class="mini-badge">来自训练任务记录</span></div>
-          <div class="chart-canvas-wrap"><canvas id="modelVersionCompareChart"></canvas></div>
-          <div class="chart-fallback" id="modelVersionCompareFallback"></div>
-        </div>
         <div id="currentModelVersionCards" class="model-version-grid mt-3">
           <div class="notice">暂无可展示模型摘要。执行训练后，这里会显示最近训练版本和可用指标。</div>
         </div>
@@ -497,7 +502,20 @@ function loginPreviewRows(rows){
   })));
 }
 function toast(msg,type='info'){const el=document.createElement('div');el.className='toastx';el.style.background=type==='bad'?'#C62828':type==='ok'?'#2E7D32':'#2F5F93';el.textContent=msg;document.body.appendChild(el);setTimeout(()=>el.remove(),2600)}
-async function api(url,opt={}){try{const r=await fetch(url,{credentials:'same-origin',...opt});const t=await r.text();let j={};try{j=t?JSON.parse(t):{}}catch(e){return{ok:false,error:'响应不是 JSON'}};if(!r.ok||j.code&&j.code!==200)return{ok:false,error:j.msg||r.statusText,data:j.data};return{ok:true,data:j.data??j,msg:j.msg}}catch(e){return{ok:false,error:e.message}}}
+async function api(url,opt={}){
+  try{
+    const r=await fetch(url,{credentials:'same-origin',...opt});
+    const t=await r.text();
+    let j={};
+    try{j=t?JSON.parse(t):{}}
+    catch(e){
+      const hint=t&&t.includes('管理端登录')?'请重新登录管理端':'接口返回非 JSON，请检查服务端日志';
+      return{ok:false,error:`${hint}（HTTP ${r.status}）`};
+    }
+    if(!r.ok||j.code&&j.code!==200)return{ok:false,error:j.msg||r.statusText,data:j.data};
+    return{ok:true,data:j.data??j,msg:j.msg}
+  }catch(e){return{ok:false,error:e.message}}
+}
 function table(rows,cols){if(!rows.length)return '<div class="p-3 text-muted">暂无数据</div>';return '<table class="table table-sm"><thead><tr>'+cols.map(c=>`<th>${c[0]}</th>`).join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+cols.map(c=>`<td>${esc(typeof c[1]==='function'?c[1](r):r[c[1]])}</td>`).join('')+'</tr>').join('')+'</tbody></table>'}
 
 function previewCols(row){
@@ -966,7 +984,7 @@ async function loadAdminData(){
       <td class="small-text">${esc(s.description||'-')}</td>
     </tr>`).join(''):'<tr><td colspan="9" class="text-muted">未检测到可用训练数据源</td></tr>';
   }
-  const rows=arr(obj(subs.data).submissions);
+  const rows=arr(obj(subs.data).submissions).filter(r=>Number(r.row_count||0)>0);
   const totals=rows.reduce((acc,r)=>{const c=riskSummaryCounts(r.risk_summary);acc.high+=c.high;acc.medium+=c.medium;acc.trainable+=r.trainable?1:0;return acc},{high:0,medium:0,trainable:0});
   submissionRiskMetrics.innerHTML=[
     ['用户提交',rows.length],['高风险样本',totals.high],['中风险样本',totals.medium],['可训练提交',totals.trainable]
@@ -1273,6 +1291,7 @@ async function runAdminFullTraining(){
 async function loadDataProcessPage(){
   await loadAdminData();
   loadNodes();
+  loadTrainingRecords();
 }
 async function loadTrainingPage(){
   await loadAdminData();

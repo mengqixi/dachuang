@@ -239,7 +239,7 @@ def save_training_record(record):
     records = []
     if os.path.exists(TRAINING_RECORDS_FILE):
         try:
-            with open(TRAINING_RECORDS_FILE, "r", encoding="utf-8") as f:
+            with open(TRAINING_RECORDS_FILE, "r", encoding="utf-8-sig") as f:
                 records = json.load(f)
         except Exception:
             records = []
@@ -253,7 +253,7 @@ def get_training_records(limit=20):
     if not os.path.exists(TRAINING_RECORDS_FILE):
         return []
     try:
-        with open(TRAINING_RECORDS_FILE, "r", encoding="utf-8") as f:
+        with open(TRAINING_RECORDS_FILE, "r", encoding="utf-8-sig") as f:
             records = json.load(f)
         return records[-limit:][::-1]  # 最新的在前
     except Exception:

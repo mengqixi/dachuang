@@ -24,7 +24,7 @@ from src.dataset_manager import dataset_manager, save_training_record, get_train
 from src.data_generator import generate_and_prepare, ensure_data_generated, FEATURE_NAMES as GEN_FEATURES
 from src.utils.data_storage import db
 from src.utils.model_manager import model_manager
-from src.user_submission_manager import UploadValidationError, user_submission_manager, validate_upload_file
+from src.user_submission_manager import SubmissionStatusError, UploadValidationError, user_submission_manager, validate_upload_file
 
 # ─── 日志配置 ───
 logger.remove()
@@ -1598,14 +1598,20 @@ def admin_submission_archive(submission_id):
 
 @app.route("/api/admin/submissions/<submission_id>/mark-trainable", methods=["POST"])
 def admin_submission_mark_trainable(submission_id):
-    item = user_submission_manager.set_status(submission_id, review_status="可训练", trainable=True)
-    if item is None:
-        return jsonify(api_response(code=404, msg="提交记录不存在"))
     try:
-        db.upsert_user_submission(item)
-    except Exception as persist_error:
-        logger.warning("Persist trainable status failed: %s", persist_error)
-    return jsonify(api_response(msg="已标记为可训练", data=item))
+        item = user_submission_manager.set_status(submission_id, review_status="可训练", trainable=True)
+        if item is None:
+            return jsonify(api_response(code=404, msg="提交记录不存在"))
+        try:
+            db.upsert_user_submission(item)
+        except Exception as persist_error:
+            logger.warning("Persist trainable status failed: %s", persist_error)
+        return jsonify(api_response(msg="已标记为可训练", data=item))
+    except SubmissionStatusError as e:
+        return jsonify(api_response(code=400, msg=str(e)))
+    except Exception as e:
+        logger.exception("Mark submission trainable failed")
+        return jsonify(api_response(code=500, msg="标记可训练失败: %s" % e))
 
 
 @app.route("/api/admin/submissions/<submission_id>/reject", methods=["POST"])
@@ -1816,6 +1822,7 @@ def admin_training_federated():
             model_version=version,
             samples=int(len(X)),
         )
+        save_training_record(data)
         try:
             db.save_training_task_record({
                 "task_type": "federated",
@@ -1850,10 +1857,134 @@ def admin_training_federated():
 @app.route("/api/admin/training/tasks", methods=["GET"])
 def admin_training_tasks():
     limit = max(1, min(int(request.args.get("limit", 50) or 50), 200))
+    sqlite_tasks = db.get_training_tasks(limit)
+    legacy_tasks = []
+    try:
+        legacy_tasks = [_normalize_legacy_training_record(r) for r in get_training_records(limit=200)]
+    except Exception as legacy_error:
+        logger.warning("Load legacy training records failed: %s", legacy_error)
+    tasks = _merge_training_tasks(sqlite_tasks, legacy_tasks, limit)
     return jsonify(api_response(msg="success", data={
-        "tasks": db.get_training_tasks(limit),
+        "tasks": tasks,
         "limit": limit,
+        "sources": {
+            "sqlite": len(sqlite_tasks),
+            "legacy_json": len(legacy_tasks),
+        },
     }))
+
+
+def _normalize_legacy_training_record(record):
+    """Convert older data/training_records.json rows into admin task shape."""
+    meta = dict(record or {})
+    task_type = meta.get("task_type") or meta.get("type") or meta.get("model_type") or "local"
+    task_type = "federated" if "fed" in str(task_type).lower() else "local"
+    accuracy = (
+        meta.get("accuracy")
+        if meta.get("accuracy") is not None
+        else meta.get("avg_accuracy", meta.get("federated_accuracy", meta.get("traditional_accuracy", 0)))
+    )
+    return {
+        "id": "legacy:%s:%s" % (task_type, meta.get("timestamp") or meta.get("created_at") or meta.get("model_version") or ""),
+        "task_type": task_type,
+        "source": meta.get("source") or meta.get("dataset_name") or "legacy_training_records",
+        "samples": int(meta.get("samples") or meta.get("train_samples") or 0),
+        "accuracy": float(accuracy or 0),
+        "status": meta.get("status") or "completed",
+        "timestamp": meta.get("timestamp") or meta.get("created_at") or "",
+        "metadata": json.dumps(meta, ensure_ascii=False),
+        "legacy": True,
+    }
+
+
+def _task_time_key(task):
+    value = task.get("timestamp") or task.get("created_at") or ""
+    try:
+        return datetime.strptime(str(value)[:19], "%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return datetime.min
+
+
+def _task_dedupe_key(task):
+    meta = _parse_meta(task.get("metadata"))
+    return "|".join([
+        str(task.get("task_type") or ""),
+        str(task.get("source") or ""),
+        str(task.get("samples") or ""),
+        str(round(float(task.get("accuracy") or 0), 6)),
+        str(task.get("timestamp") or meta.get("timestamp") or meta.get("created_at") or ""),
+    ])
+
+
+def _merge_training_tasks(primary, legacy, limit):
+    merged = []
+    seen = set()
+    for task in list(primary or []) + list(legacy or []):
+        key = _task_dedupe_key(task)
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(task)
+    merged.sort(key=_task_time_key, reverse=True)
+    return merged[:limit]
+
+
+def _training_task_to_tracking_version(task, index=0):
+    meta = _parse_meta(task.get("metadata"))
+    nested = _parse_meta(meta.get("metadata"))
+    merged = {**meta, **nested}
+    task_type = str(task.get("task_type") or merged.get("task_type") or "local")
+    is_federated = "fed" in task_type.lower()
+    version = (
+        merged.get("model_version")
+        or merged.get("version")
+        or task.get("model_version")
+        or task.get("version")
+        or ("%s-task-%s" % ("fed" if is_federated else "local", index + 1))
+    )
+    samples = task.get("samples") if task.get("samples") is not None else merged.get("samples", 0)
+    accuracy = task.get("accuracy") if task.get("accuracy") is not None else merged.get("accuracy", 0)
+    return {
+        "id": -1 * (index + 1),
+        "version": version,
+        "model_version": version,
+        "model_type": "federated_tracking_model" if is_federated else "local_tracking_model",
+        "algorithm": merged.get("algorithm") or ("fedavg" if is_federated else "ensemble_detector"),
+        "source": task.get("source") or merged.get("source") or merged.get("dataset_name") or "training_task",
+        "samples": samples or 0,
+        "accuracy": accuracy or 0,
+        "recall": merged.get("recall", merged.get("precision", "")),
+        "f1_score": merged.get("f1_score", merged.get("f1", "")),
+        "status": task.get("status") or merged.get("status") or "completed",
+        "created_at": task.get("timestamp") or merged.get("timestamp") or merged.get("created_at") or "",
+        "metadata": json.dumps({**merged, "task_type": task_type, "task_status": task.get("status")}, ensure_ascii=False),
+        "current": False,
+        "current_display": False,
+        "current_runtime": False,
+        "can_activate": False,
+        "activation_reason": "该记录来自训练任务，用于追踪训练来源和指标；未绑定运行时模型文件。",
+        "artifact_status": "tracking_only",
+        "version_role": "training_tracking",
+        "note": "训练任务追踪版本",
+    }
+
+
+def _merge_model_versions_with_tasks(versions, tasks, limit):
+    merged = []
+    seen = set()
+    for item in versions or []:
+        key = str(item.get("version") or item.get("model_version") or item.get("id") or "")
+        seen.add(key)
+        merged.append(item)
+    for idx, task in enumerate(tasks or []):
+        version = _training_task_to_tracking_version(task, idx)
+        key = str(version.get("version") or "")
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(version)
+    merged.sort(key=lambda v: _task_time_key({"timestamp": v.get("created_at") or _parse_meta(v.get("metadata")).get("timestamp")}), reverse=True)
+    return merged[:limit]
 
 
 def _parse_meta(value):
@@ -1927,7 +2058,15 @@ def admin_model_versions():
     except Exception as backfill_error:
         logger.warning("Backfill model versions failed: %s", backfill_error)
     runtime_numbers = _runtime_version_numbers()
+    sqlite_tasks = db.get_training_tasks(limit)
+    legacy_tasks = []
+    try:
+        legacy_tasks = [_normalize_legacy_training_record(r) for r in get_training_records(limit=200)]
+    except Exception as legacy_error:
+        logger.warning("Load model version legacy records failed: %s", legacy_error)
+    tasks = _merge_training_tasks(sqlite_tasks, legacy_tasks, limit)
     versions = [_enrich_model_version(v, runtime_numbers) for v in db.get_model_versions(limit)]
+    versions = _merge_model_versions_with_tasks(versions, tasks, limit)
     runtime_status = {}
     runtime_versions = []
     try:
@@ -1937,6 +2076,7 @@ def admin_model_versions():
         runtime_status = {"error": str(status_error)}
     return jsonify(api_response(msg="success", data={
         "versions": versions,
+        "training_task_count": len(tasks),
         "runtime_versions": runtime_versions,
         "runtime_model": {
             "available": bool(runtime_status),

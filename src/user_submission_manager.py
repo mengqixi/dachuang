@@ -61,6 +61,10 @@ SUPPORTED_UPLOAD_EXTENSIONS = {"csv", "json"}
 class UploadValidationError(ValueError):
     """Raised when an uploaded CSV/JSON file fails safety validation."""
 
+
+class SubmissionStatusError(ValueError):
+    """Raised when a submission cannot move to the requested review state."""
+
 LOGIN_SECURITY_FIELD_HINTS = {
     "ip", "client_ip", "remote_ip", "source_ip", "src_ip",
     "username", "user", "account", "login_name",
@@ -1119,7 +1123,8 @@ class UserSubmissionManager:
 
     def list_submissions(self) -> List[Dict]:
         items = _read_index().get("submissions", [])
-        return [self.public_summary(x) for x in sorted(items, key=lambda v: v.get("upload_time", ""), reverse=True)]
+        visible_items = [x for x in items if int(x.get("row_count") or 0) > 0]
+        return [self.public_summary(x) for x in sorted(visible_items, key=lambda v: v.get("upload_time", ""), reverse=True)]
 
     def get_submission(self, submission_id: str, include_preview: bool = True) -> Optional[Dict]:
         for item in _read_index().get("submissions", []):
@@ -1480,6 +1485,8 @@ class UserSubmissionManager:
             item = next((x for x in data.get("submissions", []) if x.get("id") == submission_id), None)
             if item is None:
                 return None
+            if (patch.get("trainable") or patch.get("review_status") == REVIEW_STATUS["trainable"]) and int(item.get("row_count") or 0) <= 0:
+                raise SubmissionStatusError("样本数为 0 的提交不能进入训练池，请重新上传有效 CSV/JSON 数据。")
             history = item.get("review_history", [])
             if not isinstance(history, list):
                 history = []
