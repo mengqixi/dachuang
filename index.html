@@ -314,6 +314,11 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
         <div id="currentModelVersionCards" class="model-version-grid">
           <div class="notice">暂无当前模型版本记录。执行本地训练或四节点联邦训练后，这里会显示当前启用模型。</div>
         </div>
+        <div class="chart-card mt-3">
+          <div class="compare-head"><b>本地训练 / 四节点联邦训练对比</b><span class="mini-badge">来自训练任务记录</span></div>
+          <div class="chart-canvas-wrap"><canvas id="modelVersionCompareChart"></canvas></div>
+          <div class="chart-fallback" id="modelVersionCompareFallback"></div>
+        </div>
       </div>
     </div>
     <div class="panel">
@@ -423,6 +428,7 @@ let currentDatasetSource = null;
 let auditState = {eventOffset:0, visitOffset:0, events:[], visits:[], totalEvents:0, totalVisits:0};
 let trainingCompareState = {local:null, federated:null};
 let trainingCompareChartObj = null;
+let modelVersionCompareChartObj = null;
 let latestTrainingTasks = [];
 
 function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
@@ -1094,6 +1100,22 @@ function renderAggregationVisual(){
 function renderTrainingChart(local,fed){
   const canvas=document.getElementById('trainingCompareChart');
   const fallback=document.getElementById('trainingCompareFallback');
+  renderCompareChartCore(canvas,fallback,local,fed,{
+    get:()=>trainingCompareChartObj,
+    set:(chart)=>{trainingCompareChartObj=chart;}
+  });
+}
+function renderModelVersionCompareChart(){
+  const canvas=document.getElementById('modelVersionCompareChart');
+  const fallback=document.getElementById('modelVersionCompareFallback');
+  const local=trainingCompareState.local||{};
+  const fed=trainingCompareState.federated||{};
+  renderCompareChartCore(canvas,fallback,local,fed,{
+    get:()=>modelVersionCompareChartObj,
+    set:(chart)=>{modelVersionCompareChartObj=chart;}
+  });
+}
+function renderCompareChartCore(canvas,fallback,local={},fed={},chartRef){
   const lAcc=pctValue(local.accuracy);
   const fAcc=pctValue(fed.accuracy);
   const lLoss=Number(local.loss)||0;
@@ -1123,8 +1145,9 @@ function renderTrainingChart(local,fed){
       ${row('样本覆盖',lSamples,fSamples,local.samples||'--',fed.samples||'--')}`;
   }
   if(!canvas || typeof Chart==='undefined')return;
-  if(trainingCompareChartObj)trainingCompareChartObj.destroy();
-  trainingCompareChartObj=new Chart(canvas,{
+  const oldChart=chartRef&&chartRef.get?chartRef.get():null;
+  if(oldChart)oldChart.destroy();
+  const chart=new Chart(canvas,{
     type:'bar',
     data:{
       labels:['准确率','损失表现','样本覆盖'],
@@ -1140,12 +1163,14 @@ function renderTrainingChart(local,fed){
       scales:{y:{beginAtZero:true,max:100,ticks:{callback:v=>v+'%'}}}
     }
   });
+  if(chartRef&&chartRef.set)chartRef.set(chart);
 }
 function renderTrainingCompare(){
-  if(typeof trainingCompareBox==='undefined')return;
   const local=trainingCompareState.local||{};
   const fed=trainingCompareState.federated||{};
   renderTrainingChart(local,fed);
+  renderModelVersionCompareChart();
+  if(typeof trainingCompareBox==='undefined')return;
   const lp=pctValue(local.accuracy), fp=pctValue(fed.accuracy);
   const maxSamples=Math.max(Number(local.samples)||0,Number(fed.samples)||0,1);
   const lsp=sampleBarValue(local.samples,maxSamples), fsp=sampleBarValue(fed.samples,maxSamples);
