@@ -40,7 +40,7 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
 .two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}.two-col>*{min-width:0}.two-col.training-layout{grid-template-columns:minmax(460px,.95fr) minmax(520px,1.05fr);align-items:stretch}.two-col.training-layout>.panel{height:100%}.three-col{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .training-flow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:12px 0}.training-step{border:1px solid #DDE7F0;background:#F8FBFE;border-radius:10px;padding:10px;text-align:center;font-size:12px;color:#456;min-height:58px}.training-step b{display:block;color:#1E5C9A;margin-bottom:4px}.aggregation-flow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:10px 0}.aggregation-step{border:1px solid #DDE7F0;background:#fff;border-radius:10px;padding:10px;text-align:center;font-size:12px;min-height:70px}.aggregation-step b{display:block;color:#1E5C9A;margin-bottom:5px}.aggregation-step.secure{border-color:#BBD3EC;background:#F6FBFF}.cost-bars{display:grid;gap:7px;margin-top:10px}.cost-row{display:grid;grid-template-columns:88px 1fr 54px;gap:8px;align-items:center;font-size:12px}.result-card{border:1px solid #DDE7F0;background:#fff;border-radius:10px;padding:12px;margin-top:12px}.result-card .title{font-weight:800;color:#1E5C9A;margin-bottom:8px}.result-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.result-item{background:#F8FBFE;border:1px solid #E6ECF2;border-radius:8px;padding:8px}.result-item b{display:block;font-size:16px;color:#2F5F93}.tag-line{display:flex;flex-wrap:wrap;gap:6px}.mini-badge{display:inline-block;background:#EAF3FF;color:#1E5C9A;border:1px solid #BBD3EC;border-radius:999px;padding:3px 8px;font-size:12px;font-weight:700}
 .training-compare{border:1px solid #DDE7F0;background:#FAFCFF;border-radius:10px;padding:12px;margin-top:12px}.compare-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}.compare-head b{color:#1E5C9A}.compare-row{display:grid;grid-template-columns:92px 1fr 74px;gap:10px;align-items:center;margin:10px 0}.bar-track{height:14px;background:#E9EEF5;border-radius:999px;overflow:hidden}.bar-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#6EA8FE,#2F5F93);min-width:2px}.bar-fill.fed{background:linear-gradient(90deg,#9CCC65,#2E7D32)}.bar-fill.loss{background:linear-gradient(90deg,#FFCC80,#EF6C00)}.bar-fill.cost{background:linear-gradient(90deg,#BBD3EC,#1E5C9A)}.compare-note{font-size:12px;color:#607D8B;line-height:1.65}.compare-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:10px}.compare-card{background:#fff;border:1px solid #E6ECF2;border-radius:8px;padding:9px}.compare-card strong{display:block;color:#2F5F93;font-size:18px}.compare-card span{font-size:12px;color:#607D8B}.compare-split{display:grid;grid-template-columns:1fr 1fr;gap:10px}.compare-box{background:#fff;border:1px solid #E6ECF2;border-radius:10px;padding:10px}.compare-box h6{font-size:13px;font-weight:800;color:#1E5C9A;margin:0 0 8px}.compare-explain{background:#F8FBFE;border:1px dashed #C7D2DE;border-radius:8px;padding:9px;margin-top:10px;font-size:12px;color:#455A64;line-height:1.65}.method-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.method-card{background:#fff;border:1px solid #DDE7F0;border-radius:12px;padding:12px}.method-card.secure{border-color:#BBD3EC;background:#F8FBFE}.method-card .aggregation-flow{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.method-card .aggregation-step{min-height:54px;padding:8px;font-size:11px}.method-title{display:flex;align-items:center;justify-content:space-between;gap:8px;font-weight:800;color:#1E5C9A;margin-bottom:10px}.method-bars{display:grid;gap:8px;margin-top:10px}.method-kv{display:grid;grid-template-columns:86px 1fr 48px;align-items:center;gap:8px;font-size:12px}.model-version-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.model-version-empty{border:1px dashed #C7D2DE;background:#F8FBFE;border-radius:10px;padding:12px;color:#455A64}
-.chart-card{border:1px solid #E1EAF2;background:#fff;border-radius:12px;padding:12px;margin-top:12px}.chart-card canvas{width:100%;height:220px;max-height:220px}.training-compact{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.training-compact .metric-card{min-height:82px}.version-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.version-summary-grid .metric-card{min-height:84px}.model-action{white-space:nowrap}
+.chart-card{border:1px solid #E1EAF2;background:#fff;border-radius:12px;padding:12px;margin-top:12px;min-height:320px}.chart-canvas-wrap{height:240px;position:relative}.chart-card canvas{display:block;width:100%!important;height:240px!important}.chart-fallback{display:grid;gap:10px;margin-top:12px}.chart-fallback-row{display:grid;grid-template-columns:96px 1fr 64px 1fr 64px;gap:8px;align-items:center;font-size:12px}.chart-fallback-row .name{font-weight:800;color:#1E5C9A}.chart-fallback-row .value{font-weight:800;color:#263238;text-align:right}.training-compact{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.training-compact .metric-card{min-height:82px}.version-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.version-summary-grid .metric-card{min-height:84px}.model-action{white-space:nowrap}
 .model-version-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:12px}.model-version-card{border:1px solid #DDE7F0;background:#FAFCFF;border-radius:10px;padding:12px}.model-version-card h6{font-weight:800;color:#1E5C9A;margin:0 0 8px}.model-version-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.model-version-meta div{background:#fff;border:1px solid #E6ECF2;border-radius:8px;padding:8px}.model-version-meta b{display:block;color:#2F5F93;font-size:15px}.model-version-meta span{font-size:12px;color:#607D8B}
 @media(max-width:1100px){.two-col.training-layout{grid-template-columns:1fr}.training-flow{grid-template-columns:repeat(2,minmax(0,1fr))}.compare-split{grid-template-columns:1fr}.compare-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .table-sm th{font-size:12px;color:#455A64;font-weight:800}.table-sm td{font-size:12px;vertical-align:middle}
@@ -282,7 +282,8 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
           </div>
           <div class="chart-card">
             <div class="compare-head"><b>本地训练 / 联邦训练图表</b><span class="mini-badge">准确率、损失、样本数</span></div>
-            <canvas id="trainingCompareChart"></canvas>
+            <div class="chart-canvas-wrap"><canvas id="trainingCompareChart"></canvas></div>
+            <div class="chart-fallback" id="trainingCompareFallback"></div>
           </div>
           <div class="training-compare" id="aggregationVisualBox"></div>
           <div class="training-compare" id="trainingCompareBox">
@@ -1092,7 +1093,7 @@ function renderAggregationVisual(){
 }
 function renderTrainingChart(local,fed){
   const canvas=document.getElementById('trainingCompareChart');
-  if(!canvas || typeof Chart==='undefined')return;
+  const fallback=document.getElementById('trainingCompareFallback');
   const lAcc=pctValue(local.accuracy);
   const fAcc=pctValue(fed.accuracy);
   const lLoss=Number(local.loss)||0;
@@ -1101,14 +1102,35 @@ function renderTrainingChart(local,fed){
   const lSamples=(Number(local.samples)||0)/maxSamples*100;
   const fSamples=(Number(fed.samples)||0)/maxSamples*100;
   const lossScore=(v)=>v>0?Math.max(0,100-Math.min(100,v*100)):0;
+  const lLossScore=lossScore(lLoss);
+  const fLossScore=lossScore(fLoss);
+  if(fallback){
+    const safeWidth=(v)=>Math.max(2,Math.min(100,Number(v)||0));
+    const row=(name,lv,fv,ls,fs)=>`
+      <div class="chart-fallback-row">
+        <span class="name">${esc(name)}</span>
+        <div class="bar-track"><div class="bar-fill" style="width:${safeWidth(lv)}%"></div></div>
+        <span class="value">${esc(ls)}</span>
+        <div class="bar-track"><div class="bar-fill fed" style="width:${safeWidth(fv)}%"></div></div>
+        <span class="value">${esc(fs)}</span>
+      </div>`;
+    fallback.innerHTML=`
+      <div class="chart-fallback-row small-text text-muted">
+        <span></span><b>本地训练</b><span></span><b>四节点联邦</b><span></span>
+      </div>
+      ${row('准确率',lAcc,fAcc,metricDisplay(local.accuracy),metricDisplay(fed.accuracy))}
+      ${row('损失表现',lLossScore,fLossScore,lossDisplay(local.loss),lossDisplay(fed.loss))}
+      ${row('样本覆盖',lSamples,fSamples,local.samples||'--',fed.samples||'--')}`;
+  }
+  if(!canvas || typeof Chart==='undefined')return;
   if(trainingCompareChartObj)trainingCompareChartObj.destroy();
   trainingCompareChartObj=new Chart(canvas,{
     type:'bar',
     data:{
       labels:['准确率','损失表现','样本覆盖'],
       datasets:[
-        {label:'本地训练',data:[lAcc,lossScore(lLoss),lSamples],backgroundColor:'#4F83C2'},
-        {label:'四节点联邦',data:[fAcc,lossScore(fLoss),fSamples],backgroundColor:'#73A942'}
+        {label:'本地训练',data:[lAcc,lLossScore,lSamples],backgroundColor:'#4F83C2'},
+        {label:'四节点联邦',data:[fAcc,fLossScore,fSamples],backgroundColor:'#73A942'}
       ]
     },
     options:{
