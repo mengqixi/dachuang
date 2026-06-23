@@ -129,6 +129,9 @@ _init_lock = threading.Lock()
 _dataset_sources_cache = {"time": 0.0, "value": None}
 _dataset_sources_cache_lock = threading.Lock()
 DATASET_SOURCES_CACHE_SECONDS = 30
+_admin_submissions_cache = {"time": 0.0, "value": None}
+_admin_submissions_cache_lock = threading.Lock()
+ADMIN_SUBMISSIONS_CACHE_SECONDS = 15
 
 
 def _ensure_paillier():
@@ -1515,6 +1518,7 @@ def user_dataset_upload():
             db.upsert_user_submission(info)
         except Exception as persist_error:
             logger.warning("Persist user submission failed: %s", persist_error)
+        _clear_admin_submissions_cache()
         return jsonify(api_response(msg="上传成功，文件已加密归档", data=info))
     except UploadValidationError as e:
         return jsonify(api_response(code=400, msg=str(e)))
@@ -1546,6 +1550,7 @@ def user_dataset_analyze(submission_id):
             db.save_analysis_report_record(analysis)
         except Exception as persist_error:
             logger.warning("Persist analysis report failed: %s", persist_error)
+        _clear_admin_submissions_cache()
         return jsonify(api_response(msg="分析完成", data=analysis))
     except Exception as e:
         logger.exception("User dataset analyze failed")
@@ -1560,10 +1565,49 @@ def user_report_get(submission_id):
     return jsonify(api_response(msg="success", data=report))
 
 
+def _clear_admin_submissions_cache():
+    with _admin_submissions_cache_lock:
+        _admin_submissions_cache["time"] = 0.0
+        _admin_submissions_cache["value"] = None
+
+
+def _list_admin_submissions_cached(force=False):
+    now = time.time()
+    with _admin_submissions_cache_lock:
+        cached = _admin_submissions_cache.get("value")
+        cached_at = float(_admin_submissions_cache.get("time") or 0)
+        if not force and cached is not None and now - cached_at < ADMIN_SUBMISSIONS_CACHE_SECONDS:
+            return cached
+    fresh = user_submission_manager.list_submissions()
+    with _admin_submissions_cache_lock:
+        _admin_submissions_cache["time"] = now
+        _admin_submissions_cache["value"] = fresh
+    return fresh
+
+
+def _admin_submission_summary(items):
+    summary = {"total": len(items), "high": 0, "medium": 0, "low": 0, "trainable": 0}
+    for item in items:
+        risk = item.get("risk_summary") or {}
+        summary["high"] += int(risk.get("high") or risk.get("high_count") or 0)
+        summary["medium"] += int(risk.get("medium") or risk.get("medium_count") or 0)
+        summary["low"] += int(risk.get("low") or risk.get("low_count") or 0)
+        if item.get("trainable"):
+            summary["trainable"] += 1
+    return summary
+
+
 @app.route("/api/admin/submissions", methods=["GET"])
 def admin_submissions():
-    items = user_submission_manager.list_submissions()
-    return jsonify(api_response(msg="success", data={"submissions": items, "total": len(items)}))
+    force = str(request.args.get("force", "")).lower() in {"1", "true", "yes"}
+    limit = max(1, min(int(request.args.get("limit", 100) or 100), 500))
+    items = _list_admin_submissions_cached(force=force)
+    return jsonify(api_response(msg="success", data={
+        "submissions": items[:limit],
+        "total": len(items),
+        "limit": limit,
+        "summary": _admin_submission_summary(items),
+    }))
 
 
 @app.route("/api/admin/datasets/sources", methods=["GET"])
@@ -1617,6 +1661,7 @@ def admin_submission_archive(submission_id):
         db.upsert_user_submission(item)
     except Exception as persist_error:
         logger.warning("Persist archive status failed: %s", persist_error)
+    _clear_admin_submissions_cache()
     return jsonify(api_response(msg="已归档", data=item))
 
 
@@ -1630,6 +1675,7 @@ def admin_submission_mark_trainable(submission_id):
             db.upsert_user_submission(item)
         except Exception as persist_error:
             logger.warning("Persist trainable status failed: %s", persist_error)
+        _clear_admin_submissions_cache()
         return jsonify(api_response(msg="已标记为可训练", data=item))
     except SubmissionStatusError as e:
         return jsonify(api_response(code=400, msg=str(e)))
@@ -1653,6 +1699,7 @@ def admin_submission_reject(submission_id):
         db.upsert_user_submission(item)
     except Exception as persist_error:
         logger.warning("Persist rejected status failed: %s", persist_error)
+    _clear_admin_submissions_cache()
     return jsonify(api_response(msg="已拒绝进入训练池", data=item))
 
 
@@ -1673,6 +1720,7 @@ def admin_submission_review_status(submission_id):
         db.upsert_user_submission(item)
     except Exception as persist_error:
         logger.warning("Persist review status failed: %s", persist_error)
+    _clear_admin_submissions_cache()
     return jsonify(api_response(msg="审核状态已更新", data=item))
 
 

@@ -430,7 +430,7 @@ let lastRiskReasons = [];
 let currentAnalysis = null;
 let currentDatasetSourceId = '';
 let currentDatasetSource = null;
-let auditState = {eventOffset:0, visitOffset:0, events:[], visits:[], totalEvents:0, totalVisits:0};
+let auditState = {eventOffset:0, visitOffset:0, events:[], visits:[], totalEvents:0, totalVisits:0, suspiciousKey:'', suspiciousEvents:[], suspiciousVisits:[]};
 let trainingCompareState = {local:null, federated:null};
 let trainingCompareChartObj = null;
 let modelVersionCompareChartObj = null;
@@ -978,7 +978,7 @@ async function adminLogin(){
 async function adminLogout(){await api('/api/admin/logout',{method:'POST'});location.reload();}
 async function loadAdminData(){
   try{
-  const [stRes,subsRes,sourcesApiRes]=await Promise.allSettled([cachedApi('/api/dataset/unsw/status'),cachedApi('/api/admin/submissions'),cachedApi('/api/admin/datasets/sources')]);
+  const [stRes,subsRes,sourcesApiRes]=await Promise.allSettled([cachedApi('/api/dataset/unsw/status'),cachedApi('/api/admin/submissions?limit=100'),cachedApi('/api/admin/datasets/sources')]);
   const st=stRes.status==='fulfilled'?stRes.value:{ok:false,data:{}};
   const subs=subsRes.status==='fulfilled'?subsRes.value:{ok:false,data:{submissions:[]},error:'用户提交接口不可用'};
   const sourcesRes=sourcesApiRes.status==='fulfilled'?sourcesApiRes.value:{ok:false,data:{sources:[]}};
@@ -986,10 +986,15 @@ async function loadAdminData(){
   const sources=arr(obj(sourcesRes.data).sources);
   currentDatasetSource = sources.find(s=>s.trainable)||sources[0]||sd;
   currentDatasetSourceId = obj(currentDatasetSource).id || '';
+  const sourceTotalSamples=sources.reduce((sum,s)=>sum+(Number(s.samples)||0),0);
+  const preparedCount=sources.filter(s=>s.prepared_for_federated).length;
   systemDataMetrics.innerHTML=[
-    ['当前数据源',currentDatasetSource.source_type||currentDatasetSource.source||sd.source_type||'未检测'],['当前源样本',currentDatasetSource.samples||sd.samples||0],['当前源特征',currentDatasetSource.features||sd.features||0],['联邦节点',currentDatasetSource.prepared_for_federated||sd.ready_for_federated?'ready':'not ready']
+    ['当前训练源',currentDatasetSource.source_type||currentDatasetSource.source||sd.source_type||'未检测'],
+    ['当前源样本',currentDatasetSource.samples||sd.samples||0],
+    ['已发现数据样本',sourceTotalSamples],
+    ['已生成节点源',preparedCount]
   ].map(x=>`<div class="metric"><div class="metric-value">${esc(x[1])}</div><div class="metric-label">${x[0]}</div></div>`).join('');
-  if(typeof trainingSourceBox!=='undefined')trainingSourceBox.innerHTML=`<b>当前训练数据源：</b>${esc(currentDatasetSource.name||currentDatasetSource.source||sd.source||'未检测')} <span class="mini-badge">${esc(currentDatasetSource.source_type||sd.source_type||'-')}</span><div class="small-text text-muted mt-1">样本 ${esc(currentDatasetSource.samples||sd.samples||0)} 条，特征 ${esc(currentDatasetSource.features||sd.features||0)} 个，标签列 ${esc(currentDatasetSource.label_column||sd.label_column||'-')}。</div>`;
+  if(typeof trainingSourceBox!=='undefined')trainingSourceBox.innerHTML=`<b>当前训练数据源：</b>${esc(currentDatasetSource.name||currentDatasetSource.source||sd.source||'未检测')} <span class="mini-badge">${esc(currentDatasetSource.source_type||sd.source_type||'-')}</span><div class="small-text text-muted mt-1">当前源样本 ${esc(currentDatasetSource.samples||sd.samples||0)} 条；已发现数据样本 ${esc(sourceTotalSamples)} 条。下方表格统计的是服务器已识别的全部可用数据源，不等于当前训练源。</div>`;
   if(typeof trainDataMetric!=='undefined')trainDataMetric.textContent=currentDatasetSource.samples||sd.samples||0;
   if(typeof trainFeatureMetric!=='undefined')trainFeatureMetric.textContent=currentDatasetSource.features||sd.features||0;
   if(typeof trainNodeMetric!=='undefined')trainNodeMetric.textContent=(currentDatasetSource.prepared_for_federated||sd.ready_for_federated)?'ready':'missing';
@@ -1007,9 +1012,12 @@ async function loadAdminData(){
     </tr>`).join(''):'<tr><td colspan="9" class="text-muted">未检测到可用训练数据源</td></tr>';
   }
   const rows=arr(obj(subs.data).submissions).filter(r=>Number(r.row_count||0)>0);
-  const totals=rows.reduce((acc,r)=>{const c=riskSummaryCounts(r.risk_summary);acc.high+=c.high;acc.medium+=c.medium;acc.trainable+=r.trainable?1:0;return acc},{high:0,medium:0,trainable:0});
+  const summary=obj(obj(subs.data).summary);
+  const totals=summary.total!==undefined
+    ? {total:summary.total||0, high:summary.high||0, medium:summary.medium||0, trainable:summary.trainable||0}
+    : rows.reduce((acc,r)=>{const c=riskSummaryCounts(r.risk_summary);acc.total+=1;acc.high+=c.high;acc.medium+=c.medium;acc.trainable+=r.trainable?1:0;return acc},{total:0,high:0,medium:0,trainable:0});
   submissionRiskMetrics.innerHTML=[
-    ['用户提交',rows.length],['高风险样本',totals.high],['中风险样本',totals.medium],['可训练提交',totals.trainable]
+    ['用户提交',totals.total],['高风险样本',totals.high],['中风险样本',totals.medium],['可训练提交',totals.trainable]
   ].map(x=>`<div class="metric"><div class="metric-value">${esc(x[1])}</div><div class="metric-label">${x[0]}</div></div>`).join('');
   submissionTable.innerHTML=rows.length?rows.map(r=>`<tr>
     <td>${esc(fmtTime(r.upload_time))}</td>
@@ -1181,6 +1189,23 @@ function renderCompareChartCore(canvas,fallback,local={},fed={},chartRef){
   const lossScore=(v)=>v>0?Math.max(0,100-Math.min(100,v*100)):0;
   const lLossScore=lossScore(lLoss);
   const fLossScore=lossScore(fLoss);
+  const lErr=hasLocal?Math.max(0,100-lAcc):0;
+  const fErr=hasFed?Math.max(0,100-fAcc):0;
+  const localNodes=Number(local.nodes||local.node_count||1)||1;
+  const fedNodes=Number(fed.nodes||fed.node_count||4)||4;
+  const nodeMax=Math.max(localNodes,fedNodes,4);
+  const lNodeScore=localNodes/nodeMax*100;
+  const fNodeScore=fedNodes/nodeMax*100;
+  const localLabels=Number(local.label_count||local.labels||2)||2;
+  const fedLabels=Number(fed.label_count||fed.labels||localLabels)||localLabels;
+  const labelMax=Math.max(localLabels,fedLabels,2);
+  const lLabelScore=localLabels/labelMax*100;
+  const fLabelScore=fedLabels/labelMax*100;
+  const fedMethod=String(fed.method||fed.aggregation_method||'').toLowerCase();
+  const lPrivacy=25;
+  const fPrivacy=fedMethod.includes('paillier')?90:(hasFed?58:0);
+  const lCost=30;
+  const fCost=fedMethod.includes('paillier')?78:(hasFed?48:0);
   if(fallback){
     const safeWidth=(v)=>Math.max(2,Math.min(100,Number(v)||0));
     const row=(name,lv,fv,ls,fs)=>`
@@ -1198,8 +1223,13 @@ function renderCompareChartCore(canvas,fallback,local={},fed={},chartRef){
         <span></span><b>本地训练</b><span></span><b>四节点联邦</b><span></span>
       </div>
       ${row('准确率',lAcc,fAcc,metricDisplay(local.accuracy),metricDisplay(fed.accuracy))}
+      ${row('错误率',lErr,fErr,hasLocal?lErr.toFixed(2)+'%':'--',hasFed?fErr.toFixed(2)+'%':'--')}
       ${row('损失表现',lLossScore,fLossScore,lossDisplay(local.loss),lossDisplay(fed.loss))}
       ${row('样本覆盖',lSamples,fSamples,local.samples||'--',fed.samples||'--')}
+      ${row('节点覆盖',lNodeScore,fNodeScore,localNodes+' 节点',hasFed?fedNodes+' 节点':'--')}
+      ${row('标签覆盖',lLabelScore,fLabelScore,localLabels+' 类',hasFed?fedLabels+' 类':'--')}
+      ${row('隐私保护',lPrivacy,fPrivacy,'集中训练',hasFed?(fedMethod.includes('paillier')?'Paillier':'FedAvg'):'--')}
+      ${row('计算开销',lCost,fCost,'较低',hasFed?(fedMethod.includes('paillier')?'较高':'中等'):'--')}
       ${!hasFed?'<div class="small-text text-muted mt-2">当前只有本地训练记录，四节点联邦训练完成后会自动加入对比。</div>':''}
       ${!hasLocal?'<div class="small-text text-muted mt-2">当前只有联邦训练记录，本地训练完成后会自动加入对比。</div>':''}`;
   }
@@ -1207,14 +1237,14 @@ function renderCompareChartCore(canvas,fallback,local={},fed={},chartRef){
   const oldChart=chartRef&&chartRef.get?chartRef.get():null;
   if(oldChart)oldChart.destroy();
   const datasets=[];
-  if(hasLocal)datasets.push({label:'本地训练',data:[lAcc,lLossScore,lSamples],backgroundColor:'#4F83C2'});
-  if(hasFed)datasets.push({label:'四节点联邦',data:[fAcc,fLossScore,fSamples],backgroundColor:'#73A942'});
+  if(hasLocal)datasets.push({label:'本地训练',data:[lAcc,lErr,lLossScore,lSamples,lNodeScore,lLabelScore,lPrivacy,lCost],backgroundColor:'#4F83C2'});
+  if(hasFed)datasets.push({label:'四节点联邦',data:[fAcc,fErr,fLossScore,fSamples,fNodeScore,fLabelScore,fPrivacy,fCost],backgroundColor:'#73A942'});
   if(!datasets.length){canvas.style.display='none';return}
   canvas.style.display='block';
   const chart=new Chart(canvas,{
     type:'bar',
     data:{
-      labels:['准确率','损失表现','样本覆盖'],
+      labels:['准确率','错误率','损失表现','样本覆盖','节点覆盖','标签覆盖','隐私保护','计算开销'],
       datasets
     },
     options:{
@@ -1380,10 +1410,16 @@ function modelStatusBadge(v){
 }
 function renderCurrentModelVersionCards(rows,runtime){
   const runtimeHasMetrics=runtime && (runtime.model_version || runtime.accuracy || obj(runtime.raw_status).samples || obj(runtime.raw_status).train_samples);
-  const list=arr(rows).filter(v=>v.current_runtime || v.current_display || Number(v.accuracy)>0 || Number(v.samples)>0).slice(0,4);
+  const sourceRows=arr(rows).filter(v=>v.current_runtime || v.current_display || Number(v.accuracy)>0 || Number(v.samples)>0);
+  const localModel=sourceRows.find(v=>String(v.model_type||'').includes('local') || String(v.model_type||'').includes('ensemble'));
+  const fedModel=sourceRows.find(v=>String(v.model_type||'').includes('federated') || String(v.model_type||'').includes('fedavg'));
+  const list=[];
+  [localModel,fedModel,...sourceRows].forEach(v=>{
+    if(v && !list.some(x=>String(x.id||x.version||x.model_version)===String(v.id||v.version||v.model_version)))list.push(v);
+  });
   if(runtimeHasMetrics){
     const raw=obj(runtime.raw_status);
-    list.unshift({
+    const runtimeRow={
       version: runtime.model_version || raw.version || 'runtime',
       model_type: 'runtime_detector',
       source: runtime.source || 'runtime_model_manager',
@@ -1394,9 +1430,10 @@ function renderCurrentModelVersionCards(rows,runtime){
       version_role:'runtime_detector',
       artifact_status:runtime.artifact_status||'available',
       current_runtime:true
-    });
+    };
+    if(!list.some(x=>String(x.version||x.model_version)===String(runtimeRow.version)))list.unshift(runtimeRow);
   }
-  const visible=list.filter(Boolean).slice(0,4);
+  const visible=list.filter(Boolean).slice(0,2);
   if(!visible.length){
     currentModelVersionCards.innerHTML='<div class="notice">暂无可展示模型摘要。请先执行本地训练或四节点联邦训练，系统会在下方生成训练任务和版本追踪记录。</div>';
     return;
@@ -1406,12 +1443,13 @@ function renderCurrentModelVersionCards(rows,runtime){
     const nested=parseJsonObject(meta.metadata);
     const merged={...meta,...nested,...v};
     const algorithm=merged.algorithm || (String(v.model_type||'').includes('federated')?'fedavg':'ensemble_detector');
+    const metric=trainingMetricInfo(merged);
     return `<div class="model-version-card">
       <h6>${esc(modelTypeLabel(v.model_type))}</h6>
       <div class="model-version-meta">
         <div><b>${esc(v.version||v.model_version||'-')}</b><span>版本</span></div>
         <div><b>${esc(algorithm)}</b><span>算法</span></div>
-        <div><b>${esc(metricText(v.accuracy))}</b><span>指标</span></div>
+        <div><b>${esc(metricText(v.accuracy))}</b><span>指标 · ${esc(metric.label||'训练记录')}</span></div>
         <div><b>${esc(v.samples||merged.samples||'-')}</b><span>训练样本</span></div>
         <div><b>${esc(modelSourceLabel(v.source))}</b><span>数据来源</span></div>
         <div><b>${esc(modelStatusText(v))}</b><span>状态</span></div>
@@ -1561,6 +1599,14 @@ function auditQueryBase(offset){
   const path=encodeURIComponent((auditPathFilter?.value||'').trim());
   return `limit=${limit}&offset=${Math.max(0,offset||0)}&risk_level=${risk}&ip=${ip}&path=${path}`;
 }
+function auditAggregateKey(){
+  return [
+    auditRiskFilter?.value||'',
+    auditTypeFilter?.value||'',
+    (auditIpFilter?.value||'').trim(),
+    (auditPathFilter?.value||'').trim()
+  ].join('|');
+}
 function resetAuditAndLoad(){auditState.eventOffset=0;auditState.visitOffset=0;loadAudit()}
 function pageAudit(delta,kind){
   const limit=Number(auditLimit?.value||100)||100;
@@ -1610,12 +1656,30 @@ async function loadAudit(){
   const eventBase=auditQueryBase(auditState.eventOffset);
   const visitBase=auditQueryBase(auditState.visitOffset);
   const eventQuery=type?`${eventBase}&event_type=${type}`:`${eventBase}&exclude_event_type=site_visit`;
-  const [all,visit]=await Promise.all([
+  const aggregateKey=auditAggregateKey();
+  const needAggregate=aggregateKey!==auditState.suspiciousKey;
+  const risk=encodeURIComponent(auditRiskFilter?.value||'');
+  const ip=encodeURIComponent((auditIpFilter?.value||'').trim());
+  const path=encodeURIComponent((auditPathFilter?.value||'').trim());
+  const aggregateBase=`limit=200&offset=0&risk_level=${risk}&ip=${ip}&path=${path}`;
+  const aggregateEventQuery=type?`${aggregateBase}&event_type=${type}`:`${aggregateBase}&exclude_event_type=site_visit`;
+  const requests=[
     api(`/api/admin/audit/events?${eventQuery}`),
     api(`/api/admin/audit/events?${visitBase}&event_type=site_visit`)
-  ]);
+  ];
+  if(needAggregate){
+    requests.push(api(`/api/admin/audit/events?${aggregateEventQuery}`));
+    requests.push(api(`/api/admin/audit/events?${aggregateBase}&event_type=site_visit`));
+  }
+  const results=await Promise.all(requests);
+  const [all,visit]=results;
   const events=arr(obj(all.data).events).filter(e=>e.event_type!=='site_visit');
   const visits=arr(obj(visit.data).events);
+  if(needAggregate){
+    auditState.suspiciousKey=aggregateKey;
+    auditState.suspiciousEvents=arr(obj(results[2]?.data).events).filter(e=>e.event_type!=='site_visit');
+    auditState.suspiciousVisits=arr(obj(results[3]?.data).events);
+  }
   const totalEvents=obj(all.data).total??events.length, totalVisits=obj(visit.data).total??visits.length;
   auditState={...auditState,events,visits,totalEvents,totalVisits};
   const high=events.filter(e=>['high','critical'].includes(e.risk_level)).length, med=events.filter(e=>e.risk_level==='medium').length, low=events.filter(e=>['low','info'].includes(e.risk_level)).length;
@@ -1623,7 +1687,7 @@ async function loadAudit(){
   auditFilterSummary.textContent=`安全事件 ${events.length}/${totalEvents} 条，访问记录 ${visits.length}/${totalVisits} 条；事件 offset=${auditState.eventOffset}，访问 offset=${auditState.visitOffset}`;
   eventPageInfo.textContent=`第 ${Math.min(auditState.eventOffset+events.length,totalEvents)}/${totalEvents} 条`;
   visitPageInfo.textContent=`第 ${Math.min(auditState.visitOffset+visits.length,totalVisits)}/${totalVisits} 条`;
-  renderSuspiciousIps(events,visits);
+  renderSuspiciousIps(auditState.suspiciousEvents||events,auditState.suspiciousVisits||visits);
   eventTable.innerHTML=events.length?events.map((e,i)=>`<tr>
     <td>${auditTimeCell(e.timestamp)}</td><td class="risk-${esc(e.risk_level)}">${esc(e.risk_level||'-')}</td><td title="${esc(e.event_type||'-')}">${esc(shortText(e.event_type,18))}</td><td title="${esc(e.path||'-')}">${esc(shortText(e.path,28))}</td><td class="short-cell" title="${esc(eventReason(e))}">${esc(shortText(eventReason(e),46))}</td><td class="short-cell" title="${esc(eventAdvice(e))}">${esc(shortText(eventAdvice(e),46))}</td><td><button class="btn-lightx" onclick="renderAuditDetail(auditState.events[${i}],'event')">详情</button></td>
   </tr>`).join(''):'<tr><td colspan="7" class="text-muted">暂无安全事件</td></tr>';
