@@ -1851,6 +1851,7 @@ def admin_training_federated():
         version = datetime.now().strftime("fed%Y%m%d%H%M%S")
         source_ids = [s.get("id") for s in meta.get("sources", []) if s.get("id") and not str(s.get("id")).startswith("dataset:")]
         data = {
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "task_type": "federated",
             "source": meta.get("training_source", "encrypted_user_submissions"),
             "status": "completed",
@@ -1897,6 +1898,7 @@ def admin_training_federated():
         save_training_record(data)
         try:
             db.save_training_task_record({
+                "timestamp": data["timestamp"],
                 "task_type": "federated",
                 "source": data.get("source", "managed_dataset_source"),
                 "samples": int(len(X)),

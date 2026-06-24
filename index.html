@@ -250,10 +250,18 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
     <div class="panel">
       <div class="panel-head">本地训练 / 四节点联邦训练对比</div>
       <div class="panel-body">
+        <div class="compact-actions mb-3">
+          <button class="btn-main" id="dataProcessTrainButton" onclick="runAdminFullTraining()"><i class="fas fa-play"></i> 运行本地基线 + 四节点联邦训练</button>
+          <button class="btn-lightx" onclick="loadTrainingRecords(true)"><i class="fas fa-rotate"></i> 刷新训练结果</button>
+          <span class="small-text text-muted" id="dataProcessTrainingStatus">完成训练后将显示本地基线、四节点结果和最新任务时间。</span>
+        </div>
         <div class="chart-card mt-2">
           <div class="compare-head"><b>训练结果对比</b><span class="mini-badge">来自训练任务记录</span></div>
           <div class="chart-canvas-wrap"><canvas id="modelVersionCompareChart"></canvas></div>
           <div class="chart-fallback" id="modelVersionCompareFallback"></div>
+        </div>
+        <div class="node-grid mt-3" id="federatedTrainingDetails">
+          <div class="notice mb-0">尚无四节点联邦训练结果。点击上方按钮后会显示各节点样本数、准确率和损失。</div>
         </div>
       </div>
     </div>
@@ -1176,6 +1184,27 @@ function renderModelVersionCompareChart(){
     set:(chart)=>{modelVersionCompareChartObj=chart;}
   });
 }
+function renderFederatedTrainingDetails(fed={}){
+  const box=document.getElementById('federatedTrainingDetails');
+  if(!box)return;
+  const clients=arr(fed.clients);
+  if(!clients.length){
+    box.innerHTML='<div class="notice mb-0">尚无四节点联邦训练结果。点击上方按钮后会显示各节点样本数、准确率和损失。</div>';
+    return;
+  }
+  box.innerHTML=clients.map((client,index)=>{
+    const accuracy=Number(client.accuracy);
+    const loss=Number(client.loss);
+    return `<div class="node-card">
+      <div class="small-text text-muted">节点 ${index+1}</div>
+      <i class="fas fa-building"></i><b>${esc(client.name||`node-${index+1}`)}</b>
+      <div class="mt-2"><strong>${esc(client.samples||0)}</strong> 条样本</div>
+      <div class="small-text">准确率：<b>${Number.isFinite(accuracy)?(accuracy*100).toFixed(2)+'%':'--'}</b></div>
+      <div class="small-text">损失：<b>${Number.isFinite(loss)?loss.toFixed(4):'--'}</b></div>
+      <span class="status-pill ok">已参与聚合</span>
+    </div>`;
+  }).join('');
+}
 function renderCompareChartCore(canvas,fallback,local={},fed={},chartRef){
   const hasLocal=Number(local.accuracy)>0 || Number(local.samples)>0 || Number(local.loss)>0;
   const hasFed=Number(fed.accuracy)>0 || Number(fed.samples)>0 || Number(fed.loss)>0;
@@ -1261,6 +1290,13 @@ function renderTrainingCompare(){
   const fed=trainingCompareState.federated||{};
   renderTrainingChart(local,fed);
   renderModelVersionCompareChart();
+  renderFederatedTrainingDetails(fed);
+  const status=document.getElementById('dataProcessTrainingStatus');
+  if(status){
+    const localVersion=local.version&&local.version!=='-'?local.version:'尚无本地训练';
+    const fedVersion=fed.version&&fed.version!=='-'?fed.version:'尚无联邦训练';
+    status.textContent=`本地：${localVersion}；联邦：${fedVersion}`;
+  }
   if(typeof trainingCompareBox==='undefined')return;
   const lp=pctValue(local.accuracy), fp=pctValue(fed.accuracy);
   const maxSamples=Math.max(Number(local.samples)||0,Number(fed.samples)||0,1);
@@ -1312,34 +1348,44 @@ function trainLimit(){
 async function ensureTrainingSource(){
   if(!currentDatasetSourceId)await loadAdminData();
 }
-async function runAdminLocalTrain(){
+async function runAdminLocalTrain(refresh=true){
   await ensureTrainingSource();
   const r=await api('/api/admin/training/local',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:trainLimit(),dataset_source_id:currentDatasetSourceId})});
   toast(r.ok?'本地训练完成':r.error,r.ok?'ok':'bad');
   if(r.ok)renderTrainingResult(r.data,'local');
   if(r.ok)clearAdminCache();
-  loadTrainingRecords();loadModelVersions();
+  if(refresh)await Promise.allSettled([loadTrainingRecords(true),loadModelVersions(true)]);
   return r;
 }
-async function runAdminFederatedTrain(){
+async function runAdminFederatedTrain(refresh=true){
   await ensureTrainingSource();
   const method='paillier';
   const r=await api('/api/admin/training/federated',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({epochs:3,limit:trainLimit(),dataset_source_id:currentDatasetSourceId,aggregation_method:method,secure_aggregation:true})});
   toast(r.ok?'联邦训练完成':r.error,r.ok?'ok':'bad');
   if(r.ok)renderTrainingResult(r.data,'federated');
   if(r.ok)clearAdminCache();
-  loadNodes();loadTrainingRecords();loadModelVersions();
+  if(refresh)await Promise.allSettled([loadNodes(),loadTrainingRecords(true),loadModelVersions(true)]);
   return r;
 }
 async function runAdminFullTraining(){
   await ensureTrainingSource();
+  const button=document.getElementById('dataProcessTrainButton');
+  if(button){button.disabled=true;button.innerHTML='<i class="fas fa-spinner fa-spin"></i> 正在训练';}
+  const status=document.getElementById('dataProcessTrainingStatus');
+  if(status)status.textContent='正在执行本地基线训练，然后执行四节点联邦训练，请稍候。';
   trainingResultSummary.innerHTML='<div class="title">训练进行中</div><div class="subtle-note"><i class="fas fa-spinner fa-spin text-primary"></i> 正在依次执行本地基线训练和四节点联邦训练，完成后右侧同步展示结果。</div>';
-  const local=await runAdminLocalTrain();
-  if(!local.ok)return;
-  const fed=await runAdminFederatedTrain();
-  if(local.ok&&fed.ok){
-    toast('本地基线与四节点联邦训练均已完成','ok');
-    renderTrainingCompare();
+  try{
+    const local=await runAdminLocalTrain(false);
+    if(!local.ok)return;
+    const fed=await runAdminFederatedTrain(false);
+    if(local.ok&&fed.ok){
+      clearAdminCache();
+      await Promise.allSettled([loadNodes(),loadTrainingRecords(true),loadModelVersions(true)]);
+      toast('本地基线与四节点联邦训练均已完成','ok');
+      renderTrainingCompare();
+    }
+  }finally{
+    if(button){button.disabled=false;button.innerHTML='<i class="fas fa-play"></i> 运行本地基线 + 四节点联邦训练';}
   }
 }
 async function loadDataProcessPage(){
@@ -1348,8 +1394,10 @@ async function loadDataProcessPage(){
 async function loadTrainingPage(){
   await Promise.allSettled([loadAdminData(),loadNodes(),loadTrainingRecords()]);
 }
-async function loadTrainingRecords(){
-  const r=await cachedApi('/api/admin/training/tasks?limit=50');
+async function loadTrainingRecords(force=false){
+  const url='/api/admin/training/tasks?limit=50';
+  if(force)clearAdminCache('/api/admin/training/tasks');
+  const r=force?await api(url):await cachedApi(url);
   const rows=arr(obj(r.data).tasks);
   latestTrainingTasks=rows;
   const latestLocal=rows.find(x=>String(x.task_type||'').includes('local'));
@@ -1490,8 +1538,10 @@ function trainingTaskToModelVersion(task,idx=0){
     activation_reason: '该记录来自训练任务，可用于追踪训练来源和指标；当前未绑定运行时模型文件。'
   };
 }
-async function loadModelVersions(){
-  const r=await cachedApi('/api/admin/model-versions?limit=50');
+async function loadModelVersions(force=false){
+  const url='/api/admin/model-versions?limit=50';
+  if(force)clearAdminCache('/api/admin/model-versions');
+  const r=force?await api(url):await cachedApi(url);
   if(!r.ok){
     modelVersionTable.innerHTML=`<tr><td colspan="11" class="text-muted">模型版本加载失败：${esc(r.error)}。请确认已经登录管理端。</td></tr>`;
     currentModelVersionCards.innerHTML='<div class="notice">模型版本加载失败，无法显示当前启用模型。</div>';

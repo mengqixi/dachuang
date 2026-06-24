@@ -365,9 +365,15 @@ class DataStorage:
         with self._lock:
             conn = self._get_conn()
             try:
+                timestamp = (
+                    data.get("timestamp")
+                    or data.get("created_at")
+                    or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                )
                 conn.execute(
-                    "INSERT INTO training_tasks (task_type, source, samples, accuracy, status, metadata) VALUES (?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO training_tasks (timestamp, task_type, source, samples, accuracy, status, metadata) VALUES (?, ?, ?, ?, ?, ?, ?)",
                     (
+                        timestamp,
                         data.get("task_type", ""), data.get("source", ""),
                         int(data.get("samples", 0) or 0), float(data.get("accuracy", 0) or 0),
                         data.get("status", ""), self._json(data),
