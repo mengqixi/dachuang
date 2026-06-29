@@ -18,6 +18,14 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
 .navbar .nav-link.active{background:#E3F2FD;color:#1E5C9A!important;border-color:#9BB7D6;font-weight:800}
 #nav[hidden]{display:none!important}
 .page{display:none}.page.active{display:block}
+.app-loading{position:fixed;inset:0;background:rgba(244,246,248,.86);z-index:9998;display:none;align-items:center;justify-content:center}
+.app-loading.show{display:flex}
+.loading-box{background:#fff;border:1px solid #DDE7F0;border-radius:14px;box-shadow:0 12px 30px rgba(20,40,70,.16);padding:20px 28px;min-width:260px;text-align:center;color:#2F5F93;font-weight:800}
+.loading-spinner{width:28px;height:28px;border:3px solid #DDE7F0;border-top-color:#2F5F93;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 10px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.page-loading{position:relative;min-height:180px}
+.page-loading:before{content:"";position:absolute;inset:0;background:rgba(255,255,255,.72);z-index:30;border-radius:12px}
+.page-loading:after{content:attr(data-loading-text);position:absolute;top:28px;left:50%;transform:translateX(-50%);z-index:31;background:#fff;border:1px solid #DDE7F0;border-radius:999px;padding:9px 18px;color:#2F5F93;font-weight:800;box-shadow:0 8px 20px rgba(20,40,70,.12)}
 .panel{background:#fff;border:1px solid #E1E7EF;border-radius:12px;margin-bottom:16px;box-shadow:0 2px 12px rgba(20,30,50,.05)}
 .panel-head{padding:14px 18px;border-bottom:1px solid #E1E7EF;font-weight:800;font-size:16px}
 .panel-body{padding:18px}.muted{color:#607D8B}.small-text{font-size:13px}
@@ -68,6 +76,12 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
     <div class="navbar-nav d-flex flex-row ms-auto" id="nav"></div>
   </div>
 </nav>
+<div id="appLoading" class="app-loading" aria-live="polite" aria-busy="true">
+  <div class="loading-box">
+    <div class="loading-spinner"></div>
+    <div id="appLoadingText">正在加载系统数据...</div>
+  </div>
+</div>
 
 <main class="container-fluid px-3 py-3">
   <section class="page active" id="pg-upload">
@@ -695,19 +709,42 @@ function setupNav(){
   nav.innerHTML=pages.map((p,i)=>`<a class="nav-link ${i?'':'active'}" href="#" data-page="${p.id}">${p.text}</a>`).join('')+(APP_MODE==='admin'?'<a class="nav-link" href="#" onclick="adminLogout();return false;">退出</a>':'');
   document.querySelectorAll('.nav-link[data-page]').forEach(a=>a.onclick=e=>{e.preventDefault();showPage(a.dataset.page);});
 }
-function showPage(id){
+function setAppLoading(on,text='正在加载系统数据...'){
+  const box=document.getElementById('appLoading');
+  const label=document.getElementById('appLoadingText');
+  if(!box)return;
+  if(label)label.textContent=text;
+  box.classList.toggle('show',!!on);
+}
+function setPageLoading(pageId,on,text='正在加载数据...'){
+  const el=document.getElementById('pg-'+pageId);
+  if(!el)return;
+  el.dataset.loadingText=text;
+  el.classList.toggle('page-loading',!!on);
+}
+async function runPageLoader(pageId,loaders,text){
+  const list=arr(loaders).filter(Boolean);
+  if(!list.length)return;
+  setPageLoading(pageId,true,text);
+  try{
+    await Promise.allSettled(list.map(fn=>typeof fn==='function'?fn():fn));
+  }finally{
+    setPageLoading(pageId,false);
+  }
+}
+async function showPage(id){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-link').forEach(a=>a.classList.toggle('active',a.dataset.page===id));
   const pageId = id==='submissions' ? 'dataAdmin' : id;
   const el=document.getElementById('pg-'+pageId); if(el)el.classList.add('active');
-  if(id==='submissions')loadAdminData();
-  if(id==='dataProcess')loadDataProcessPage();
-  if(id==='modelVersions'){
-    loadTrainingRecords();
-  }
-  if(id==='audit')loadAudit();
+  if(id==='submissions')return runPageLoader(pageId,[loadAdminData],'正在加载用户提交...');
+  if(id==='dataProcess')return runPageLoader(pageId,[loadDataProcessPage],'正在加载训练数据源...');
+  if(id==='modelVersions')return runPageLoader(pageId,[loadTrainingRecords],'正在加载模型版本...');
+  if(id==='audit')return runPageLoader(pageId,[loadAudit],'正在加载系统审计...');
 }
 async function init(){
+  setAppLoading(true, APP_MODE==='admin'?'正在检查管理端登录状态...':'正在加载用户端...');
+  try{
   setupNav();
   renderAggregationVisual();
   if(APP_MODE==='admin'){
@@ -725,8 +762,11 @@ async function init(){
       }
     }
     if(!adminLoggedIn){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.getElementById('pg-login').classList.add('active');nav.hidden=true;return}
-    nav.hidden=false; showPage('submissions');
-  } else { showPage('upload'); }
+    nav.hidden=false; await showPage('submissions');
+  } else { await showPage('upload'); }
+  }finally{
+    setAppLoading(false);
+  }
 }
 
 function renderUploadSummary(d){
@@ -978,10 +1018,15 @@ function renderDistTags(value,labelMap={}){
 }
 
 async function adminLogin(){
+  setAppLoading(true,'正在登录管理端...');
+  try{
   const res=await api('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:adminUser.value,password:adminPass.value})});
   if(!res.ok){toast(res.error||'登录失败','bad');return}
-  adminLoggedIn=true; nav.hidden=false; setupNav(); showPage('submissions');
+  adminLoggedIn=true; nav.hidden=false; setupNav(); await showPage('submissions');
   toast(obj(res.data).using_default?'登录成功：当前为本地默认密码模式':'登录成功','ok');
+  }finally{
+    setAppLoading(false);
+  }
 }
 async function adminLogout(){await api('/api/admin/logout',{method:'POST'});location.reload();}
 async function loadAdminData(){
