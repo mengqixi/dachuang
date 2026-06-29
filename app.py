@@ -8,10 +8,12 @@ import csv
 import random
 import time
 import threading
-from datetime import datetime
+import hashlib
+import hmac
+from datetime import datetime, timedelta
 
 import numpy as np
-from flask import Flask, request, jsonify, send_file, session
+from flask import Flask, request, jsonify, send_file, session, redirect
 from loguru import logger
 
 try:
@@ -40,6 +42,7 @@ app.config["UPLOAD_FOLDER"] = "uploads/"
 app.config["ALLOWED_EXTENSIONS"] = {"csv", "json", "txt"}
 app.config["DATA_FOLDER"] = "data"
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024
+app.permanent_session_lifetime = timedelta(days=30)
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 os.makedirs(app.config["DATA_FOLDER"], exist_ok=True)
 
@@ -224,6 +227,10 @@ def api_response(code=200, msg="操作成功", data=None):
 
 DEFAULT_ADMIN_USERNAME = "root"
 DEFAULT_ADMIN_PASSWORD = "root"
+ADMIN_LAUNCHER_HASH_FILE = os.environ.get(
+    "ADMIN_LAUNCHER_HASH_FILE",
+    os.path.join("data", "keys", "admin_launcher.sha256"),
+)
 
 
 def _is_local_request():
@@ -256,6 +263,15 @@ def _admin_auth_config_status():
 
 def _is_admin_logged_in():
     return bool(session.get("admin_logged_in"))
+
+
+def _admin_launcher_hash():
+    try:
+        with open(ADMIN_LAUNCHER_HASH_FILE, "r", encoding="utf-8") as f:
+            value = f.read().strip().lower()
+        return value if len(value) == 64 else ""
+    except OSError:
+        return ""
 
 
 def _admin_required_response():
@@ -1471,10 +1487,25 @@ def admin_login():
         return jsonify(api_response(code=503, msg=auth_status["disabled_reason"], data={"auth_configured": False}))
     expected_user, expected_password = auth_status["username"], auth_status["password"]
     if username == expected_user and password == expected_password:
+        session.permanent = True
         session["admin_logged_in"] = True
         session["admin_username"] = username
         return jsonify(api_response(msg="登录成功", data={"username": username, "using_default": auth_status["using_default"]}))
     return jsonify(api_response(code=401, msg="管理员账号或密码错误"))
+
+
+@app.route("/admin/launcher-login", methods=["POST"])
+def admin_launcher_login():
+    """Create an admin session from a local launcher without storing a password."""
+    expected_hash = _admin_launcher_hash()
+    supplied_token = str(request.form.get("token", ""))
+    supplied_hash = hashlib.sha256(supplied_token.encode("utf-8")).hexdigest()
+    if not expected_hash or not hmac.compare_digest(supplied_hash, expected_hash):
+        return "快捷登录凭据无效或未配置。", 403
+    session.permanent = True
+    session["admin_logged_in"] = True
+    session["admin_username"] = _admin_credentials()[0]
+    return redirect("/", code=303)
 
 
 @app.route("/api/admin/logout", methods=["POST"])

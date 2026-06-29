@@ -44,6 +44,7 @@ data/ipdb/*.mmdb
 # 环境文件
 .env
 .env.local
+data/keys/
 
 # 操作系统
 Thumbs.db
