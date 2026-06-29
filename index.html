@@ -210,7 +210,7 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
     <div class="panel">
       <div class="panel-head"><i class="fas fa-folder-open text-primary"></i> 用户提交 - 加密归档与训练准入</div>
       <div class="panel-body">
-        <button class="btn-main me-2" onclick="loadAdminData()">刷新提交</button>
+        <button class="btn-main me-2" onclick="loadSubmissionsData(true)">刷新提交</button>
         <div class="metric-grid mt-3" id="submissionRiskMetrics">
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">用户提交</div></div>
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">高风险样本</div></div>
@@ -239,7 +239,7 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
         <div class="chain mb-3">
           <span>训练数据源</span><i class="fas fa-arrow-right muted"></i><span>统一字段</span><i class="fas fa-arrow-right muted"></i><span>分层切分</span><i class="fas fa-arrow-right muted"></i><span>四节点数据</span><i class="fas fa-arrow-right muted"></i><span>训练入口</span>
         </div>
-        <button class="btn-main me-2" onclick="loadDataProcessPage()">刷新数据源</button>
+        <button class="btn-main me-2" onclick="loadDataProcessPage(true)">刷新数据源</button>
         <button class="btn-lightx" onclick="processSystemDataset()">处理当前数据源并生成节点</button>
         <div class="metric-grid mt-3" id="systemDataMetrics">
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">当前数据源</div></div>
@@ -457,8 +457,9 @@ let trainingCompareState = {local:null, federated:null};
 let trainingCompareChartObj = null;
 let modelVersionCompareChartObj = null;
 let latestTrainingTasks = [];
-const ADMIN_CACHE_TTL = 15000;
+const ADMIN_CACHE_TTL = 300000;
 const adminCache = new Map();
+const pageLoaded = new Set();
 
 function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function arr(v){return Array.isArray(v)?v:[]}
@@ -737,10 +738,12 @@ async function showPage(id){
   document.querySelectorAll('.nav-link').forEach(a=>a.classList.toggle('active',a.dataset.page===id));
   const pageId = id==='submissions' ? 'dataAdmin' : id;
   const el=document.getElementById('pg-'+pageId); if(el)el.classList.add('active');
-  if(id==='submissions')return runPageLoader(pageId,[loadAdminData],'正在加载用户提交...');
-  if(id==='dataProcess')return runPageLoader(pageId,[loadDataProcessPage],'正在加载训练数据源...');
-  if(id==='modelVersions')return runPageLoader(pageId,[loadTrainingRecords],'正在加载模型版本...');
-  if(id==='audit')return runPageLoader(pageId,[loadAudit],'正在加载系统审计...');
+  if(pageLoaded.has(id))return;
+  const markLoaded=()=>pageLoaded.add(id);
+  if(id==='submissions')return runPageLoader(pageId,[()=>loadSubmissionsData(false)],'正在加载用户提交...').then(markLoaded);
+  if(id==='dataProcess')return runPageLoader(pageId,[()=>loadDataProcessPage(false)],'正在加载训练数据源...').then(markLoaded);
+  if(id==='modelVersions')return runPageLoader(pageId,[()=>loadTrainingRecords(false)],'正在加载模型版本...').then(markLoaded);
+  if(id==='audit')return runPageLoader(pageId,[()=>loadAudit(false)],'正在加载系统审计...').then(markLoaded);
 }
 async function init(){
   setAppLoading(true, APP_MODE==='admin'?'正在检查管理端登录状态...':'正在加载用户端...');
@@ -1029,78 +1032,94 @@ async function adminLogin(){
   }
 }
 async function adminLogout(){await api('/api/admin/logout',{method:'POST'});location.reload();}
-async function loadAdminData(){
+async function loadAdminData(force=false){
+  await Promise.allSettled([loadDatasetSourcesData(force), loadSubmissionsData(force)]);
+}
+async function loadDatasetSourcesData(force=false){
   try{
-  const [stRes,subsRes,sourcesApiRes]=await Promise.allSettled([cachedApi('/api/dataset/unsw/status'),cachedApi('/api/admin/submissions?limit=100'),cachedApi('/api/admin/datasets/sources')]);
-  const st=stRes.status==='fulfilled'?stRes.value:{ok:false,data:{}};
-  const subs=subsRes.status==='fulfilled'?subsRes.value:{ok:false,data:{submissions:[]},error:'用户提交接口不可用'};
-  const sourcesRes=sourcesApiRes.status==='fulfilled'?sourcesApiRes.value:{ok:false,data:{sources:[]}};
-  const sd=obj(st.data);
-  const sources=arr(obj(sourcesRes.data).sources);
-  currentDatasetSource = sources.find(s=>s.trainable)||sources[0]||sd;
-  currentDatasetSourceId = obj(currentDatasetSource).id || '';
-  const sourceTotalSamples=sources.reduce((sum,s)=>sum+(Number(s.samples)||0),0);
-  const preparedCount=sources.filter(s=>s.prepared_for_federated).length;
-  systemDataMetrics.innerHTML=[
-    ['当前训练源',currentDatasetSource.source_type||currentDatasetSource.source||sd.source_type||'未检测'],
-    ['当前源样本',currentDatasetSource.samples||sd.samples||0],
-    ['已发现数据样本',sourceTotalSamples],
-    ['已生成节点源',preparedCount]
-  ].map(x=>`<div class="metric"><div class="metric-value">${esc(x[1])}</div><div class="metric-label">${x[0]}</div></div>`).join('');
-  if(typeof trainingSourceBox!=='undefined')trainingSourceBox.innerHTML=`<b>当前训练数据源：</b>${esc(currentDatasetSource.name||currentDatasetSource.source||sd.source||'未检测')} <span class="mini-badge">${esc(currentDatasetSource.source_type||sd.source_type||'-')}</span><div class="small-text text-muted mt-1">当前源样本 ${esc(currentDatasetSource.samples||sd.samples||0)} 条；已发现数据样本 ${esc(sourceTotalSamples)} 条。下方表格统计的是服务器已识别的全部可用数据源，不等于当前训练源。</div>`;
-  if(typeof trainDataMetric!=='undefined')trainDataMetric.textContent=currentDatasetSource.samples||sd.samples||0;
-  if(typeof trainFeatureMetric!=='undefined')trainFeatureMetric.textContent=currentDatasetSource.features||sd.features||0;
-  if(typeof trainNodeMetric!=='undefined')trainNodeMetric.textContent=(currentDatasetSource.prepared_for_federated||sd.ready_for_federated)?'ready':'missing';
-  if(typeof datasetSourceTable!=='undefined'){
-    datasetSourceTable.innerHTML=sources.length?sources.map(s=>`<tr>
-      <td>${esc(s.name||s.source||'-')}<div class="small-text text-muted">${esc(s.source||'-')}</div></td>
-      <td>${esc(s.source_type||'-')}</td>
-      <td>${esc(s.samples||0)}</td>
-      <td>${esc(s.features||0)}</td>
-      <td>${esc(s.label_column||'-')}</td>
-      <td>${renderDistTags(s.label_distribution, {'0':'正常','1':'风险'})}</td>
-      <td>${renderDistTags(s.attack_type_distribution)}</td>
-      <td>${s.exists===false?'<span class="status-pill warn">未配置</span>':(s.prepared_for_federated?'<span class="status-pill ok">已生成节点</span>':'<span class="status-pill warn">待处理</span>')}</td>
-      <td class="small-text">${esc(s.description||'-')}</td>
-    </tr>`).join(''):'<tr><td colspan="9" class="text-muted">未检测到可用训练数据源</td></tr>';
-  }
-  const rows=arr(obj(subs.data).submissions).filter(r=>Number(r.row_count||0)>0);
-  const summary=obj(obj(subs.data).summary);
-  const totals=summary.total!==undefined
-    ? {total:summary.total||0, high:summary.high||0, medium:summary.medium||0, trainable:summary.trainable||0}
-    : rows.reduce((acc,r)=>{const c=riskSummaryCounts(r.risk_summary);acc.total+=1;acc.high+=c.high;acc.medium+=c.medium;acc.trainable+=r.trainable?1:0;return acc},{total:0,high:0,medium:0,trainable:0});
-  submissionRiskMetrics.innerHTML=[
-    ['用户提交',totals.total],['高风险样本',totals.high],['中风险样本',totals.medium],['可训练提交',totals.trainable]
-  ].map(x=>`<div class="metric"><div class="metric-value">${esc(x[1])}</div><div class="metric-label">${x[0]}</div></div>`).join('');
-  submissionTable.innerHTML=rows.length?rows.map(r=>`<tr>
-    <td>${esc(fmtTime(r.upload_time))}</td>
-    <td>${esc(r.filename)}</td>
-    <td>${esc(r.row_count)}</td>
-    <td>${esc(r.column_count)}</td>
-    <td>${submissionSecurityFields(r)}</td>
-    <td>${r.encrypted?'AES':'-'}</td>
-    <td>${reviewStatusBadge(r)}<div class="small-text text-muted mt-1">${esc(r.review_status_note||'')}</div></td>
-    <td>${lifecycleBadge(r)}</td>
-    <td>${esc(fmtTime(r.recent_operation_time||r.upload_time))}</td>
-    <td>${riskSummaryTags(r.risk_summary)}</td>
-    <td>${submissionActionButtons(r)}</td>
-  </tr>`).join(''):`<tr><td colspan="11" class="text-muted">${subs.ok?'暂无用户提交':'用户提交加载失败，请刷新或检查登录状态'}</td></tr>`;
+    if(force){clearAdminCache('/api/dataset/unsw/status'); clearAdminCache('/api/admin/datasets/sources');}
+    const [stRes,sourcesApiRes]=await Promise.allSettled([
+      force?api('/api/dataset/unsw/status'):cachedApi('/api/dataset/unsw/status'),
+      force?api('/api/admin/datasets/sources'):cachedApi('/api/admin/datasets/sources')
+    ]);
+    const st=stRes.status==='fulfilled'?stRes.value:{ok:false,data:{}};
+    const sourcesRes=sourcesApiRes.status==='fulfilled'?sourcesApiRes.value:{ok:false,data:{sources:[]}};
+    const sd=obj(st.data);
+    const sources=arr(obj(sourcesRes.data).sources);
+    currentDatasetSource = sources.find(s=>s.trainable)||sources[0]||sd;
+    currentDatasetSourceId = obj(currentDatasetSource).id || '';
+    const sourceTotalSamples=sources.reduce((sum,s)=>sum+(Number(s.samples)||0),0);
+    const preparedCount=sources.filter(s=>s.prepared_for_federated).length;
+    systemDataMetrics.innerHTML=[
+      ['当前训练源',currentDatasetSource.source_type||currentDatasetSource.source||sd.source_type||'未检测'],
+      ['当前源样本',currentDatasetSource.samples||sd.samples||0],
+      ['已发现数据样本',sourceTotalSamples],
+      ['已生成节点源',preparedCount]
+    ].map(x=>`<div class="metric"><div class="metric-value">${esc(x[1])}</div><div class="metric-label">${x[0]}</div></div>`).join('');
+    if(typeof trainingSourceBox!=='undefined')trainingSourceBox.innerHTML=`<b>当前训练数据源：</b>${esc(currentDatasetSource.name||currentDatasetSource.source||sd.source||'未检测')} <span class="mini-badge">${esc(currentDatasetSource.source_type||sd.source_type||'-')}</span><div class="small-text text-muted mt-1">当前源样本 ${esc(currentDatasetSource.samples||sd.samples||0)} 条；已发现数据样本 ${esc(sourceTotalSamples)} 条。下方表格统计的是服务器已识别的全部可用数据源，不等于当前训练源。</div>`;
+    if(typeof trainDataMetric!=='undefined')trainDataMetric.textContent=currentDatasetSource.samples||sd.samples||0;
+    if(typeof trainFeatureMetric!=='undefined')trainFeatureMetric.textContent=currentDatasetSource.features||sd.features||0;
+    if(typeof trainNodeMetric!=='undefined')trainNodeMetric.textContent=(currentDatasetSource.prepared_for_federated||sd.ready_for_federated)?'ready':'missing';
+    if(typeof datasetSourceTable!=='undefined'){
+      datasetSourceTable.innerHTML=sources.length?sources.map(s=>`<tr>
+        <td>${esc(s.name||s.source||'-')}<div class="small-text text-muted">${esc(s.source||'-')}</div></td>
+        <td>${esc(s.source_type||'-')}</td>
+        <td>${esc(s.samples||0)}</td>
+        <td>${esc(s.features||0)}</td>
+        <td>${esc(s.label_column||'-')}</td>
+        <td>${renderDistTags(s.label_distribution, {'0':'正常','1':'风险'})}</td>
+        <td>${renderDistTags(s.attack_type_distribution)}</td>
+        <td>${s.exists===false?'<span class="status-pill warn">未配置</span>':(s.prepared_for_federated?'<span class="status-pill ok">已生成节点</span>':'<span class="status-pill warn">待处理</span>')}</td>
+        <td class="small-text">${esc(s.description||'-')}</td>
+      </tr>`).join(''):'<tr><td colspan="9" class="text-muted">未检测到可用训练数据源</td></tr>';
+    }
   }catch(err){
-    console.error('loadAdminData failed',err);
+    console.error('loadDatasetSourcesData failed',err);
+    if(typeof datasetSourceTable!=='undefined')datasetSourceTable.innerHTML='<tr><td colspan="9" class="text-muted">训练数据源加载失败</td></tr>';
+    toast('训练数据源加载失败','bad');
+  }
+}
+async function loadSubmissionsData(force=false){
+  try{
+    if(force)clearAdminCache('/api/admin/submissions');
+    const subs=force?await api('/api/admin/submissions?limit=50'):await cachedApi('/api/admin/submissions?limit=50');
+    const rows=arr(obj(subs.data).submissions).filter(r=>Number(r.row_count||0)>0);
+    const summary=obj(obj(subs.data).summary);
+    const totals=summary.total!==undefined
+      ? {total:summary.total||0, high:summary.high||0, medium:summary.medium||0, trainable:summary.trainable||0}
+      : rows.reduce((acc,r)=>{const c=riskSummaryCounts(r.risk_summary);acc.total+=1;acc.high+=c.high;acc.medium+=c.medium;acc.trainable+=r.trainable?1:0;return acc},{total:0,high:0,medium:0,trainable:0});
+    submissionRiskMetrics.innerHTML=[
+      ['用户提交',totals.total],['高风险样本',totals.high],['中风险样本',totals.medium],['可训练提交',totals.trainable]
+    ].map(x=>`<div class="metric"><div class="metric-value">${esc(x[1])}</div><div class="metric-label">${x[0]}</div></div>`).join('');
+    submissionTable.innerHTML=rows.length?rows.map(r=>`<tr>
+      <td>${esc(fmtTime(r.upload_time))}</td>
+      <td>${esc(r.filename)}</td>
+      <td>${esc(r.row_count)}</td>
+      <td>${esc(r.column_count)}</td>
+      <td>${submissionSecurityFields(r)}</td>
+      <td>${r.encrypted?'AES':'-'}</td>
+      <td>${reviewStatusBadge(r)}<div class="small-text text-muted mt-1">${esc(r.review_status_note||'')}</div></td>
+      <td>${lifecycleBadge(r)}</td>
+      <td>${esc(fmtTime(r.recent_operation_time||r.upload_time))}</td>
+      <td>${riskSummaryTags(r.risk_summary)}</td>
+      <td>${submissionActionButtons(r)}</td>
+    </tr>`).join(''):`<tr><td colspan="11" class="text-muted">${subs.ok?'暂无用户提交':'用户提交加载失败，请刷新或检查登录状态'}</td></tr>`;
+  }catch(err){
+    console.error('loadSubmissionsData failed',err);
     submissionRiskMetrics.innerHTML=[
       ['用户提交',0],['高风险样本',0],['中风险样本',0],['可训练提交',0]
     ].map(x=>`<div class="metric"><div class="metric-value">${esc(x[1])}</div><div class="metric-label">${x[0]}</div></div>`).join('');
     submissionTable.innerHTML='<tr><td colspan="11" class="text-muted">用户提交加载失败，请刷新页面或重新登录管理端。</td></tr>';
-    if(typeof datasetSourceTable!=='undefined')datasetSourceTable.innerHTML='<tr><td colspan="9" class="text-muted">训练数据源加载失败</td></tr>';
-    toast('管理端数据加载失败','bad');
+    toast('用户提交加载失败','bad');
   }
 }
-async function processSystemDataset(){const r=await api('/api/dataset/unsw/process',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});clearAdminCache();toast(r.ok?'处理完成':r.error,r.ok?'ok':'bad');loadAdminData();loadNodes();}
-async function archiveSubmission(id){const r=await api(`/api/admin/submissions/${id}/archive`,{method:'POST'});clearAdminCache('/api/admin/submissions');toast(r.ok?'已归档':r.error,r.ok?'ok':'bad');loadAdminData();}
-async function markTrainable(id){const r=await api(`/api/admin/submissions/${id}/mark-trainable`,{method:'POST'});clearAdminCache('/api/admin/submissions');toast(r.ok?'已标记可训练':r.error,r.ok?'ok':'bad');loadAdminData();}
-async function rejectSubmission(id){const r=await api(`/api/admin/submissions/${id}/reject`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:'管理员确认暂不进入训练池'})});clearAdminCache('/api/admin/submissions');toast(r.ok?'已拒绝进入训练池':r.error,r.ok?'ok':'bad');loadAdminData();}
-async function loadNodes(){
-  const r=await cachedApi('/api/federated/nodes');
+async function processSystemDataset(){const r=await api('/api/dataset/unsw/process',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});clearAdminCache();pageLoaded.delete('dataProcess');toast(r.ok?'处理完成':r.error,r.ok?'ok':'bad');loadDataProcessPage(true);}
+async function archiveSubmission(id){const r=await api(`/api/admin/submissions/${id}/archive`,{method:'POST'});clearAdminCache('/api/admin/submissions');pageLoaded.delete('submissions');toast(r.ok?'已归档':r.error,r.ok?'ok':'bad');loadSubmissionsData(true);}
+async function markTrainable(id){const r=await api(`/api/admin/submissions/${id}/mark-trainable`,{method:'POST'});clearAdminCache('/api/admin/submissions');pageLoaded.delete('submissions');toast(r.ok?'已标记可训练':r.error,r.ok?'ok':'bad');loadSubmissionsData(true);}
+async function rejectSubmission(id){const r=await api(`/api/admin/submissions/${id}/reject`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:'管理员确认暂不进入训练池'})});clearAdminCache('/api/admin/submissions');pageLoaded.delete('submissions');toast(r.ok?'已拒绝进入训练池':r.error,r.ok?'ok':'bad');loadSubmissionsData(true);}
+async function loadNodes(force=false){
+  if(force)clearAdminCache('/api/federated/nodes');
+  const r=force?await api('/api/federated/nodes'):await cachedApi('/api/federated/nodes');
   const data=obj(r.data);
   const nodes=arr(data.nodes);
   const html=nodes.length?nodes.map(n=>{
@@ -1391,7 +1410,7 @@ function trainLimit(){
   return Math.max(100,Math.min(50000,n||10000));
 }
 async function ensureTrainingSource(){
-  if(!currentDatasetSourceId)await loadAdminData();
+  if(!currentDatasetSourceId)await loadDatasetSourcesData(false);
 }
 async function runAdminLocalTrain(refresh=true){
   await ensureTrainingSource();
@@ -1399,7 +1418,7 @@ async function runAdminLocalTrain(refresh=true){
   toast(r.ok?'本地训练完成':r.error,r.ok?'ok':'bad');
   if(r.ok)renderTrainingResult(r.data,'local');
   if(r.ok)clearAdminCache();
-  if(refresh)await Promise.allSettled([loadTrainingRecords(true),loadModelVersions(true)]);
+  if(refresh)await Promise.allSettled([loadTrainingRecords(true,true)]);
   return r;
 }
 async function runAdminFederatedTrain(refresh=true){
@@ -1409,7 +1428,7 @@ async function runAdminFederatedTrain(refresh=true){
   toast(r.ok?'联邦训练完成':r.error,r.ok?'ok':'bad');
   if(r.ok)renderTrainingResult(r.data,'federated');
   if(r.ok)clearAdminCache();
-  if(refresh)await Promise.allSettled([loadNodes(),loadTrainingRecords(true),loadModelVersions(true)]);
+  if(refresh)await Promise.allSettled([loadNodes(true),loadTrainingRecords(true,true)]);
   return r;
 }
 async function runAdminFullTraining(){
@@ -1425,7 +1444,7 @@ async function runAdminFullTraining(){
     const fed=await runAdminFederatedTrain(false);
     if(local.ok&&fed.ok){
       clearAdminCache();
-      await Promise.allSettled([loadNodes(),loadTrainingRecords(true),loadModelVersions(true)]);
+      await Promise.allSettled([loadNodes(true),loadTrainingRecords(true,true)]);
       toast('本地基线与四节点联邦训练均已完成','ok');
       renderTrainingCompare();
     }
@@ -1433,13 +1452,13 @@ async function runAdminFullTraining(){
     if(button){button.disabled=false;button.innerHTML='<i class="fas fa-play"></i> 运行本地基线 + 四节点联邦训练';}
   }
 }
-async function loadDataProcessPage(){
-  await Promise.allSettled([loadAdminData(),loadNodes(),loadTrainingRecords()]);
+async function loadDataProcessPage(force=false){
+  await Promise.allSettled([loadDatasetSourcesData(force),loadNodes(force),loadTrainingRecords(force,false)]);
 }
-async function loadTrainingPage(){
-  await Promise.allSettled([loadAdminData(),loadNodes(),loadTrainingRecords()]);
+async function loadTrainingPage(force=false){
+  await Promise.allSettled([loadDatasetSourcesData(force),loadNodes(force),loadTrainingRecords(force,false)]);
 }
-async function loadTrainingRecords(force=false){
+async function loadTrainingRecords(force=false, withVersions=true){
   const url='/api/admin/training/tasks?limit=50';
   if(force)clearAdminCache('/api/admin/training/tasks');
   const r=force?await api(url):await cachedApi(url);
@@ -1464,7 +1483,7 @@ async function loadTrainingRecords(force=false){
       <td>${esc(fmtTime(x.created_at||x.timestamp))}</td>
     </tr>`;
   }).join(''):'<tr><td colspan="8" class="text-muted">暂无训练记录</td></tr>'
-  await loadModelVersions();
+  if(withVersions)await loadModelVersions(force);
 }
 function modelTypeLabel(type){
   const t=String(type||'');
@@ -1654,7 +1673,7 @@ async function activateModelVersion(id){
   if(!id)return;
   const r=await api(`/api/admin/model-versions/${id}/activate`,{method:'POST'});
   toast(r.ok?(r.msg||'模型版本状态已更新'):r.error,r.ok?'ok':'bad');
-  loadModelVersions();
+  loadModelVersions(true);
 }
 function eventExtra(e){return obj(e.extra)}
 function eventEvidence(e){
@@ -1792,8 +1811,8 @@ async function loadAudit(){
 }
 
 // Compatibility names kept for older inline checks.
-function genData(){return generatePrivacySamples()} function loadDS(){return loadAdminData()} function procDS(){return processSystemDataset()} function buildTable(){}
-function startTrain(){return runAdminLocalTrain()} function loadTrainHist(){return loadTrainingRecords()} function loadFed(){return loadNodes()} function runFed(){return runAdminFederatedTrain()}
+function genData(){return generatePrivacySamples()} function loadDS(){return loadDatasetSourcesData(true)} function procDS(){return processSystemDataset()} function buildTable(){}
+function startTrain(){return runAdminLocalTrain()} function loadTrainHist(){return loadTrainingRecords(true,true)} function loadFed(){return loadNodes(true)} function runFed(){return runAdminFederatedTrain()}
 function detSample(){return analyzeCurrentSubmission()} function detFile(){return uploadUserFile()} function showDetRes(d){return renderAnalysis(d)} function updEnc(){return generatePrivacySamples()}
 function loadOpt(){} function toggleAuto(){} function loadDash(){} function loadSec(){return loadAudit()} function ensureSecTimer(){} function escapeHtml(v){return esc(v)}
 init();
