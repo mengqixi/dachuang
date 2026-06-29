@@ -102,7 +102,7 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
               <span class="input-group-text">记录数</span>
               <input class="form-control" id="sampleCount" type="number" min="20" max="5000" value="200">
             </div>
-            <button class="btn-main me-2" onclick="generateCombinedSamples()">生成综合样本</button>
+            <button class="btn-main me-2" onclick="generateCombinedSamples(event)">生成综合样本</button>
             <span class="hint"><button class="info-icon" type="button"><i class="fas fa-info"></i></button><span class="hint-panel right">一次生成登录安全样本和隐私密态样本：左侧用于风险检测，右侧用于 Paillier 密态字段展示。</span></span>
           </div>
         </div>
@@ -239,8 +239,8 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
         <div class="chain mb-3">
           <span>训练数据源</span><i class="fas fa-arrow-right muted"></i><span>统一字段</span><i class="fas fa-arrow-right muted"></i><span>分层切分</span><i class="fas fa-arrow-right muted"></i><span>四节点数据</span><i class="fas fa-arrow-right muted"></i><span>训练入口</span>
         </div>
-        <button class="btn-main me-2" onclick="loadDataProcessPage(true)">刷新数据源</button>
-        <button class="btn-lightx" onclick="processSystemDataset()">处理当前数据源并生成节点</button>
+        <button class="btn-main me-2" onclick="loadDataProcessPage(true,event)">刷新数据源</button>
+        <button class="btn-lightx" onclick="processSystemDataset(event)">处理当前数据源并生成节点</button>
         <div class="metric-grid mt-3" id="systemDataMetrics">
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">当前数据源</div></div>
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">样本</div></div>
@@ -543,8 +543,11 @@ async function api(url,opt={}){
 }
 function cacheKey(url){return String(url||'');}
 function clearAdminCache(prefix=''){
+  const rawPrefix=String(prefix||'');
+  const basePrefix=rawPrefix.split('?')[0];
   for(const key of Array.from(adminCache.keys())){
-    if(!prefix || key.startsWith(prefix))adminCache.delete(key);
+    const baseKey=String(key||'').split('?')[0];
+    if(!rawPrefix || key.startsWith(rawPrefix) || baseKey===basePrefix || baseKey.startsWith(basePrefix))adminCache.delete(key);
   }
 }
 async function cachedApi(url,opt={},ttl=ADMIN_CACHE_TTL){
@@ -725,10 +728,11 @@ function setPageLoading(pageId,on,text='正在加载数据...'){
 }
 async function runPageLoader(pageId,loaders,text){
   const list=arr(loaders).filter(Boolean);
-  if(!list.length)return;
+  if(!list.length)return true;
   setPageLoading(pageId,true,text);
   try{
-    await Promise.allSettled(list.map(fn=>typeof fn==='function'?fn():fn));
+    const results=await Promise.allSettled(list.map(fn=>typeof fn==='function'?fn():fn));
+    return results.every(r=>r.status==='fulfilled' && r.value!==false);
   }finally{
     setPageLoading(pageId,false);
   }
@@ -739,7 +743,7 @@ async function showPage(id){
   const pageId = id==='submissions' ? 'dataAdmin' : id;
   const el=document.getElementById('pg-'+pageId); if(el)el.classList.add('active');
   if(pageLoaded.has(id))return;
-  const markLoaded=()=>pageLoaded.add(id);
+  const markLoaded=ok=>{if(ok)pageLoaded.add(id);return ok};
   if(id==='submissions')return runPageLoader(pageId,[()=>loadSubmissionsData(false)],'正在加载用户提交...').then(markLoaded);
   if(id==='dataProcess')return runPageLoader(pageId,[()=>loadDataProcessPage(false)],'正在加载训练数据源...').then(markLoaded);
   if(id==='modelVersions')return runPageLoader(pageId,[()=>loadTrainingRecords(false)],'正在加载模型版本...').then(markLoaded);
@@ -831,7 +835,7 @@ function renderPrivacySamplePreview(data, showPlain=false){
   }
   encryptedPreview.innerHTML=`<div class="small-text text-muted p-2"><span class="mini-badge">${esc(algorithm)}</span> ${esc(note)} 当前仅预览前 20 条，完整密文字段保留在返回数据中。</div>`+table(encrypted.slice(0,20),privacyCipherCols(encrypted[0]));
 }
-async function generateCombinedSamples(){
+async function generateCombinedSamplesImpl(){
   const count=Math.max(20,Math.min(parseInt(sampleCount.value||200),5000));
   const privacyCount=Math.min(count,1000);
   const [loginRes,privacyRes]=await Promise.all([
@@ -847,6 +851,18 @@ async function generateCombinedSamples(){
   const uploaded=await uploadBlob('login_security_samples.csv',toCsv(rows));
   if(uploaded)plainPreview.innerHTML=previewHtml;
   toast(privacyRes.ok?'综合样本已生成：左侧可检测，右侧可查看 Paillier 密态字段。':'登录安全样本已生成，隐私密态样本生成失败。', privacyRes.ok?'ok':'info');
+}
+async function generateCombinedSamples(ev){
+  const btn=ev&&ev.currentTarget;
+  const oldHtml=btn?btn.innerHTML:'';
+  if(btn){btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> 生成中...';}
+  if(typeof plainPreview!=='undefined')plainPreview.innerHTML='<div class="p-3 text-muted"><i class="fas fa-spinner fa-spin"></i> 正在生成登录安全样本...</div>';
+  if(typeof encryptedPreview!=='undefined')encryptedPreview.innerHTML='<div class="p-3 text-muted"><i class="fas fa-spinner fa-spin"></i> 正在生成 Paillier 密态字段...</div>';
+  try{
+    return await generateCombinedSamplesImpl();
+  }finally{
+    if(btn){btn.disabled=false;btn.innerHTML=oldHtml;}
+  }
 }
 async function generateLoginSamples(){
   return generateCombinedSamples();
@@ -1038,12 +1054,19 @@ async function loadAdminData(force=false){
 async function loadDatasetSourcesData(force=false){
   try{
     if(force){clearAdminCache('/api/dataset/unsw/status'); clearAdminCache('/api/admin/datasets/sources');}
+    const datasetStatusUrl='/api/dataset/unsw/status'+(force?'?force=1':'');
+    const datasetSourcesUrl='/api/admin/datasets/sources'+(force?'?force=1':'');
     const [stRes,sourcesApiRes]=await Promise.allSettled([
-      force?api('/api/dataset/unsw/status'):cachedApi('/api/dataset/unsw/status'),
-      force?api('/api/admin/datasets/sources'):cachedApi('/api/admin/datasets/sources')
+      force?api(datasetStatusUrl):cachedApi('/api/dataset/unsw/status'),
+      force?api(datasetSourcesUrl):cachedApi('/api/admin/datasets/sources')
     ]);
     const st=stRes.status==='fulfilled'?stRes.value:{ok:false,data:{}};
     const sourcesRes=sourcesApiRes.status==='fulfilled'?sourcesApiRes.value:{ok:false,data:{sources:[]}};
+    if(!st.ok && !sourcesRes.ok){
+      datasetSourceTable.innerHTML=`<tr><td colspan="9" class="text-muted">训练数据源加载失败：${esc(st.error||sourcesRes.error||'请刷新后重试')}</td></tr>`;
+      pageLoaded.delete('dataProcess');
+      return false;
+    }
     const sd=obj(st.data);
     const sources=arr(obj(sourcesRes.data).sources);
     currentDatasetSource = sources.find(s=>s.trainable)||sources[0]||sd;
@@ -1073,17 +1096,29 @@ async function loadDatasetSourcesData(force=false){
         <td class="small-text">${esc(s.description||'-')}</td>
       </tr>`).join(''):'<tr><td colspan="9" class="text-muted">未检测到可用训练数据源</td></tr>';
     }
+    return true;
   }catch(err){
     console.error('loadDatasetSourcesData failed',err);
     if(typeof datasetSourceTable!=='undefined')datasetSourceTable.innerHTML='<tr><td colspan="9" class="text-muted">训练数据源加载失败</td></tr>';
     toast('训练数据源加载失败','bad');
+    pageLoaded.delete('dataProcess');
+    return false;
   }
 }
 async function loadSubmissionsData(force=false){
   try{
     if(force)clearAdminCache('/api/admin/submissions');
-    const subs=force?await api('/api/admin/submissions?limit=50'):await cachedApi('/api/admin/submissions?limit=50');
-    const rows=arr(obj(subs.data).submissions).filter(r=>Number(r.row_count||0)>0);
+    const submissionsUrl='/api/admin/submissions?limit=50'+(force?'&force=1':'');
+    const subs=force?await api(submissionsUrl):await cachedApi('/api/admin/submissions?limit=50');
+    if(!subs.ok){
+      submissionRiskMetrics.innerHTML=[
+        ['用户提交',0],['高风险样本',0],['中风险样本',0],['可训练提交',0]
+      ].map(x=>`<div class="metric"><div class="metric-value">${esc(x[1])}</div><div class="metric-label">${x[0]}</div></div>`).join('');
+      submissionTable.innerHTML=`<tr><td colspan="11" class="text-muted">用户提交加载失败：${esc(subs.error||'请刷新或重新登录管理端')}</td></tr>`;
+      pageLoaded.delete('submissions');
+      return false;
+    }
+    const rows=arr(obj(subs.data).submissions);
     const summary=obj(obj(subs.data).summary);
     const totals=summary.total!==undefined
       ? {total:summary.total||0, high:summary.high||0, medium:summary.medium||0, trainable:summary.trainable||0}
@@ -1104,6 +1139,7 @@ async function loadSubmissionsData(force=false){
       <td>${riskSummaryTags(r.risk_summary)}</td>
       <td>${submissionActionButtons(r)}</td>
     </tr>`).join(''):`<tr><td colspan="11" class="text-muted">${subs.ok?'暂无用户提交':'用户提交加载失败，请刷新或检查登录状态'}</td></tr>`;
+    return true;
   }catch(err){
     console.error('loadSubmissionsData failed',err);
     submissionRiskMetrics.innerHTML=[
@@ -1111,9 +1147,21 @@ async function loadSubmissionsData(force=false){
     ].map(x=>`<div class="metric"><div class="metric-value">${esc(x[1])}</div><div class="metric-label">${x[0]}</div></div>`).join('');
     submissionTable.innerHTML='<tr><td colspan="11" class="text-muted">用户提交加载失败，请刷新页面或重新登录管理端。</td></tr>';
     toast('用户提交加载失败','bad');
+    pageLoaded.delete('submissions');
+    return false;
   }
 }
-async function processSystemDataset(){const r=await api('/api/dataset/unsw/process',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});clearAdminCache();pageLoaded.delete('dataProcess');toast(r.ok?'处理完成':r.error,r.ok?'ok':'bad');loadDataProcessPage(true);}
+async function processSystemDatasetImpl(){const r=await api('/api/dataset/unsw/process',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});clearAdminCache();pageLoaded.delete('dataProcess');toast(r.ok?'处理完成':r.error,r.ok?'ok':'bad');loadDataProcessPage(true);}
+async function processSystemDataset(ev){
+  const btn=ev&&ev.currentTarget;
+  const oldHtml=btn?btn.innerHTML:'';
+  if(btn){btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> 处理中...';}
+  try{
+    return await processSystemDatasetImpl();
+  }finally{
+    if(btn){btn.disabled=false;btn.innerHTML=oldHtml;}
+  }
+}
 async function archiveSubmission(id){const r=await api(`/api/admin/submissions/${id}/archive`,{method:'POST'});clearAdminCache('/api/admin/submissions');pageLoaded.delete('submissions');toast(r.ok?'已归档':r.error,r.ok?'ok':'bad');loadSubmissionsData(true);}
 async function markTrainable(id){const r=await api(`/api/admin/submissions/${id}/mark-trainable`,{method:'POST'});clearAdminCache('/api/admin/submissions');pageLoaded.delete('submissions');toast(r.ok?'已标记可训练':r.error,r.ok?'ok':'bad');loadSubmissionsData(true);}
 async function rejectSubmission(id){const r=await api(`/api/admin/submissions/${id}/reject`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:'管理员确认暂不进入训练池'})});clearAdminCache('/api/admin/submissions');pageLoaded.delete('submissions');toast(r.ok?'已拒绝进入训练池':r.error,r.ok?'ok':'bad');loadSubmissionsData(true);}
@@ -1452,8 +1500,15 @@ async function runAdminFullTraining(){
     if(button){button.disabled=false;button.innerHTML='<i class="fas fa-play"></i> 运行本地基线 + 四节点联邦训练';}
   }
 }
-async function loadDataProcessPage(force=false){
-  await Promise.allSettled([loadDatasetSourcesData(force),loadNodes(force),loadTrainingRecords(force,false)]);
+async function loadDataProcessPage(force=false,ev=null){
+  const btn=ev&&ev.currentTarget;
+  const oldHtml=btn?btn.innerHTML:'';
+  if(btn){btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> 刷新中...';}
+  try{
+    return await Promise.allSettled([loadDatasetSourcesData(force),loadNodes(force),loadTrainingRecords(force,false)]);
+  }finally{
+    if(btn){btn.disabled=false;btn.innerHTML=oldHtml;}
+  }
 }
 async function loadTrainingPage(force=false){
   await Promise.allSettled([loadDatasetSourcesData(force),loadNodes(force),loadTrainingRecords(force,false)]);
