@@ -541,6 +541,15 @@ async function api(url,opt={}){
     return{ok:true,data:j.data??j,msg:j.msg}
   }catch(e){return{ok:false,error:e.message}}
 }
+async function apiWithTimeout(url,opt={},timeoutMs=90000){
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),timeoutMs);
+  try{
+    return await api(url,{...opt,signal:controller.signal});
+  }finally{
+    clearTimeout(timer);
+  }
+}
 function cacheKey(url){return String(url||'');}
 function clearAdminCache(prefix=''){
   const rawPrefix=String(prefix||'');
@@ -1167,7 +1176,7 @@ async function prepareDatasetSource(sourceId,ev){
   const oldHtml=btn?btn.innerHTML:'';
   if(btn){btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> 生成中';}
   try{
-    const r=await api(`/api/admin/datasets/${encodeURIComponent(sourceId)}/prepare`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:50000})});
+    const r=await apiWithTimeout(`/api/admin/datasets/${encodeURIComponent(sourceId)}/prepare`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:50000})},90000);
     clearAdminCache();
     pageLoaded.delete('dataProcess');
     pageLoaded.delete('modelVersions');
@@ -1181,7 +1190,7 @@ async function prepareDatasetSource(sourceId,ev){
 async function processSystemDatasetImpl(){
   const sourceId=currentDatasetSourceId||'';
   const url=sourceId?`/api/admin/datasets/${encodeURIComponent(sourceId)}/prepare`:'/api/dataset/unsw/process';
-  const r=await api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:50000})});
+  const r=await apiWithTimeout(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:50000})},90000);
   clearAdminCache();
   pageLoaded.delete('dataProcess');
   pageLoaded.delete('modelVersions');

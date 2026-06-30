@@ -1702,6 +1702,65 @@ def admin_dataset_sources():
     }))
 
 
+def _prepare_dataset_source_for_federated(source, source_id=None, limit=50000):
+    """Prepare a selected source for federated nodes without retraining detectors."""
+    try:
+        from src.preprocess.feature_engineering import inspect_csv, load_security_csv, minmax_normalize
+        from src.preprocess.federated_splitter import save_federated_data
+
+        filepath = source.get("path")
+        if not filepath or not os.path.exists(filepath):
+            return jsonify(api_response(code=400, msg="Dataset source file does not exist."))
+
+        try:
+            limit = int(limit or 50000)
+        except (TypeError, ValueError):
+            limit = 50000
+        limit = max(1, min(limit, 50000))
+
+        logger.info("Preparing federated nodes from dataset source: %s", filepath)
+        X, y, _ = load_security_csv(filepath, limit=limit)
+        if len(X) == 0:
+            return jsonify(api_response(code=400, msg="Dataset source is empty or features cannot be extracted."))
+
+        X = minmax_normalize(X)
+        os.makedirs(PROCESSED_DATA_DIR, exist_ok=True)
+        np.save(PROCESSED_X_PATH, X)
+        np.save(PROCESSED_Y_PATH, y)
+        nodes = save_federated_data(X, y)
+
+        try:
+            info = inspect_csv(filepath)
+        except Exception as inspect_error:
+            logger.warning("Dataset inspect failed during node preparation: %s", inspect_error)
+            info = {}
+
+        label_counts = {str(k): int(v) for k, v in zip(*np.unique(y, return_counts=True))}
+        metadata = {
+            "dataset_source_id": source_id or source.get("id") or _dataset_source_id(source),
+            "source": source.get("source") or os.path.basename(filepath),
+            "source_type": source.get("source_type") or "dataset",
+            "source_path": filepath,
+            "samples": int(len(X)),
+            "features": int(X.shape[1]),
+            "label_column": info.get("label_column"),
+            "label_counts": label_counts,
+            "processed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "prepared_only": True,
+        }
+        with open(PROCESSED_META_PATH, "w", encoding="utf-8") as f:
+            json.dump(metadata, f, ensure_ascii=False, indent=2)
+
+        _clear_dataset_sources_cache()
+        return jsonify(api_response(msg="success", data={
+            **metadata,
+            "nodes": [{"name": n[0], "samples": int(n[1]), "ready": True} for n in nodes],
+        }))
+    except Exception as e:
+        logger.exception("Dataset node preparation failed")
+        return jsonify(api_response(code=500, msg="Node preparation failed: %s" % e))
+
+
 @app.route("/api/admin/datasets/<source_id>/prepare", methods=["POST"])
 def admin_dataset_prepare(source_id):
     """Prepare a selected dataset source for training and federated splitting."""
@@ -1710,9 +1769,7 @@ def admin_dataset_prepare(source_id):
     if selected is None:
         return jsonify(api_response(code=404, msg="数据源不存在"))
     req = request.get_json(silent=True) or {}
-    req["source_id"] = source_id
-    with app.test_request_context(json=req):
-        return dataset_unsw_process()
+    return _prepare_dataset_source_for_federated(selected, source_id, limit=req.get("limit", 50000))
 
 
 @app.route("/api/admin/datasets/<source_id>/split-federated", methods=["POST"])
