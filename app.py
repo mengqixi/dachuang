@@ -1585,7 +1585,11 @@ def user_dataset_analyze(submission_id):
         analysis = user_submission_manager.analyze(submission_id, detector=ensemble_detector, limit=limit)
         if analysis is None:
             return jsonify(api_response(code=404, msg="提交记录不存在"))
-        analysis["current_model_versions"] = db.get_current_model_versions()
+        try:
+            analysis["current_model_versions"] = db.get_current_model_versions()
+        except Exception as model_error:
+            logger.warning("Load current model versions failed: %s", model_error)
+            analysis["current_model_versions"] = []
         try:
             item = user_submission_manager.get_submission(submission_id, include_preview=False) or {}
             db.upsert_user_submission(item)

@@ -38,6 +38,29 @@ class DataStorage:
         conn.row_factory = sqlite3.Row
         return conn
 
+    def _ensure_model_version_tables(self, conn: sqlite3.Connection):
+        """Ensure model version tables exist for databases created by older builds."""
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS model_versions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                version TEXT DEFAULT '',
+                model_type TEXT DEFAULT '',
+                source TEXT DEFAULT '',
+                samples INTEGER DEFAULT 0,
+                accuracy REAL DEFAULT 0,
+                metadata TEXT DEFAULT '{}'
+            );
+            CREATE INDEX IF NOT EXISTS idx_model_versions_ts ON model_versions(timestamp);
+
+            CREATE TABLE IF NOT EXISTS current_model_versions (
+                model_type TEXT PRIMARY KEY,
+                model_version TEXT DEFAULT '',
+                model_id INTEGER DEFAULT 0,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+
     def _init_db(self):
         """初始化数据库表"""
         with self._lock:
@@ -387,6 +410,7 @@ class DataStorage:
         with self._lock:
             conn = self._get_conn()
             try:
+                self._ensure_model_version_tables(conn)
                 cur = conn.execute(
                     "INSERT INTO model_versions (version, model_type, source, samples, accuracy, metadata) VALUES (?, ?, ?, ?, ?, ?)",
                     (
@@ -430,6 +454,7 @@ class DataStorage:
         with self._lock:
             conn = self._get_conn()
             try:
+                self._ensure_model_version_tables(conn)
                 rows = conn.execute(
                     """
                     SELECT mv.*,
@@ -457,6 +482,7 @@ class DataStorage:
         with self._lock:
             conn = self._get_conn()
             try:
+                self._ensure_model_version_tables(conn)
                 rows = conn.execute(
                     "SELECT * FROM training_tasks ORDER BY id ASC"
                 ).fetchall()
@@ -545,6 +571,7 @@ class DataStorage:
         with self._lock:
             conn = self._get_conn()
             try:
+                self._ensure_model_version_tables(conn)
                 rows = conn.execute(
                     """
                     SELECT cmv.model_type,
@@ -569,6 +596,7 @@ class DataStorage:
         with self._lock:
             conn = self._get_conn()
             try:
+                self._ensure_model_version_tables(conn)
                 row = conn.execute(
                     "SELECT * FROM model_versions WHERE id = ?",
                     (int(version_id),),
