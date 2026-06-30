@@ -1126,6 +1126,55 @@ class UserSubmissionManager:
         visible_items = [x for x in items if int(x.get("row_count") or 0) > 0]
         return [self.public_summary(x) for x in sorted(visible_items, key=lambda v: v.get("upload_time", ""), reverse=True)]
 
+    def list_dataset_sources(self, limit: int = 50) -> List[Dict]:
+        """Return user submissions as lightweight dataset source records.
+
+        The management data page needs to show newly uploaded user data even
+        before it is approved for training. Only rows with usable samples and a
+        server-side temporary CSV/JSON path can be prepared as a training source.
+        """
+        items = sorted(_read_index().get("submissions", []), key=lambda v: v.get("upload_time", ""), reverse=True)
+        sources = []
+        for item in items:
+            row_count = int(item.get("row_count") or 0)
+            if row_count <= 0:
+                continue
+            plain_path = item.get("plain_temp_path") or ""
+            exists = bool(plain_path and os.path.exists(plain_path))
+            trainable = bool(item.get("trainable")) and row_count > 0 and exists
+            risk = item.get("risk_summary") or {}
+            risk_desc = []
+            for key, label in (("high", "高"), ("medium", "中"), ("low", "低")):
+                value = risk.get(key) or risk.get(f"{key}_count") or 0
+                if value:
+                    risk_desc.append(f"{label}{int(value)}")
+            sources.append({
+                "id": f"submission:{item.get('id')}",
+                "submission_id": item.get("id"),
+                "name": "用户提交数据",
+                "source": item.get("filename") or item.get("id"),
+                "source_type": "user_submission",
+                "path": plain_path if exists else None,
+                "samples": row_count,
+                "features": int(item.get("column_count") or 0),
+                "label_column": item.get("label_column"),
+                "trainable": trainable,
+                "configured": False,
+                "exists": exists,
+                "prepared_for_federated": False,
+                "status": "ready" if trainable else ("pending_review" if row_count > 0 else "invalid"),
+                "label_distribution": {},
+                "attack_type_distribution": {},
+                "scanned_rows": row_count,
+                "description": "用户上传数据，需在用户提交页归档并标记可训练后进入训练数据池。" if not trainable else "已审核进入训练池，可用于本地训练和四节点联邦切分。",
+                "review_status": item.get("review_status"),
+                "training_status": "已进入训练池" if trainable else "未进入训练池",
+                "risk_summary": risk_desc,
+            })
+            if len(sources) >= max(1, int(limit or 50)):
+                break
+        return sources
+
     def get_submission(self, submission_id: str, include_preview: bool = True) -> Optional[Dict]:
         for item in _read_index().get("submissions", []):
             if item.get("id") == submission_id:

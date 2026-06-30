@@ -1108,8 +1108,8 @@ async function loadDatasetSourcesData(force=false){
 async function loadSubmissionsData(force=false){
   try{
     if(force)clearAdminCache('/api/admin/submissions');
-    const submissionsUrl='/api/admin/submissions?limit=50'+(force?'&force=1':'');
-    const subs=force?await api(submissionsUrl):await cachedApi('/api/admin/submissions?limit=50');
+    const submissionsUrl='/api/admin/submissions?limit=20'+(force?'&force=1':'');
+    const subs=force?await api(submissionsUrl):await cachedApi('/api/admin/submissions?limit=20');
     if(!subs.ok){
       submissionRiskMetrics.innerHTML=[
         ['用户提交',0],['高风险样本',0],['中风险样本',0],['可训练提交',0]
@@ -1162,9 +1162,16 @@ async function processSystemDataset(ev){
     if(btn){btn.disabled=false;btn.innerHTML=oldHtml;}
   }
 }
-async function archiveSubmission(id){const r=await api(`/api/admin/submissions/${id}/archive`,{method:'POST'});clearAdminCache('/api/admin/submissions');pageLoaded.delete('submissions');toast(r.ok?'已归档':r.error,r.ok?'ok':'bad');loadSubmissionsData(true);}
-async function markTrainable(id){const r=await api(`/api/admin/submissions/${id}/mark-trainable`,{method:'POST'});clearAdminCache('/api/admin/submissions');pageLoaded.delete('submissions');toast(r.ok?'已标记可训练':r.error,r.ok?'ok':'bad');loadSubmissionsData(true);}
-async function rejectSubmission(id){const r=await api(`/api/admin/submissions/${id}/reject`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:'管理员确认暂不进入训练池'})});clearAdminCache('/api/admin/submissions');pageLoaded.delete('submissions');toast(r.ok?'已拒绝进入训练池':r.error,r.ok?'ok':'bad');loadSubmissionsData(true);}
+function invalidateSubmissionAndDataPages(){
+  clearAdminCache('/api/admin/submissions');
+  clearAdminCache('/api/admin/datasets/sources');
+  clearAdminCache('/api/dataset/unsw/status');
+  pageLoaded.delete('submissions');
+  pageLoaded.delete('dataProcess');
+}
+async function archiveSubmission(id){const r=await api(`/api/admin/submissions/${id}/archive`,{method:'POST'});invalidateSubmissionAndDataPages();toast(r.ok?'已归档':r.error,r.ok?'ok':'bad');loadSubmissionsData(true);}
+async function markTrainable(id){const r=await api(`/api/admin/submissions/${id}/mark-trainable`,{method:'POST'});invalidateSubmissionAndDataPages();toast(r.ok?'已标记可训练':r.error,r.ok?'ok':'bad');loadSubmissionsData(true);}
+async function rejectSubmission(id){const r=await api(`/api/admin/submissions/${id}/reject`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:'管理员确认暂不进入训练池'})});invalidateSubmissionAndDataPages();toast(r.ok?'已拒绝进入训练池':r.error,r.ok?'ok':'bad');loadSubmissionsData(true);}
 async function loadNodes(force=false){
   if(force)clearAdminCache('/api/federated/nodes');
   const r=force?await api('/api/federated/nodes'):await cachedApi('/api/federated/nodes');
