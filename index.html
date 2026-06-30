@@ -1066,8 +1066,8 @@ async function loadDatasetSourcesData(force=false){
     const datasetStatusUrl='/api/dataset/unsw/status'+(force?'?force=1':'');
     const datasetSourcesUrl='/api/admin/datasets/sources'+(force?'?force=1':'');
     const [stRes,sourcesApiRes]=await Promise.allSettled([
-      force?api(datasetStatusUrl):cachedApi('/api/dataset/unsw/status'),
-      force?api(datasetSourcesUrl):cachedApi('/api/admin/datasets/sources')
+      force?apiWithTimeout(datasetStatusUrl,{},30000):cachedApi('/api/dataset/unsw/status'),
+      force?apiWithTimeout(datasetSourcesUrl,{},30000):cachedApi('/api/admin/datasets/sources')
     ]);
     const st=stRes.status==='fulfilled'?stRes.value:{ok:false,data:{}};
     const sourcesRes=sourcesApiRes.status==='fulfilled'?sourcesApiRes.value:{ok:false,data:{sources:[]}};

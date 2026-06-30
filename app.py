@@ -1764,8 +1764,11 @@ def _prepare_dataset_source_for_federated(source, source_id=None, limit=50000):
 @app.route("/api/admin/datasets/<source_id>/prepare", methods=["POST"])
 def admin_dataset_prepare(source_id):
     """Prepare a selected dataset source for training and federated splitting."""
-    sources = _list_dataset_sources_cached(force=True)
+    sources = _list_dataset_sources_cached(force=False)
     selected = next((s for s in sources if s.get("id") == source_id), None)
+    if selected is None:
+        sources = _list_dataset_sources_cached(force=True)
+        selected = next((s for s in sources if s.get("id") == source_id), None)
     if selected is None:
         return jsonify(api_response(code=404, msg="数据源不存在"))
     req = request.get_json(silent=True) or {}
