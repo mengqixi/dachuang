@@ -378,6 +378,28 @@ def _load_processed_metadata():
         return {}
 
 
+def _same_file_path(left, right):
+    if not left or not right:
+        return False
+    try:
+        return os.path.normcase(os.path.abspath(left)) == os.path.normcase(os.path.abspath(right))
+    except Exception:
+        return str(left) == str(right)
+
+
+def _source_prepared_for_federated(source):
+    """Return whether the current processed federated data belongs to source."""
+    if not source or not _processed_dataset_ready():
+        return False
+    meta = _load_processed_metadata()
+    source_id = source.get("id") or _dataset_source_id(source)
+    if source_id and meta.get("dataset_source_id") == source_id:
+        return True
+    if _same_file_path(source.get("path"), meta.get("source_path")):
+        return True
+    return False
+
+
 def _dataset_source_id(source):
     raw = "%s:%s" % (source.get("source_type", ""), source.get("source", ""))
     return "".join(ch if ch.isalnum() else "_" for ch in raw.lower()).strip("_") or "dataset"
@@ -552,7 +574,7 @@ def _list_dataset_sources():
             "configured": bool(source.get("configured")),
             "exists": True,
             "status": "ready",
-            "prepared_for_federated": _processed_dataset_ready(),
+            "prepared_for_federated": False,
             "description": source.get("description") or "用于密码攻击风险检测、模型训练和四节点联邦切分的数据源。",
         }
         item.update(_dataset_distribution_stats(path))
@@ -560,6 +582,7 @@ def _list_dataset_sources():
             item["description"] = "公开入侵检测数据集，可用于扩展异常流量、扫描和入侵检测类风险识别。"
         if source.get("source_type") == "local_generated" and not source.get("description"):
             item["description"] = "项目内置密码攻击训练样本库，当前管理端初始训练和联邦切分优先使用该数据源。"
+        item["prepared_for_federated"] = _source_prepared_for_federated(item)
         sources.append(item)
 
     try:
@@ -567,6 +590,9 @@ def _list_dataset_sources():
             source_id = source.get("id")
             if source_id and source_id not in seen:
                 seen.add(source_id)
+                source["prepared_for_federated"] = _source_prepared_for_federated(source)
+                if source.get("prepared_for_federated"):
+                    source["status"] = "ready"
                 sources.append(source)
     except Exception as exc:
         logger.warning("List user submission dataset sources failed: %s", exc)
@@ -1679,7 +1705,7 @@ def admin_dataset_sources():
 @app.route("/api/admin/datasets/<source_id>/prepare", methods=["POST"])
 def admin_dataset_prepare(source_id):
     """Prepare a selected dataset source for training and federated splitting."""
-    sources = _list_dataset_sources_cached()
+    sources = _list_dataset_sources_cached(force=True)
     selected = next((s for s in sources if s.get("id") == source_id), None)
     if selected is None:
         return jsonify(api_response(code=404, msg="数据源不存在"))
@@ -2870,9 +2896,10 @@ def dataset_unsw_process():
         source = _find_dataset_source()
         source_id = req.get("source_id")
         if source_id:
-            selected = next((s for s in _list_dataset_sources_cached() if s.get("id") == source_id), None)
+            selected = next((s for s in _list_dataset_sources_cached(force=True) if s.get("id") == source_id), None)
             if selected:
                 source = {
+                    "id": selected.get("id"),
                     "path": selected.get("path"),
                     "source": selected.get("source"),
                     "source_type": selected.get("source_type"),
@@ -2906,6 +2933,7 @@ def dataset_unsw_process():
             info = {}
         label_counts = {str(k): int(v) for k, v in zip(*np.unique(y, return_counts=True))}
         metadata = {
+            "dataset_source_id": source_id or source.get("id") or _dataset_source_id(source),
             "source": source["source"],
             "source_type": source["source_type"],
             "source_path": filepath,

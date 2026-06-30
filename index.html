@@ -249,8 +249,8 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
         </div>
         <div class="scroll-box mt-3">
           <table class="table table-sm">
-            <thead><tr><th>数据源</th><th>类型</th><th>样本</th><th>特征</th><th>标签列</th><th>标签分布</th><th>攻击类型</th><th>状态</th><th>用途说明</th></tr></thead>
-            <tbody id="datasetSourceTable"><tr><td colspan="9" class="text-muted">暂无数据源记录</td></tr></tbody>
+            <thead><tr><th>数据源</th><th>类型</th><th>样本</th><th>特征</th><th>标签列</th><th>标签分布</th><th>攻击类型</th><th>状态</th><th>用途说明</th><th>操作</th></tr></thead>
+            <tbody id="datasetSourceTable"><tr><td colspan="10" class="text-muted">暂无数据源记录</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -1063,7 +1063,7 @@ async function loadDatasetSourcesData(force=false){
     const st=stRes.status==='fulfilled'?stRes.value:{ok:false,data:{}};
     const sourcesRes=sourcesApiRes.status==='fulfilled'?sourcesApiRes.value:{ok:false,data:{sources:[]}};
     if(!st.ok && !sourcesRes.ok){
-      datasetSourceTable.innerHTML=`<tr><td colspan="9" class="text-muted">训练数据源加载失败：${esc(st.error||sourcesRes.error||'请刷新后重试')}</td></tr>`;
+      datasetSourceTable.innerHTML=`<tr><td colspan="10" class="text-muted">训练数据源加载失败：${esc(st.error||sourcesRes.error||'请刷新后重试')}</td></tr>`;
       pageLoaded.delete('dataProcess');
       return false;
     }
@@ -1094,12 +1094,13 @@ async function loadDatasetSourcesData(force=false){
         <td>${renderDistTags(s.attack_type_distribution)}</td>
         <td>${s.exists===false?'<span class="status-pill warn">未配置</span>':(s.prepared_for_federated?'<span class="status-pill ok">已生成节点</span>':'<span class="status-pill warn">待处理</span>')}</td>
         <td class="small-text">${esc(s.description||'-')}</td>
-      </tr>`).join(''):'<tr><td colspan="9" class="text-muted">未检测到可用训练数据源</td></tr>';
+        <td>${datasetSourceActions(s)}</td>
+      </tr>`).join(''):'<tr><td colspan="10" class="text-muted">未检测到可用训练数据源</td></tr>';
     }
     return true;
   }catch(err){
     console.error('loadDatasetSourcesData failed',err);
-    if(typeof datasetSourceTable!=='undefined')datasetSourceTable.innerHTML='<tr><td colspan="9" class="text-muted">训练数据源加载失败</td></tr>';
+    if(typeof datasetSourceTable!=='undefined')datasetSourceTable.innerHTML='<tr><td colspan="10" class="text-muted">训练数据源加载失败</td></tr>';
     toast('训练数据源加载失败','bad');
     pageLoaded.delete('dataProcess');
     return false;
@@ -1151,7 +1152,42 @@ async function loadSubmissionsData(force=false){
     return false;
   }
 }
-async function processSystemDatasetImpl(){const r=await api('/api/dataset/unsw/process',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});clearAdminCache();pageLoaded.delete('dataProcess');toast(r.ok?'处理完成':r.error,r.ok?'ok':'bad');loadDataProcessPage(true);}
+function datasetSourceActions(s){
+  const id=String(obj(s).id||'');
+  if(!obj(s).exists)return '<span class="text-muted">-</span>';
+  if(Number(obj(s).samples||0)<=0)return '<span class="text-muted">无样本</span>';
+  if(obj(s).source_type==='user_submission' && !obj(s).trainable){
+    return '<span class="small-text text-muted">先标记可训练</span>';
+  }
+  const label=obj(s).prepared_for_federated?'重新生成节点':'生成节点';
+  return `<button class="btn-lightx btn-sm" onclick="prepareDatasetSource('${esc(id)}',event)">${label}</button>`;
+}
+async function prepareDatasetSource(sourceId,ev){
+  const btn=ev&&ev.currentTarget;
+  const oldHtml=btn?btn.innerHTML:'';
+  if(btn){btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> 生成中';}
+  try{
+    const r=await api(`/api/admin/datasets/${encodeURIComponent(sourceId)}/prepare`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:50000})});
+    clearAdminCache();
+    pageLoaded.delete('dataProcess');
+    pageLoaded.delete('modelVersions');
+    toast(r.ok?'节点已生成':r.error,r.ok?'ok':'bad');
+    await loadDataProcessPage(true);
+    return r;
+  }finally{
+    if(btn){btn.disabled=false;btn.innerHTML=oldHtml;}
+  }
+}
+async function processSystemDatasetImpl(){
+  const sourceId=currentDatasetSourceId||'';
+  const url=sourceId?`/api/admin/datasets/${encodeURIComponent(sourceId)}/prepare`:'/api/dataset/unsw/process';
+  const r=await api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:50000})});
+  clearAdminCache();
+  pageLoaded.delete('dataProcess');
+  pageLoaded.delete('modelVersions');
+  toast(r.ok?'处理完成':r.error,r.ok?'ok':'bad');
+  loadDataProcessPage(true);
+}
 async function processSystemDataset(ev){
   const btn=ev&&ev.currentTarget;
   const oldHtml=btn?btn.innerHTML:'';
