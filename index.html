@@ -1171,17 +1171,23 @@ function datasetSourceActions(s){
   const label=obj(s).prepared_for_federated?'重新生成节点':'生成节点';
   return `<button class="btn-lightx btn-sm" onclick="prepareDatasetSource('${esc(id)}',event)">${label}</button>`;
 }
+function refreshDataProcessAfterPrepare(){
+  clearAdminCache();
+  pageLoaded.delete('dataProcess');
+  pageLoaded.delete('modelVersions');
+  Promise.resolve(loadDataProcessPage(true)).catch(err=>{
+    console.error('refresh data process after prepare failed',err);
+    toast('节点已生成，但页面刷新失败，请手动刷新数据源','bad');
+  });
+}
 async function prepareDatasetSource(sourceId,ev){
   const btn=ev&&ev.currentTarget;
   const oldHtml=btn?btn.innerHTML:'';
   if(btn){btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> 生成中';}
   try{
     const r=await apiWithTimeout(`/api/admin/datasets/${encodeURIComponent(sourceId)}/prepare`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:50000})},90000);
-    clearAdminCache();
-    pageLoaded.delete('dataProcess');
-    pageLoaded.delete('modelVersions');
     toast(r.ok?'节点已生成':r.error,r.ok?'ok':'bad');
-    await loadDataProcessPage(true);
+    if(r.ok)refreshDataProcessAfterPrepare();
     return r;
   }finally{
     if(btn){btn.disabled=false;btn.innerHTML=oldHtml;}
@@ -1191,11 +1197,9 @@ async function processSystemDatasetImpl(){
   const sourceId=currentDatasetSourceId||'';
   const url=sourceId?`/api/admin/datasets/${encodeURIComponent(sourceId)}/prepare`:'/api/dataset/unsw/process';
   const r=await apiWithTimeout(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:50000})},90000);
-  clearAdminCache();
-  pageLoaded.delete('dataProcess');
-  pageLoaded.delete('modelVersions');
   toast(r.ok?'处理完成':r.error,r.ok?'ok':'bad');
-  loadDataProcessPage(true);
+  if(r.ok)refreshDataProcessAfterPrepare();
+  return r;
 }
 async function processSystemDataset(ev){
   const btn=ev&&ev.currentTarget;
