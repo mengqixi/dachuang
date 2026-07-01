@@ -458,6 +458,70 @@ def _dataset_distribution_stats(path, max_rows=50000):
     return stats
 
 
+def _merge_count_dict(target, source):
+    if not isinstance(source, dict):
+        return target
+    for key, value in source.items():
+        try:
+            target[str(key)] = target.get(str(key), 0) + int(value or 0)
+        except Exception:
+            continue
+    return target
+
+
+def _build_user_submission_pool_source(user_sources):
+    trainable_sources = [
+        source for source in (user_sources or [])
+        if source.get("trainable") and int(source.get("samples") or 0) > 0
+    ]
+    if not trainable_sources:
+        return None
+
+    total_samples = sum(int(source.get("samples") or 0) for source in trainable_sources)
+    feature_count = max((int(source.get("features") or 0) for source in trainable_sources), default=0)
+    label_distribution = {}
+    risk_summary = {}
+    attack_type_distribution = {}
+    submission_ids = []
+
+    for source in trainable_sources:
+        submission_id = source.get("submission_id") or str(source.get("id") or "").replace("submission:", "")
+        if submission_id:
+            submission_ids.append(submission_id)
+        _merge_count_dict(label_distribution, source.get("label_distribution"))
+        _merge_count_dict(risk_summary, source.get("risk_summary"))
+        _merge_count_dict(attack_type_distribution, source.get("attack_type_distribution"))
+
+    if not attack_type_distribution:
+        attack_type_distribution = {"user_submission": total_samples}
+
+    pool = {
+        "id": "user_submission_pool",
+        "name": "用户可训练数据池",
+        "source": "已归档并标记可训练的用户提交",
+        "source_type": "user_submission_pool",
+        "path": None,
+        "samples": total_samples,
+        "features": feature_count,
+        "label_column": "label",
+        "trainable": True,
+        "configured": False,
+        "exists": True,
+        "status": "ready",
+        "prepared_for_federated": False,
+        "label_distribution": label_distribution,
+        "attack_type_distribution": attack_type_distribution,
+        "risk_summary": risk_summary,
+        "scanned_rows": total_samples,
+        "submission_ids": submission_ids,
+        "description": "汇总已归档并标记可训练的用户提交，可生成四节点数据并用于训练。",
+    }
+    pool["prepared_for_federated"] = _source_prepared_for_federated(pool)
+    if pool["prepared_for_federated"]:
+        pool["status"] = "ready"
+    return pool
+
+
 def _list_dataset_sources():
     """Return all known trainable dataset sources with lightweight metadata."""
     from src.preprocess.feature_engineering import inspect_csv
@@ -586,7 +650,12 @@ def _list_dataset_sources():
         sources.append(item)
 
     try:
-        for source in user_submission_manager.list_dataset_sources(limit=20):
+        user_sources = user_submission_manager.list_dataset_sources(limit=50)
+        pool_source = _build_user_submission_pool_source(user_sources)
+        if pool_source and pool_source.get("id") not in seen:
+            seen.add(pool_source["id"])
+            sources.append(pool_source)
+        for source in user_sources:
             source_id = source.get("id")
             if source_id and source_id not in seen:
                 seen.add(source_id)
@@ -598,11 +667,13 @@ def _list_dataset_sources():
         logger.warning("List user submission dataset sources failed: %s", exc)
 
     sources.sort(key=lambda x: (
-        0 if x.get("trainable") and x.get("source_type") == "local_generated" else
-        1 if x.get("trainable") and x.get("source_type") == "user_submission" else
-        2 if x.get("trainable") else
-        3 if x.get("source_type") == "user_submission" else
-        4,
+        0 if x.get("prepared_for_federated") else
+        1 if x.get("trainable") and x.get("source_type") == "user_submission_pool" else
+        2 if x.get("trainable") and x.get("source_type") == "local_generated" else
+        3 if x.get("trainable") and x.get("source_type") == "user_submission" else
+        4 if x.get("trainable") else
+        5 if x.get("source_type") == "user_submission" else
+        6,
         str(x.get("id") or x.get("name") or "")
     ))
     return sources
@@ -646,7 +717,41 @@ def _load_training_dataset_source(source_id=None, limit=50000):
             "dataset_name": "未检测到训练数据源",
         }
 
-    X, y, _ = load_security_csv(selected.get("path"), limit=limit)
+    source_type = selected.get("source_type")
+    if source_type in {"user_submission_pool", "user_submission"}:
+        ids = None
+        if source_type == "user_submission":
+            submission_id = selected.get("submission_id") or str(selected.get("id") or "").replace("submission:", "")
+            ids = [submission_id] if submission_id else []
+        X, y, user_meta = user_submission_manager.load_trainable_features(ids=ids, limit=limit)
+        if len(X):
+            X = minmax_normalize(X)
+        labels = {str(k): int(v) for k, v in zip(*np.unique(y, return_counts=True))} if len(y) else {}
+        meta = dict(user_meta or {})
+        meta.update({
+            "source_count": meta.get("source_count") or len(meta.get("sources") or []) or (1 if len(X) else 0),
+            "sources": meta.get("sources") or [],
+            "training_source": "user_submission_pool" if source_type == "user_submission_pool" else "user_submission",
+            "dataset_name": selected.get("name") or selected.get("source") or source_type,
+            "dataset_source_id": selected.get("id"),
+            "source_type": source_type,
+            "label_distribution": labels,
+        })
+        return X, y, meta
+
+    selected_path = selected.get("path")
+    if not selected_path or not os.path.exists(selected_path):
+        return np.empty((0, 0)), np.empty(0, dtype=np.int32), {
+            "source_count": 0,
+            "sources": [],
+            "training_source": selected.get("source_type") or "dataset_source",
+            "dataset_name": selected.get("name") or selected.get("source") or "missing_dataset_source",
+            "dataset_source_id": selected.get("id"),
+            "source_type": selected.get("source_type"),
+            "label_distribution": {},
+        }
+
+    X, y, _ = load_security_csv(selected_path, limit=limit)
     if len(X):
         X = minmax_normalize(X)
     labels = {str(k): int(v) for k, v in zip(*np.unique(y, return_counts=True))} if len(y) else {}
@@ -1708,15 +1813,54 @@ def _prepare_dataset_source_for_federated(source, source_id=None, limit=50000):
         from src.preprocess.feature_engineering import inspect_csv, load_security_csv, minmax_normalize
         from src.preprocess.federated_splitter import save_federated_data
 
-        filepath = source.get("path")
-        if not filepath or not os.path.exists(filepath):
-            return jsonify(api_response(code=400, msg="Dataset source file does not exist."))
-
         try:
             limit = int(limit or 50000)
         except (TypeError, ValueError):
             limit = 50000
         limit = max(1, min(limit, 50000))
+
+        source_type = source.get("source_type")
+        if source_type in {"user_submission_pool", "user_submission"}:
+            ids = None
+            if source_type == "user_submission":
+                submission_id = source.get("submission_id") or str(source.get("id") or "").replace("submission:", "")
+                ids = [submission_id] if submission_id else []
+            X, y, user_meta = user_submission_manager.load_trainable_features(ids=ids, limit=limit)
+            if len(X) == 0:
+                return jsonify(api_response(code=400, msg="没有可用于训练的用户提交数据，请先在用户提交页归档并标记可训练。"))
+
+            X = minmax_normalize(X)
+            os.makedirs(PROCESSED_DATA_DIR, exist_ok=True)
+            np.save(PROCESSED_X_PATH, X)
+            np.save(PROCESSED_Y_PATH, y)
+            nodes = save_federated_data(X, y)
+
+            label_counts = {str(k): int(v) for k, v in zip(*np.unique(y, return_counts=True))}
+            metadata = {
+                "dataset_source_id": source_id or source.get("id") or "user_submission_pool",
+                "source": source.get("name") or source.get("source") or "用户可训练数据池",
+                "source_type": source_type,
+                "source_path": source.get("id") or source_type,
+                "samples": int(len(X)),
+                "features": int(X.shape[1]),
+                "label_column": "label",
+                "label_counts": label_counts,
+                "processed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "prepared_only": True,
+                "submission_ids": (user_meta or {}).get("submission_ids") or source.get("submission_ids") or [],
+            }
+            with open(PROCESSED_META_PATH, "w", encoding="utf-8") as f:
+                json.dump(metadata, f, ensure_ascii=False, indent=2)
+
+            _clear_dataset_sources_cache()
+            return jsonify(api_response(msg="success", data={
+                **metadata,
+                "nodes": [{"name": n[0], "samples": int(n[1]), "ready": True} for n in nodes],
+            }))
+
+        filepath = source.get("path")
+        if not filepath or not os.path.exists(filepath):
+            return jsonify(api_response(code=400, msg="Dataset source file does not exist."))
 
         logger.info("Preparing federated nodes from dataset source: %s", filepath)
         X, y, _ = load_security_csv(filepath, limit=limit)

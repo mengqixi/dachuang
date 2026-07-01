@@ -451,6 +451,60 @@ let adminLoggedIn = false;
 let lastRiskReasons = [];
 let currentAnalysis = null;
 let currentDatasetSourceId = '';
+const ADMIN_CURRENT_DATASET_SOURCE_KEY = 'adminCurrentDatasetSourceId';
+try{currentDatasetSourceId = localStorage.getItem(ADMIN_CURRENT_DATASET_SOURCE_KEY) || '';}catch(e){}
+function rememberCurrentDatasetSource(sourceId){
+  currentDatasetSourceId = sourceId || '';
+  try{
+    if(currentDatasetSourceId)localStorage.setItem(ADMIN_CURRENT_DATASET_SOURCE_KEY,currentDatasetSourceId);
+    else localStorage.removeItem(ADMIN_CURRENT_DATASET_SOURCE_KEY);
+  }catch(e){}
+}
+function chooseCurrentDatasetSource(sources, processed, fallback){
+  const list = arr(sources);
+  const processedId = obj(processed).dataset_source_id || '';
+  const savedId = currentDatasetSourceId || (()=>{try{return localStorage.getItem(ADMIN_CURRENT_DATASET_SOURCE_KEY)||'';}catch(e){return '';}})();
+  const preferredIds = [savedId, processedId].filter(Boolean);
+  for(const id of preferredIds){
+    const matched = list.find(s=>String(obj(s).id||'')===String(id));
+    if(matched){
+      rememberCurrentDatasetSource(obj(matched).id||id);
+      return matched;
+    }
+  }
+  const prepared = list.find(s=>obj(s).prepared_for_federated);
+  if(prepared){
+    rememberCurrentDatasetSource(obj(prepared).id||'');
+    return prepared;
+  }
+  const trainable = list.find(s=>obj(s).trainable && Number(obj(s).samples||0)>0);
+  if(trainable){
+    rememberCurrentDatasetSource(obj(trainable).id||'');
+    return trainable;
+  }
+  const first = list[0] || fallback || {};
+  rememberCurrentDatasetSource(obj(first).id||'');
+  return first;
+}
+function sortDatasetSourcesForDisplay(sources){
+  const selectedId = String(currentDatasetSourceId || '');
+  return arr(sources).slice().sort((a,b)=>{
+    const ao=obj(a), bo=obj(b);
+    const rank=s=>{
+      const id=String(s.id||'');
+      if(selectedId && id===selectedId)return 0;
+      if(s.prepared_for_federated)return 1;
+      if(s.source_type==='user_submission_pool')return 2;
+      if(s.trainable && s.source_type==='local_generated')return 3;
+      if(s.trainable)return 4;
+      if(s.source_type==='user_submission')return 5;
+      return 6;
+    };
+    const diff=rank(ao)-rank(bo);
+    if(diff)return diff;
+    return Number(bo.samples||0)-Number(ao.samples||0);
+  });
+}
 let currentDatasetSource = null;
 let auditState = {eventOffset:0, visitOffset:0, events:[], visits:[], totalEvents:0, totalVisits:0, suspiciousKey:'', suspiciousEvents:[], suspiciousVisits:[]};
 let trainingCompareState = {local:null, federated:null};
@@ -1077,9 +1131,12 @@ async function loadDatasetSourcesData(force=false){
       return false;
     }
     const sd=obj(st.data);
-    const sources=arr(obj(sourcesRes.data).sources);
-    currentDatasetSource = sources.find(s=>s.trainable)||sources[0]||sd;
+    const sourcesData=obj(sourcesRes.data);
+    const sources=arr(sourcesData.sources);
+    currentDatasetSource = chooseCurrentDatasetSource(sources, sourcesData.processed, sd);
     currentDatasetSourceId = obj(currentDatasetSource).id || '';
+    if(currentDatasetSourceId)rememberCurrentDatasetSource(currentDatasetSourceId);
+    const displaySources = sortDatasetSourcesForDisplay(sources);
     const sourceTotalSamples=sources.reduce((sum,s)=>sum+(Number(s.samples)||0),0);
     const preparedCount=sources.filter(s=>s.prepared_for_federated).length;
     systemDataMetrics.innerHTML=[
@@ -1093,7 +1150,7 @@ async function loadDatasetSourcesData(force=false){
     if(typeof trainFeatureMetric!=='undefined')trainFeatureMetric.textContent=currentDatasetSource.features||sd.features||0;
     if(typeof trainNodeMetric!=='undefined')trainNodeMetric.textContent=(currentDatasetSource.prepared_for_federated||sd.ready_for_federated)?'ready':'missing';
     if(typeof datasetSourceTable!=='undefined'){
-      datasetSourceTable.innerHTML=sources.length?sources.map(s=>`<tr>
+      datasetSourceTable.innerHTML=displaySources.length?displaySources.map(s=>`<tr>
         <td>${esc(s.name||s.source||'-')}<div class="small-text text-muted">${esc(s.source||'-')}</div></td>
         <td>${esc(s.source_type||'-')}</td>
         <td>${esc(s.samples||0)}</td>
@@ -1187,7 +1244,10 @@ async function prepareDatasetSource(sourceId,ev){
   try{
     const r=await apiWithTimeout(`/api/admin/datasets/${encodeURIComponent(sourceId)}/prepare`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:50000})},90000);
     toast(r.ok?'节点已生成':r.error,r.ok?'ok':'bad');
-    if(r.ok)refreshDataProcessAfterPrepare();
+    if(r.ok){
+      rememberCurrentDatasetSource(sourceId);
+      refreshDataProcessAfterPrepare();
+    }
     return r;
   }finally{
     if(btn){btn.disabled=false;btn.innerHTML=oldHtml;}
@@ -1198,7 +1258,10 @@ async function processSystemDatasetImpl(){
   const url=sourceId?`/api/admin/datasets/${encodeURIComponent(sourceId)}/prepare`:'/api/dataset/unsw/process';
   const r=await apiWithTimeout(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:50000})},90000);
   toast(r.ok?'处理完成':r.error,r.ok?'ok':'bad');
-  if(r.ok)refreshDataProcessAfterPrepare();
+  if(r.ok){
+    if(sourceId)rememberCurrentDatasetSource(sourceId);
+    refreshDataProcessAfterPrepare();
+  }
   return r;
 }
 async function processSystemDataset(ev){
