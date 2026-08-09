@@ -1,5 +1,6 @@
 import json
 import os
+import builtins
 from contextlib import ExitStack
 from pathlib import Path
 import tempfile
@@ -71,6 +72,33 @@ class FedAvgContextTests(unittest.TestCase):
         self.assertEqual(server.round, 0)
         self.assertIsNone(server.global_weights)
         self.assertEqual(server.get_history(), [])
+
+
+class OptimizationFallbackTests(unittest.TestCase):
+    def test_environment_runs_without_gym_packages(self):
+        source_path = Path(__file__).parents[1] / "src" / "optimization" / "environment.py"
+        source = source_path.read_text(encoding="utf-8")
+        real_import = builtins.__import__
+
+        def import_without_gym(name, *args, **kwargs):
+            if name in {"gym", "gymnasium"}:
+                raise ImportError("blocked for fallback test")
+            return real_import(name, *args, **kwargs)
+
+        namespace = {"__name__": "optimization_environment_fallback_test"}
+        with patch.object(builtins, "__import__", side_effect=import_without_gym):
+            exec(compile(source, str(source_path), "exec"), namespace)
+
+        environment = namespace["EncryptionEnv"]()
+        state, info = environment.reset(seed=42)
+        action = environment.action_space.sample()
+        next_state, reward, terminated, truncated, details = environment.step(action)
+        self.assertEqual(state.shape, (4,))
+        self.assertEqual(next_state.shape, (4,))
+        self.assertIsInstance(reward, float)
+        self.assertIsInstance(terminated, bool)
+        self.assertIsInstance(truncated, bool)
+        self.assertIn("key_length", details)
 
 
 class SubmissionArchiveTests(unittest.TestCase):

@@ -13,8 +13,42 @@ try:
     import gym
     from gym import spaces
 except ImportError:
-    import gymnasium as gym
-    from gymnasium import spaces
+    try:
+        import gymnasium as gym
+        from gymnasium import spaces
+    except ImportError:
+        # The optimizer only needs ``Env``, ``Discrete`` and ``Box``.  Keep a
+        # tiny compatibility layer so the core service can start on minimal
+        # deployments without making an optional RL framework mandatory.
+        class _Env:
+            pass
+
+        class _Discrete:
+            def __init__(self, n):
+                self.n = int(n)
+
+            def sample(self):
+                return int(np.random.randint(0, self.n))
+
+        class _Box:
+            def __init__(self, low, high, dtype=np.float32):
+                self.low = np.asarray(low, dtype=dtype)
+                self.high = np.asarray(high, dtype=dtype)
+                self.dtype = dtype
+                self.shape = self.low.shape
+
+            def sample(self):
+                return np.random.uniform(self.low, self.high).astype(self.dtype)
+
+        class _GymCompat:
+            Env = _Env
+
+        class _SpacesCompat:
+            Discrete = _Discrete
+            Box = _Box
+
+        gym = _GymCompat()
+        spaces = _SpacesCompat()
 from loguru import logger
 
 

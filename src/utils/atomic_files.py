@@ -9,12 +9,12 @@ import json
 import os
 import shutil
 import tempfile
-from typing import Any
+from typing import Any, Tuple
 
 import numpy as np
 
 
-def _temporary_path(path: str) -> tuple[int, str]:
+def _temporary_path(path: str) -> Tuple[int, str]:
     directory = os.path.dirname(os.path.abspath(path))
     os.makedirs(directory, exist_ok=True)
     return tempfile.mkstemp(prefix=".%s." % os.path.basename(path), suffix=".tmp", dir=directory)
