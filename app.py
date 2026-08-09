@@ -184,6 +184,8 @@ _real_federated = None
 _init_lock = threading.Lock()
 _dataset_sources_cache = {"time": 0.0, "value": None}
 _dataset_sources_cache_lock = threading.Lock()
+_dataset_distribution_cache = {}
+_dataset_distribution_cache_lock = threading.Lock()
 DATASET_SOURCES_CACHE_SECONDS = 30
 _admin_submissions_cache = {"time": 0.0, "value": None}
 _admin_submissions_cache_lock = threading.Lock()
@@ -622,14 +624,33 @@ def _source_display_name(source_type):
     return mapping.get(source_type, source_type or "未知数据源")
 
 
-def _dataset_distribution_stats(path, max_rows=50000):
-    """Return lightweight label and attack-type stats without loading full CSV."""
+def _dataset_distribution_stats(path, max_rows=5000):
+    """Return sampled label/attack stats cached by the file fingerprint."""
     stats = {
         "label_distribution": {},
         "attack_type_distribution": {},
         "scanned_rows": 0,
     }
     if not path or not os.path.exists(path):
+        return stats
+    try:
+        file_stat = os.stat(path)
+        absolute_path = os.path.normcase(os.path.abspath(path))
+        cache_key = (
+            absolute_path,
+            int(file_stat.st_size),
+            int(getattr(file_stat, "st_mtime_ns", int(file_stat.st_mtime * 1000000000))),
+            int(max_rows),
+        )
+        with _dataset_distribution_cache_lock:
+            cached = _dataset_distribution_cache.get(cache_key)
+            if cached is not None:
+                return {
+                    "label_distribution": dict(cached.get("label_distribution") or {}),
+                    "attack_type_distribution": dict(cached.get("attack_type_distribution") or {}),
+                    "scanned_rows": int(cached.get("scanned_rows") or 0),
+                }
+    except OSError:
         return stats
     try:
         from src.preprocess.feature_engineering import infer_label
@@ -663,7 +684,20 @@ def _dataset_distribution_stats(path, max_rows=50000):
                 stats["scanned_rows"] += 1
     except Exception as exc:
         logger.warning(f"Dataset distribution scan failed for {path}: {exc}")
-    return stats
+    with _dataset_distribution_cache_lock:
+        for old_key in list(_dataset_distribution_cache):
+            if old_key[0] == absolute_path and old_key != cache_key:
+                _dataset_distribution_cache.pop(old_key, None)
+        _dataset_distribution_cache[cache_key] = {
+            "label_distribution": dict(stats["label_distribution"]),
+            "attack_type_distribution": dict(stats["attack_type_distribution"]),
+            "scanned_rows": int(stats["scanned_rows"]),
+        }
+    return {
+        "label_distribution": dict(stats["label_distribution"]),
+        "attack_type_distribution": dict(stats["attack_type_distribution"]),
+        "scanned_rows": int(stats["scanned_rows"]),
+    }
 
 
 def _merge_count_dict(target, source):
@@ -900,11 +934,12 @@ def _list_dataset_sources_cached(force=False):
         cached_at = float(_dataset_sources_cache.get("time") or 0)
         if not force and cached is not None and now - cached_at < DATASET_SOURCES_CACHE_SECONDS:
             return cached
-    fresh = _list_dataset_sources()
-    with _dataset_sources_cache_lock:
-        _dataset_sources_cache["time"] = now
+        # Keep the scan under the cache lock so concurrent page requests do
+        # not duplicate the same filesystem and CSV metadata work.
+        fresh = _list_dataset_sources()
+        _dataset_sources_cache["time"] = time.time()
         _dataset_sources_cache["value"] = fresh
-    return fresh
+        return fresh
 
 
 def _load_training_dataset_source(source_id=None, limit=50000):

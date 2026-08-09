@@ -33,6 +33,28 @@ class FeatureTransformTests(unittest.TestCase):
         features = extract_features_structured({"response_time_ms": 250})
         self.assertAlmostEqual(features[FEATURE_NAMES.index("response_time")], 0.25)
 
+    def test_csv_inspection_counts_rows_and_invalidates_by_file_revision(self):
+        from src.preprocess.feature_engineering import inspect_csv
+
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "security.csv"
+            source.write_text(
+                "request_frequency,response_time,label\n"
+                "10,0.2,0\n"
+                "120,1.3,1",
+                encoding="utf-8",
+            )
+            first = inspect_csv(str(source))
+            self.assertEqual(first["samples"], 2)
+            self.assertEqual(first["features"], 2)
+            self.assertEqual(first["label_column"], "label")
+
+            with source.open("a", encoding="utf-8") as stream:
+                stream.write("\n80,0.8,1\n")
+            second = inspect_csv(str(source))
+            self.assertEqual(second["samples"], 3)
+            self.assertEqual(second["row_count_method"], "physical_lines")
+
 
 class IsolationForestScoringTests(unittest.TestCase):
     def test_score_does_not_depend_on_other_request_rows(self):

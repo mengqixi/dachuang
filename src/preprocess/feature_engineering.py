@@ -8,6 +8,7 @@ numeric CSV files with a label column.
 
 import csv
 import os
+import threading
 from typing import Dict, Iterable, List, Optional, Tuple
 
 import numpy as np
@@ -71,6 +72,8 @@ UNSW_FEATURE_ALIASES = {
 }
 
 LABEL_COLUMNS = ["label", "is_attack", "attack", "target", "class"]
+_INSPECT_CACHE = {}
+_INSPECT_CACHE_LOCK = threading.Lock()
 
 
 def _to_float(value, default: float = 0.0) -> float:
@@ -180,13 +183,32 @@ def load_unsw_nb15(filepath: str, limit: Optional[int] = None) -> Tuple[np.ndarr
 
 
 def inspect_csv(filepath: str) -> Dict:
-    """Return lightweight metadata for status endpoints."""
+    """Return cached CSV metadata without parsing every record.
+
+    Security training CSV files use one record per physical line. Counting
+    newline bytes in large chunks is dramatically faster than constructing a
+    ``DictReader`` row for every record, while the header is still parsed with
+    the CSV module for correct feature and label names.
+    """
+    absolute_path = os.path.normcase(os.path.abspath(filepath))
+    stat = os.stat(filepath)
+    fingerprint = (
+        absolute_path,
+        int(stat.st_size),
+        int(getattr(stat, "st_mtime_ns", int(stat.st_mtime * 1000000000))),
+    )
+    with _INSPECT_CACHE_LOCK:
+        cached = _INSPECT_CACHE.get(fingerprint)
+        if cached is not None:
+            return dict(cached)
+
     info = {
         "path": filepath,
         "name": os.path.basename(filepath),
         "samples": 0,
         "features": 0,
         "label_column": None,
+        "row_count_method": "physical_lines",
     }
     with open(filepath, "r", encoding="utf-8", errors="replace", newline="") as f:
         reader = csv.DictReader(f)
@@ -196,6 +218,22 @@ def inspect_csv(filepath: str) -> Dict:
             if col in fields:
                 info["label_column"] = col
                 break
-        for _ in reader:
-            info["samples"] += 1
-    return info
+
+    newline_count = 0
+    last_byte = b""
+    with open(filepath, "rb") as stream:
+        while True:
+            chunk = stream.read(1024 * 1024)
+            if not chunk:
+                break
+            newline_count += chunk.count(b"\n")
+            last_byte = chunk[-1:]
+    record_count = newline_count + (1 if stat.st_size and last_byte != b"\n" else 0)
+    info["samples"] = max(0, int(record_count) - 1)
+
+    with _INSPECT_CACHE_LOCK:
+        for old_key in list(_INSPECT_CACHE):
+            if old_key[0] == absolute_path and old_key != fingerprint:
+                _INSPECT_CACHE.pop(old_key, None)
+        _INSPECT_CACHE[fingerprint] = dict(info)
+    return dict(info)
