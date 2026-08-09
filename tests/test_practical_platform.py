@@ -23,6 +23,8 @@ class TestPracticalPlatformRoadmap(unittest.TestCase):
         self.assertIn("分析报告", html)
         self.assertIn("风险排名", html)
         self.assertIn("风险排名摘要", html)
+        self.assertIn("隐私暴露风险", html)
+        self.assertIn("analyzeSubmission", html)
         self.assertNotIn("Top 20", html)
         self.assertNotIn("风险详情模块", html)
         self.assertNotIn("展开详情按钮", html)
@@ -46,7 +48,7 @@ class TestPracticalPlatformRoadmap(unittest.TestCase):
 
         analyze = self.client.post(
             f"/api/user/datasets/{submission_id}/analyze",
-            json={"limit": 100},
+            json={"limit": 2},
         )
         analyze_data = json.loads(analyze.data)
         self.assertEqual(analyze_data["code"], 200, analyze_data)
@@ -80,6 +82,58 @@ class TestPracticalPlatformRoadmap(unittest.TestCase):
         self.assertIn("risk_score_distribution", data)
         self.assertIn("trigger_feature_stats", data)
         self.assertIn("detection_pipeline", data)
+        self.assertIn("privacy_risk", data)
+        self.assertIn("attack_risk", data)
+        self.assertIn("dual_risk", data)
+        self.assertIn("analysis_trace", data)
+        self.assertEqual(data["analysis_trace"]["api_version"], "v1")
+        self.assertFalse(data["analysis_trace"]["cache_reused"])
+        self.assertEqual(data["analysis_trace"]["source_rows"], 3)
+        self.assertTrue(data["analysis_trace"]["source_rows_exact"])
+        self.assertEqual(data["analysis_trace"]["analyzed_rows"], 2)
+        self.assertEqual(data["analysis_trace"]["scope"], "first_limit_rows")
+        self.assertEqual(data["privacy_risk"]["external_api_payload_policy"], "redacted_aggregates_only")
+
+        cached = self.client.post(
+            f"/api/user/datasets/{submission_id}/analyze",
+            json={"limit": 2},
+        )
+        cached_data = json.loads(cached.data)
+        self.assertEqual(cached_data["code"], 200, cached_data)
+        self.assertTrue(cached_data["data"]["analysis_trace"]["cache_reused"])
+
+        with self.client.session_transaction() as sess:
+            sess.pop("admin_logged_in", None)
+            sess.pop("admin_username", None)
+        unauthorized = self.client.post(
+            f"/api/admin/submissions/{submission_id}/analyze",
+            json={"limit": 100},
+        )
+        self.assertEqual(unauthorized.status_code, 401)
+
+        with self.client.session_transaction() as sess:
+            sess["admin_logged_in"] = True
+            sess["admin_username"] = "test-admin"
+        admin_analysis = self.client.post(
+            f"/api/admin/submissions/{submission_id}/analyze",
+            json={"limit": 100},
+        )
+        admin_data = json.loads(admin_analysis.data)
+        self.assertEqual(admin_data["code"], 200, admin_data)
+        self.assertIn("privacy_risk", admin_data["data"])
+        self.assertEqual(admin_data["data"]["analysis_trace"]["scope"], "all_rows")
+
+        detail = self.client.get(f"/api/admin/submissions/{submission_id}")
+        detail_data = json.loads(detail.data)
+        self.assertEqual(detail_data["code"], 200, detail_data)
+        self.assertEqual(detail_data["data"]["row_count"], 3)
+        self.assertTrue(detail_data["data"]["row_count_exact"])
+        self.assertEqual(detail_data["data"]["analysis"]["analysis_trace"]["source_rows"], 3)
+
+        report = self.client.get(f"/api/user/reports/{submission_id}")
+        report_data = json.loads(report.data)
+        self.assertEqual(report_data["code"], 200, report_data)
+        self.assertIn("隐私暴露", report_data["data"]["report_markdown"])
 
 
 if __name__ == "__main__":

@@ -681,6 +681,13 @@ function riskSummaryTags(value){
     <span class="risk-tag low">低 ${esc(c.low)}</span>
   </div>`;
 }
+function privacyRiskBadge(value){
+  const p=obj(value);
+  if(!p.level)return '<span class="risk-tag empty">隐私未评估</span>';
+  const cls=p.level==='critical'||p.level==='high'?'bad':p.level==='medium'?'warn':'ok';
+  const score=Number(p.score);
+  return `<span class="status-pill ${cls}" title="${esc(p.recommendation||'隐私暴露规则评估')}">隐私${esc(p.level_zh||riskLevelText(p.level))}${Number.isFinite(score)?' '+score.toFixed(2):''}</span>`;
+}
 function parseJsonObject(value){
   if(typeof value==='string'){
     try{return obj(JSON.parse(value))}catch(e){return {}}
@@ -754,7 +761,7 @@ function lifecycleBadge(row){
 function submissionActionButtons(row){
   const id=esc(row.id);
   const actions=arr(row.allowed_actions);
-  const buttons=[];
+  const buttons=[`<button class="btn-lightx me-1" onclick="analyzeSubmission('${id}')">分析</button>`];
   if(actions.includes('archive'))buttons.push(`<button class="btn-lightx me-1" onclick="archiveSubmission('${id}')">归档</button>`);
   if(actions.includes('mark_trainable'))buttons.push(`<button class="btn-lightx me-1" onclick="markTrainable('${id}')">可训练</button>`);
   if(actions.includes('reject'))buttons.push(`<button class="btn-lightx" onclick="rejectSubmission('${id}')">拒绝</button>`);
@@ -1001,6 +1008,14 @@ function renderCountBars(title, data){
 function renderRiskStatsBoard(d){
   if(typeof riskStatsBoard==='undefined')return;
   const s=obj(d.risk_summary);
+  const privacy=obj(d.privacy_risk);
+  const privacyCategories=arr(privacy.categories).map(x=>obj(x).label).filter(Boolean);
+  const privacyCard=`<div class="result-card">
+    <div class="title">隐私暴露风险</div>
+    <div class="metric-value risk-${esc(privacy.level||'low')}">${esc(privacy.level_zh||'未评估')} ${privacy.score!==undefined?'· '+esc(privacy.score):''}</div>
+    <div class="small-text text-muted mt-2">${privacyCategories.length?`类别：${privacyCategories.map(esc).join('、')}`:'未识别到常见敏感类别'}</div>
+    <div class="small-text text-muted mt-2">${esc(privacy.recommendation||'完成分析后显示隐私处理建议。')}</div>
+  </div>`;
   const riskLevels={
     '低风险':s.low||0,
     '中风险':s.medium||0,
@@ -1008,6 +1023,7 @@ function renderRiskStatsBoard(d){
     '严重风险':s.critical||0,
   };
   riskStatsBoard.innerHTML=[
+    privacyCard,
     renderCountBars('风险等级分布',riskLevels),
     renderCountBars('攻击类型分布',d.attack_types),
     renderCountBars('风险分数区间',d.risk_score_distribution),
@@ -1023,6 +1039,7 @@ function renderAnalysis(d){
     ['中风险',s.medium||0],
     ['低风险',s.low||0],
     ['平均风险分',d.average_risk_score??'--'],
+    ['隐私暴露',obj(d.privacy_risk).score??'--'],
     ['当前检测模型',arr(d.current_model_versions).length?arr(d.current_model_versions)[0].version||'runtime':'runtime']
   ].map(x=>`<div class="metric"><div class="metric-value">${x[1]}</div><div class="metric-label">${x[0]}</div></div>`).join('');
   renderRiskStatsBoard(d);
@@ -1055,6 +1072,9 @@ function renderReportStructured(payload){
   ].map(x=>`<div class="metric"><div class="metric-value">${esc(x[1])}</div><div class="metric-label">${x[0]}</div></div>`).join('');
 
   const sensitive=arr(analysis.sensitive_columns || submission.sensitive_columns);
+  const privacy=obj(analysis.privacy_risk || submission.privacy_risk);
+  const dual=obj(analysis.dual_risk || submission.dual_risk);
+  const trace=obj(analysis.analysis_trace || submission.analysis_trace);
   const attackTypes=obj(analysis.attack_types);
   const attackTypeText=Object.keys(attackTypes).length
     ? Object.entries(attackTypes).map(([k,v])=>`${esc(k)} ${esc(v)} 条`).join('，')
@@ -1066,7 +1086,9 @@ function renderReportStructured(payload){
     <div class="mb-2"><b>主要风险类型：</b>${attackTypeText}</div>
     <div class="mb-2"><b>检测模型：</b>${esc(currentModelText(analysis.current_model_versions).replace('当前启用模型：','').replace('当前检测模型：',''))}</div>
     <div class="mb-2"><b>标签列：</b>${esc(analysis.label_column || submission.label_column || '未识别')}</div>
-    <div><b>敏感字段：</b>${sensitive.length?sensitive.map(x=>`<span class="status-pill warn me-1">${esc(x)}</span>`).join(''):'未识别到常见敏感字段'}</div>
+    <div class="mb-2"><b>隐私暴露：</b>${esc(privacy.level_zh||'未评估')} ${privacy.score!==undefined?'('+esc(privacy.score)+')':''}；${esc(dual.recommended_action||privacy.recommendation||'')}</div>
+    <div class="mb-2"><b>敏感字段：</b>${sensitive.length?sensitive.map(x=>`<span class="status-pill warn me-1">${esc(x)}</span>`).join(''):'未识别到常见敏感字段'}</div>
+    <div><b>版本追踪：</b>数据 ${esc(trace.data_revision?String(trace.data_revision).slice(0,12):'-')} / 预处理 ${esc(trace.preprocessing_version||'-')} / 模型 ${esc(trace.model_version||'-')} / 策略 ${esc(trace.analysis_policy_version||'-')}</div>
   `;
 
   const suggestions=arr(analysis.suggestions);
@@ -1247,7 +1269,7 @@ async function loadSubmissionsData(force=false){
       <td>${reviewStatusBadge(r)}<div class="small-text text-muted mt-1">${esc(r.review_status_note||'')}</div></td>
       <td>${lifecycleBadge(r)}</td>
       <td>${esc(fmtTime(r.recent_operation_time||r.upload_time))}</td>
-      <td>${riskSummaryTags(r.risk_summary)}</td>
+      <td>${privacyRiskBadge(r.privacy_risk)}<div class="mt-1">${riskSummaryTags(r.risk_summary)}</div></td>
       <td>${submissionActionButtons(r)}</td>
     </tr>`).join(''):`<tr><td colspan="11" class="text-muted">${subs.ok?'暂无用户提交':'用户提交加载失败，请刷新或检查登录状态'}</td></tr>`;
     return true;
@@ -1326,6 +1348,22 @@ function invalidateSubmissionAndDataPages(){
   clearAdminCache('/api/dataset/unsw/status');
   pageLoaded.delete('submissions');
   pageLoaded.delete('dataProcess');
+}
+async function analyzeSubmission(id){
+  const r=await apiWithTimeout(`/api/admin/submissions/${encodeURIComponent(id)}/analyze`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({limit:500})
+  },60000);
+  if(!r.ok){toast(r.error||'分析失败','bad');return r;}
+  const data=obj(r.data);
+  const privacy=obj(data.privacy_risk);
+  const attack=obj(data.attack_risk);
+  const reused=!!obj(data.analysis_trace).cache_reused;
+  invalidateSubmissionAndDataPages();
+  toast(`${reused?'已复用':'分析完成'}：隐私${privacy.level_zh||'-'} ${privacy.score??'-'}，攻击${attack.level_zh||'-'} ${attack.score??'-'}`,'ok');
+  await loadSubmissionsData(true);
+  return r;
 }
 async function archiveSubmission(id){const r=await api(`/api/admin/submissions/${id}/archive`,{method:'POST'});invalidateSubmissionAndDataPages();toast(r.ok?'已归档':r.error,r.ok?'ok':'bad');loadSubmissionsData(true);}
 async function markTrainable(id){const r=await api(`/api/admin/submissions/${id}/mark-trainable`,{method:'POST'});invalidateSubmissionAndDataPages();toast(r.ok?'已标记可训练':r.error,r.ok?'ok':'bad');loadSubmissionsData(true);}

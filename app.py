@@ -13,6 +13,26 @@ import hmac
 import secrets
 from datetime import datetime, timedelta
 
+# Keep BLAS/OpenMP thread stacks bounded on the 2GB deployment target.  The
+# models in this project are small, so one numerical worker is a safer default
+# and avoids reserving hundreds of megabytes for idle thread stacks.  Operators
+# can raise the project-specific limit when deploying to a larger machine.
+try:
+    _numeric_thread_limit = max(1, min(int(os.environ.get("DACHUANG_NUMERIC_THREADS", "1")), 4))
+except (TypeError, ValueError):
+    _numeric_thread_limit = 1
+for _thread_env_name in (
+    "OPENBLAS_NUM_THREADS",
+    "OMP_NUM_THREADS",
+    "MKL_NUM_THREADS",
+    "NUMEXPR_NUM_THREADS",
+    "BLIS_NUM_THREADS",
+):
+    # DACHUANG_NUMERIC_THREADS is the project-level source of truth.  Applying
+    # it explicitly also protects hosts that inherit an overly large BLAS
+    # thread count from a parent shell or another service.
+    os.environ[_thread_env_name] = str(_numeric_thread_limit)
+
 import numpy as np
 from flask import Flask, request, jsonify, send_file, session, redirect
 from loguru import logger
@@ -192,6 +212,7 @@ _admin_submissions_cache_lock = threading.Lock()
 ADMIN_SUBMISSIONS_CACHE_SECONDS = 15
 _dataset_prepare_lock = threading.RLock()
 _training_operation_lock = threading.Lock()
+_analysis_operation_lock = threading.Lock()
 _runtime_model_init_lock = threading.Lock()
 
 
@@ -2023,18 +2044,35 @@ def user_dataset_upload():
             pass
 
 
-@app.route("/api/user/datasets/<submission_id>/analyze", methods=["POST"])
-def user_dataset_analyze(submission_id):
-    """Run data profiling and risk detection for one uploaded submission."""
+def _submission_analysis_response(submission_id, actor="user"):
+    """Run the shared lightweight analysis workflow for user or admin APIs."""
+    if not _analysis_operation_lock.acquire(blocking=False):
+        return jsonify(api_response(
+            code=409,
+            msg="已有数据分析任务正在执行。为控制服务器内存，请等待当前任务完成后再试。",
+        )), 409
     try:
         from src.detection.ensemble_detector import ensemble_detector
         req = request.get_json(silent=True) or {}
-        limit = max(1, min(int(req.get("limit") or 500), 5000))
+        try:
+            limit = max(1, min(int(req.get("limit") or 500), 5000))
+        except (TypeError, ValueError):
+            return jsonify(api_response(code=400, msg="limit 必须是 1 到 5000 之间的整数。")), 400
+        force_value = req.get("force", False)
+        force = force_value is True or str(force_value).lower() in {"1", "true", "yes"}
+        if actor != "admin":
+            force = False
         if not _ensure_runtime_ensemble_ready():
             return jsonify(api_response(code=503, msg="运行时检测模型尚未就绪，请稍后重试。")), 503
-        analysis = user_submission_manager.analyze(submission_id, detector=ensemble_detector, limit=limit)
+        analysis = user_submission_manager.analyze(
+            submission_id,
+            detector=ensemble_detector,
+            limit=limit,
+            force=force,
+        )
         if analysis is None:
             return jsonify(api_response(code=404, msg="提交记录不存在"))
+        cache_reused = bool((analysis.get("analysis_trace") or {}).get("cache_reused"))
         try:
             tracking_versions = db.get_current_model_versions()
             analysis["training_tracking_versions"] = [
@@ -2047,14 +2085,23 @@ def user_dataset_analyze(submission_id):
         try:
             item = user_submission_manager.get_submission(submission_id, include_preview=False) or {}
             db.upsert_user_submission(item)
-            db.save_analysis_report_record(analysis)
+            if not cache_reused:
+                db.save_analysis_report_record(analysis)
         except Exception as persist_error:
             logger.warning("Persist analysis report failed: {}", persist_error)
         _clear_submission_related_caches()
-        return jsonify(api_response(msg="分析完成", data=analysis))
-    except Exception as e:
-        logger.exception("User dataset analyze failed")
-        return jsonify(api_response(code=500, msg="分析失败: %s" % e))
+        return jsonify(api_response(msg="已复用分析结果" if cache_reused else "分析完成", data=analysis))
+    except Exception:
+        logger.exception("Submission analysis failed")
+        return jsonify(api_response(code=500, msg="分析失败，请稍后重试。")), 500
+    finally:
+        _analysis_operation_lock.release()
+
+
+@app.route("/api/user/datasets/<submission_id>/analyze", methods=["POST"])
+def user_dataset_analyze(submission_id):
+    """Run data profiling and dual-risk detection for a user submission."""
+    return _submission_analysis_response(submission_id, actor="user")
 
 
 @app.route("/api/user/reports/<submission_id>", methods=["GET"])
@@ -2331,6 +2378,12 @@ def admin_submission_detail(submission_id):
     if item is None:
         return jsonify(api_response(code=404, msg="提交记录不存在"))
     return jsonify(api_response(msg="success", data=item))
+
+
+@app.route("/api/admin/submissions/<submission_id>/analyze", methods=["POST"])
+def admin_submission_analyze(submission_id):
+    """Reuse the same dual-risk analysis core from the protected admin API."""
+    return _submission_analysis_response(submission_id, actor="admin")
 
 
 @app.route("/api/admin/submissions/<submission_id>/archive", methods=["POST"])

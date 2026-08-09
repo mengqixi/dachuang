@@ -9,6 +9,7 @@ This module intentionally keeps storage simple:
 """
 
 import base64
+import copy
 import csv
 import hashlib
 import json
@@ -37,9 +38,17 @@ except ImportError:  # pragma: no cover
 
 from src.preprocess.feature_engineering import (
     FEATURE_NAMES,
+    FEATURE_NORMALIZATION_VERSION,
     extract_features_structured,
     infer_label,
     normalize_security_features,
+)
+from src.analysis import (
+    ANALYSIS_API_VERSION,
+    ANALYSIS_POLICY_VERSION,
+    assess_privacy_exposure,
+    build_dual_risk_summary,
+    summarize_attack_risk,
 )
 from src.utils.atomic_files import atomic_write_bytes, atomic_write_json
 
@@ -58,6 +67,23 @@ MAX_UPLOAD_ROWS = 50000
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 MAX_UPLOAD_COLUMNS = 200
 SUPPORTED_UPLOAD_EXTENSIONS = {"csv", "json"}
+
+try:
+    ARCHIVE_QUOTA_BYTES = max(
+        512,
+        min(int(os.environ.get("DACHUANG_ARCHIVE_QUOTA_MB", "8192")), 32768),
+    ) * 1024 * 1024
+except (TypeError, ValueError):
+    ARCHIVE_QUOTA_BYTES = 8192 * 1024 * 1024
+
+try:
+    MIN_FREE_DISK_BYTES = max(
+        256,
+        min(int(os.environ.get("DACHUANG_MIN_FREE_DISK_MB", "2048")), 8192),
+    ) * 1024 * 1024
+except (TypeError, ValueError):
+    MIN_FREE_DISK_BYTES = 2048 * 1024 * 1024
+
 _KEY_LOCK = threading.Lock()
 _INDEX_LOCK = threading.RLock()
 
@@ -132,6 +158,58 @@ REVIEW_STATUS_NOTE = {
 
 def _now() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _analysis_cache_key(item: Dict, limit: int, model_version: str) -> str:
+    """Build a stable key for one data/model/policy analysis combination."""
+    payload = "|".join([
+        str(item.get("sha256") or item.get("id") or "unknown"),
+        str(max(1, int(limit or 1))),
+        str(model_version or "runtime"),
+        FEATURE_NORMALIZATION_VERSION,
+        ANALYSIS_POLICY_VERSION,
+    ])
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _archive_usage_bytes() -> int:
+    """Return only this project's encrypted archive usage."""
+    if not os.path.isdir(ARCHIVE_DIR):
+        return 0
+    total = 0
+    try:
+        with os.scandir(ARCHIVE_DIR) as entries:
+            for entry in entries:
+                try:
+                    if entry.is_file(follow_symlinks=False):
+                        total += int(entry.stat(follow_symlinks=False).st_size)
+                except OSError:
+                    continue
+    except OSError:
+        return 0
+    return total
+
+
+def _validate_storage_capacity(incoming_size: int) -> None:
+    """Reject an upload before it can exhaust this shared server disk."""
+    incoming_size = max(0, int(incoming_size or 0))
+    projected_archive = _archive_usage_bytes() + incoming_size + 64
+    if projected_archive > ARCHIVE_QUOTA_BYTES:
+        raise UploadValidationError(
+            "用户密文归档已接近项目容量上限（%dMB），请先由管理员扩容或调整保留策略。"
+            % (ARCHIVE_QUOTA_BYTES // 1024 // 1024)
+        )
+    try:
+        free_bytes = int(shutil.disk_usage(PROJECT_ROOT).free)
+    except OSError:
+        return
+    # The upload temp file already exists.  Encryption briefly needs one plain
+    # working copy and one ciphertext copy, so reserve roughly twice its size.
+    if free_bytes < MIN_FREE_DISK_BYTES + incoming_size * 2:
+        raise UploadValidationError(
+            "服务器可用磁盘空间不足；系统至少保留 %dMB 空闲空间，未执行任何自动清理。"
+            % (MIN_FREE_DISK_BYTES // 1024 // 1024)
+        )
 
 
 def _ensure_dirs() -> None:
@@ -638,6 +716,7 @@ def _schema_check(profile: Dict, columns: List[str], label_col: Optional[str],
 
     return {
         "row_count": row_count,
+        "row_count_exact": not truncated,
         "column_count": column_count,
         "label_column": label_col,
         "missing_ratio": missing_rate,
@@ -1000,6 +1079,7 @@ class UserSubmissionManager:
         if ext not in SUPPORTED_UPLOAD_EXTENSIONS:
             raise UploadValidationError("仅支持 CSV/JSON 文件")
         validate_upload_file(src_path, safe)
+        _validate_storage_capacity(os.path.getsize(src_path))
 
         submission_id = "sub_%s_%s" % (datetime.now().strftime("%Y%m%d%H%M%S"), uuid.uuid4().hex[:8])
         plain_path = os.path.join(TEMP_DIR, submission_id + "_" + safe)
@@ -1014,6 +1094,10 @@ class UserSubmissionManager:
             rows, sensitive_columns = _sanitize_sensitive_rows(rows)
             if sensitive_columns:
                 columns = _write_rows(plain_path, safe, rows)
+            # Sanitizing raw secrets may add derived columns and change the
+            # file size, so enforce the same reject-only guard on the exact
+            # plaintext that will be encrypted.
+            _validate_storage_capacity(os.path.getsize(plain_path))
             profile = _profile_rows(rows, columns)
             label_col = _detect_label_column(columns)
             schema_check = _schema_check(profile, columns, label_col, sensitive_columns, truncated=truncated)
@@ -1039,6 +1123,7 @@ class UserSubmissionManager:
                 "file_size": os.path.getsize(src_path),
                 "sha256": enc_info["sha256"],
                 "row_count": profile["rows"],
+                "row_count_exact": not truncated,
                 "column_count": profile["columns"],
                 "columns": columns[:80],
                 "label_column": label_col,
@@ -1082,6 +1167,9 @@ class UserSubmissionManager:
         model_versions = item.get("model_versions", [])
         if not isinstance(model_versions, list):
             model_versions = []
+        analysis_summary = item.get("analysis", {})
+        if not isinstance(analysis_summary, dict):
+            analysis_summary = {}
         if model_versions:
             lifecycle_status = "已生成模型版本"
         elif training_runs:
@@ -1134,11 +1222,19 @@ class UserSubmissionManager:
             "encrypted": bool(item.get("encrypted")),
             "encryption": item.get("encryption"),
             "row_count": item.get("row_count", 0),
+            "row_count_exact": item.get(
+                "row_count_exact",
+                (item.get("schema_check") or {}).get("row_count_exact", True),
+            ),
             "column_count": item.get("column_count", 0),
             "label_column": item.get("label_column"),
             "schema_check": item.get("schema_check", {}),
             "profile": item.get("profile", {}),
             "risk_summary": item.get("risk_summary", {}),
+            "privacy_risk": analysis_summary.get("privacy_risk", {}),
+            "attack_risk": analysis_summary.get("attack_risk", {}),
+            "dual_risk": analysis_summary.get("dual_risk", {}),
+            "analysis_trace": analysis_summary.get("analysis_trace", {}),
             "masked_preview": item.get("masked_preview", []),
             "sensitive_columns": item.get("sensitive_columns", []),
             "privacy_notice": item.get("privacy_notice", ""),
@@ -1233,20 +1329,76 @@ class UserSubmissionManager:
             except Exception:
                 pass
 
-    def analyze(self, submission_id: str, detector=None, limit: int = 500) -> Optional[Dict]:
+    def analyze(self, submission_id: str, detector=None, limit: int = 500,
+                force: bool = False) -> Optional[Dict]:
         started = time.perf_counter()
         data = _read_index()
         item = next((x for x in data.get("submissions", []) if x.get("id") == submission_id), None)
         if item is None:
             return None
+
+        model_version = "runtime"
+        detector_status = {}
+        if detector is not None:
+            try:
+                detector_status = detector.status() if hasattr(detector, "status") else {}
+                model_version = str(detector_status.get("version") or detector_status.get("model_version") or "runtime")
+            except Exception:
+                model_version = "runtime"
+
+        limit = max(1, min(int(limit or 1), 5000))
+        cache_key = _analysis_cache_key(item, limit, model_version)
+        cached_analysis = item.get("analysis") or {}
+        cached_trace = cached_analysis.get("analysis_trace") or {}
+        if not force and cached_trace.get("cache_key") == cache_key:
+            cached_result = copy.deepcopy(cached_analysis)
+            cached_result.setdefault("analysis_trace", {})["cache_reused"] = True
+            cached_result["analysis_trace"]["served_at"] = _now()
+            return cached_result
+
         rows, columns = self._load_plain_rows(item, limit=limit)
+        profile = _profile_rows(rows, columns)
+        privacy_profile = dict(profile)
+        privacy_profile["rows"] = max(
+            int(profile.get("rows") or 0),
+            int(item.get("row_count") or 0),
+        )
+        privacy_risk = assess_privacy_exposure(
+            columns,
+            item.get("sensitive_columns", []),
+            privacy_profile,
+        )
         if not rows:
             analysis = {
+                "submission_id": submission_id,
                 "total": 0,
+                "profile": profile,
                 "risk_summary": {"high": 0, "medium": 0, "low": 0, "critical": 0},
                 "detections": [],
                 "reasons": [],
                 "suggestions": ["文件为空或无法解析，请检查 CSV/JSON 格式。"],
+                "privacy_risk": privacy_risk,
+                "attack_risk": summarize_attack_risk({}, 0.0, 0),
+                "dual_risk": build_dual_risk_summary(
+                    privacy_risk,
+                    summarize_attack_risk({}, 0.0, 0),
+                ),
+                "analysis_trace": {
+                    "analysis_id": "ana_%s" % uuid.uuid4().hex,
+                    "api_version": ANALYSIS_API_VERSION,
+                    "data_revision": item.get("sha256") or item.get("id"),
+                    "preprocessing_version": FEATURE_NORMALIZATION_VERSION,
+                    "model_version": model_version,
+                    "analysis_policy_version": ANALYSIS_POLICY_VERSION,
+                    "requested_limit": limit,
+                    "source_rows": int(item.get("row_count") or 0),
+                    "source_rows_exact": bool(item.get("row_count_exact", True)),
+                    "analyzed_rows": 0,
+                    "scope": "empty",
+                    "cache_key": cache_key,
+                    "cache_reused": False,
+                },
+                "analyzed_at": _now(),
             }
             _update_submission(submission_id, {"status": "分析失败", "analysis": analysis, "risk_summary": analysis["risk_summary"]})
             return analysis
@@ -1289,14 +1441,6 @@ class UserSubmissionManager:
                 })
 
         row_by_id = {i + 1: row for i, row in enumerate(rows)}
-        model_version = "runtime"
-        detector_status = {}
-        if detector is not None:
-            try:
-                detector_status = detector.status() if hasattr(detector, "status") else {}
-                model_version = str(detector_status.get("version") or detector_status.get("model_version") or "runtime")
-            except Exception:
-                model_version = "runtime"
         source_dataset = item.get("source") or "user_submission"
         elapsed_ms = round((time.perf_counter() - started) * 1000, 2)
         for det in detections:
@@ -1379,12 +1523,56 @@ class UserSubmissionManager:
                 "suggestion": det.get("suggestion") or _clean_suggestion_for_detection(det, row),
             })
 
+        average_risk_score = round(
+            float(np.mean([d.get("risk_score", 0) for d in detections])) if detections else 0.0,
+            4,
+        )
+        attack_risk = summarize_attack_risk(summary, average_risk_score, len(detections))
+        dual_risk = build_dual_risk_summary(privacy_risk, attack_risk)
+        known_source_rows = max(int(item.get("row_count") or 0), 0)
+        stored_exact = item.get("row_count_exact")
+        if stored_exact is None:
+            schema_check = item.get("schema_check") or {}
+            stored_exact = schema_check.get("row_count_exact")
+            if stored_exact is None:
+                stored_exact = not any(
+                    "超过处理上限" in str(warning)
+                    for warning in schema_check.get("warnings", [])
+                )
+        source_rows_exact = (known_source_rows > 0 and bool(stored_exact)) or (
+            known_source_rows <= 0 and len(rows) < limit
+        )
+        source_rows = known_source_rows or len(rows)
+        analysis_trace = {
+            "analysis_id": "ana_%s" % uuid.uuid4().hex,
+            "api_version": ANALYSIS_API_VERSION,
+            "data_revision": item.get("sha256") or item.get("id"),
+            "preprocessing_version": FEATURE_NORMALIZATION_VERSION,
+            "model_version": model_version,
+            "analysis_policy_version": ANALYSIS_POLICY_VERSION,
+            "requested_limit": limit,
+            "source_rows": source_rows,
+            "source_rows_exact": source_rows_exact,
+            "analyzed_rows": len(detections),
+            "scope": (
+                "all_rows"
+                if source_rows_exact and source_rows <= len(rows)
+                else "first_limit_rows"
+            ),
+            "cache_key": cache_key,
+            "cache_reused": False,
+        }
+
         analysis = {
             "submission_id": submission_id,
             "total": len(detections),
-            "profile": _profile_rows(rows, columns),
+            "profile": profile,
             "label_column": item.get("label_column"),
             "risk_summary": summary,
+            "privacy_risk": privacy_risk,
+            "attack_risk": attack_risk,
+            "dual_risk": dual_risk,
+            "analysis_trace": analysis_trace,
             "attack_types": attack_types,
             "risk_score_distribution": risk_score_buckets,
             "trigger_feature_stats": trigger_feature_stats,
@@ -1409,7 +1597,7 @@ class UserSubmissionManager:
                     "score_breakdown",
                 ],
             },
-            "average_risk_score": round(float(np.mean([d.get("risk_score", 0) for d in detections])) if detections else 0.0, 4),
+            "average_risk_score": average_risk_score,
             "detections": detections[:200],
             "risk_ranking": reasons,
             "high_risk_reasons": reasons,
@@ -1429,16 +1617,24 @@ class UserSubmissionManager:
             }] if detector_status else [],
             "analyzed_at": _now(),
         }
+        analysis_trace["processing_time_ms"] = round((time.perf_counter() - started) * 1000, 2)
         report_path = self._write_clean_report(item, analysis)
-        _update_submission(submission_id, {
+        submission_patch = {
             "status": "已分析",
             "analysis": analysis,
             "risk_summary": summary,
             "report_path": report_path,
-            "row_count": len(rows),
-            "column_count": len(columns),
-            "columns": columns[:80],
-        })
+            "last_analyzed_rows": len(rows),
+            "last_analyzed_columns": len(columns),
+        }
+        # Preserve the immutable upload profile.  Only backfill legacy records
+        # when this analysis reached a known end-of-file/schema.
+        if not known_source_rows and source_rows_exact:
+            submission_patch["row_count"] = source_rows
+        if not item.get("columns") and columns:
+            submission_patch["column_count"] = len(columns)
+            submission_patch["columns"] = columns[:80]
+        _update_submission(submission_id, submission_patch)
         return analysis
 
     def _write_clean_report(self, item: Dict, analysis: Dict) -> str:
@@ -1448,8 +1644,16 @@ class UserSubmissionManager:
         medium_count = summary.get("medium", 0)
         low_count = summary.get("low", 0)
         attack_types = analysis.get("attack_types", {})
+        privacy_risk = analysis.get("privacy_risk", {}) or {}
+        attack_risk = analysis.get("attack_risk", {}) or {}
+        dual_risk = analysis.get("dual_risk", {}) or {}
+        trace = analysis.get("analysis_trace", {}) or {}
+        privacy_categories = "、".join([
+            str(item.get("label")) for item in privacy_risk.get("categories", [])
+            if isinstance(item, dict) and item.get("label")
+        ]) or "未识别到常见敏感类别"
         lines = [
-            "# 密码攻击风险分析报告",
+            "# 隐私暴露与密码攻击双风险分析报告",
             "",
             "## 一、报告摘要",
             "",
@@ -1461,14 +1665,31 @@ class UserSubmissionManager:
             "- 标签列：%s" % (analysis.get("label_column") or "未识别"),
             "- 加密归档：AES-256-GCM",
             "",
-            "## 二、密码攻击风险统计",
+            "## 二、双风险概览",
+            "",
+            "- 隐私暴露风险：%s（分数 %s，规则策略评估）" % (
+                privacy_risk.get("level_zh", "-"),
+                privacy_risk.get("score", "-"),
+            ),
+            "- 敏感类别：%s" % privacy_categories,
+            "- 攻击风险：%s（数据集聚合分数 %s）" % (
+                attack_risk.get("level_zh", "-"),
+                attack_risk.get("score", "-"),
+            ),
+            "- 样本最高攻击风险：%s" % RISK_LEVEL_ZH.get(
+                attack_risk.get("highest_sample_level"),
+                attack_risk.get("highest_sample_level", "-"),
+            ),
+            "- 建议处理路径：%s" % dual_risk.get("recommended_action", "按加密归档流程处理。"),
+            "",
+            "## 三、密码攻击风险统计",
             "",
             "- 高风险样本：%s" % high_count,
             "- 中风险样本：%s" % medium_count,
             "- 低风险样本：%s" % low_count,
             "- 主要风险类型：%s" % ("、".join(attack_types.keys()) or "未发现明显风险类型"),
             "",
-            "## 三、风险排名摘要",
+            "## 四、风险排名摘要",
             "",
         ]
         reasons = (analysis.get("risk_ranking") or analysis.get("high_risk_reasons", []))[:10]
@@ -1488,14 +1709,14 @@ class UserSubmissionManager:
         else:
             lines.append("- 当前数据未发现需要优先关注的中高风险样本。")
 
-        lines.extend(["", "## 四、处置建议", ""])
+        lines.extend(["", "## 五、处置建议", ""])
         for suggestion in analysis.get("suggestions", []):
             lines.append("- " + suggestion)
 
         sensitive_columns = analysis.get("sensitive_columns", [])
         lines.extend([
             "",
-            "## 五、隐私保护说明",
+            "## 六、隐私保护说明",
             "",
             "- 原始上传文件由系统使用 AES 加密归档。",
             "- 管理端默认展示摘要和脱敏预览，不直接展示原始明文数据。",
@@ -1523,11 +1744,17 @@ class UserSubmissionManager:
                     ))
         lines.extend([
             "",
-            "## 六、模型与指标说明",
+            "## 七、模型与指标说明",
             "",
             "- 当前使用模型：%s" % ("；".join(active_models) if active_models else "系统当前可用检测模型"),
             "- 风险分数综合模型输出、登录失败次数、请求频率、响应耗时、访问设备、IP 来源和标签字段生成。",
             "- 指标用于本次上传数据的风险识别和排序参考，不等同于独立外部评测结论。",
+            "- 追踪信息：数据修订 %s；预处理 %s；模型 %s；分析策略 %s。" % (
+                trace.get("data_revision", "-"),
+                trace.get("preprocessing_version", "-"),
+                trace.get("model_version", "-"),
+                trace.get("analysis_policy_version", "-"),
+            ),
         ])
         with open(path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
@@ -1543,7 +1770,8 @@ class UserSubmissionManager:
         report_path = item.get("report_path")
         content = ""
         if report_path and os.path.exists(report_path):
-            content = open(report_path, "r", encoding="utf-8").read()
+            with open(report_path, "r", encoding="utf-8") as report_file:
+                content = report_file.read()
             legacy_marker = "\n## 七、" + "系统" + "边界说明"
             content = content.split(legacy_marker, 1)[0].rstrip() + "\n"
         return {

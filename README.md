@@ -77,6 +77,9 @@ CSV / JSON / 内置数据源
 - 新提交的持久副本使用 AES-256-GCM 加密；明文临时文件在索引提交前删除。
 - 分析或训练时临时解密，读取完成后立即删除临时文件。
 - 管理员审核并标记“可训练”后，提交才会进入训练池。
+- 分析结果分别给出隐私暴露风险和攻击风险；隐私分数来自可审计字段策略，不冒充训练模型输出。
+- 相同数据修订、模型版本、预处理版本、策略版本和行数上限会复用分析缓存。
+- 用户端使用 `POST /api/user/datasets/<submission_id>/analyze`，管理端使用受会话保护的 `POST /api/admin/submissions/<submission_id>/analyze`，两者调用同一分析内核。
 
 ## 启动
 
@@ -114,6 +117,16 @@ python3 app.py
 ```
 
 项目不会自动读取 `.env` 文件。`CORS_ALLOWED_ORIGINS` 仅接受逗号分隔的精确可信源；未配置时使用同源策略，不返回通配符 CORS。
+
+当前 2GB / 40GB 服务器建议保留以下低资源配置：
+
+```bash
+export DACHUANG_NUMERIC_THREADS='1'
+export DACHUANG_ARCHIVE_QUOTA_MB='8192'
+export DACHUANG_MIN_FREE_DISK_MB='2048'
+```
+
+数值线程默认即为 1；密文归档达到 8GB 或整盘空闲空间低于 2GB 时，系统只拒绝新上传，不会自动删除本项目或其他服务的数据。
 
 Flask 会在未提供 `FLASK_SECRET_KEY` 时生成并持久化本机随机会话密钥。仓库根目录、源码、数据库、密钥和配置文件不会作为 Flask 静态资源暴露。
 
