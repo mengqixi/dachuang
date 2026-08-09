@@ -1170,6 +1170,9 @@ class UserSubmissionManager:
         analysis_summary = item.get("analysis", {})
         if not isinstance(analysis_summary, dict):
             analysis_summary = {}
+        external_analysis = item.get("external_analysis", {})
+        if not isinstance(external_analysis, dict):
+            external_analysis = {}
         if model_versions:
             lifecycle_status = "已生成模型版本"
         elif training_runs:
@@ -1235,6 +1238,7 @@ class UserSubmissionManager:
             "attack_risk": analysis_summary.get("attack_risk", {}),
             "dual_risk": analysis_summary.get("dual_risk", {}),
             "analysis_trace": analysis_summary.get("analysis_trace", {}),
+            "external_analysis": external_analysis,
             "masked_preview": item.get("masked_preview", []),
             "sensitive_columns": item.get("sensitive_columns", []),
             "privacy_notice": item.get("privacy_notice", ""),
@@ -1308,6 +1312,21 @@ class UserSubmissionManager:
                     result["analysis"] = item.get("analysis", {})
                 return result
         return None
+
+    def save_external_analysis(self, submission_id: str, result: Dict) -> Optional[Dict]:
+        """Persist a validated aggregate-only AI interpretation.
+
+        The caller is responsible for building the strict external-advisor
+        schema.  Raw provider responses and API credentials never enter the
+        submission index.
+        """
+        if not isinstance(result, dict):
+            raise ValueError("external analysis result must be a dictionary")
+        updated = _update_submission(submission_id, {
+            "external_analysis": copy.deepcopy(result),
+            "last_external_analysis_at": result.get("generated_at") or _now(),
+        })
+        return self.public_summary(updated) if updated else None
 
     def _load_plain_rows(self, item: Dict, limit: Optional[int] = None) -> Tuple[List[Dict], List[str]]:
         plain_path = item.get("plain_temp_path")
@@ -1400,7 +1419,12 @@ class UserSubmissionManager:
                 },
                 "analyzed_at": _now(),
             }
-            _update_submission(submission_id, {"status": "分析失败", "analysis": analysis, "risk_summary": analysis["risk_summary"]})
+            _update_submission(submission_id, {
+                "status": "分析失败",
+                "analysis": analysis,
+                "risk_summary": analysis["risk_summary"],
+                "external_analysis": None,
+            })
             return analysis
 
         X, y = _features_from_rows(rows)
@@ -1626,6 +1650,10 @@ class UserSubmissionManager:
             "report_path": report_path,
             "last_analyzed_rows": len(rows),
             "last_analyzed_columns": len(columns),
+            # A new local analysis revision invalidates the optional AI
+            # interpretation.  Cache hits return before this point and retain
+            # a matching external result.
+            "external_analysis": None,
         }
         # Preserve the immutable upload profile.  Only backfill legacy records
         # when this analysis reached a known end-of-file/schema.
@@ -1774,10 +1802,61 @@ class UserSubmissionManager:
                 content = report_file.read()
             legacy_marker = "\n## 七、" + "系统" + "边界说明"
             content = content.split(legacy_marker, 1)[0].rstrip() + "\n"
+        external = item.get("external_analysis") or {}
+        advice = external.get("advice") if isinstance(external, dict) else {}
+        if isinstance(advice, dict) and advice.get("summary"):
+            readiness_labels = {
+                "ready": "可在完成授权与版本记录后进入训练",
+                "review_first": "建议先人工复核再决定训练准入",
+                "not_recommended": "当前不建议进入训练池",
+                "insufficient_information": "现有聚合信息不足以判断训练准入",
+            }
+            content = content.rstrip() + "\n\n## 八、AI 辅助判定（可选）\n\n"
+            content += "- 判定规则：本地模型为主；AI 只接收脱敏统计和归一化风险信号，可以确认或提高复核等级，不能降低本地高风险，也不改变本地风险分数。\n"
+            content += "- AI 摘要：%s\n" % str(advice.get("summary"))
+            content += "- 训练准备度：%s\n" % readiness_labels.get(
+                advice.get("training_readiness"),
+                readiness_labels["insufficient_information"],
+            )
+            for label, key in (
+                ("隐私研判", "privacy_findings"),
+                ("攻击研判", "attack_findings"),
+                ("数据质量", "data_quality_findings"),
+                ("优先行动", "recommended_actions"),
+            ):
+                values = advice.get(key) if isinstance(advice.get(key), list) else []
+                for value in values[:6]:
+                    content += "- %s：%s\n" % (label, str(value))
+            if advice.get("training_advice"):
+                content += "- 训练建议：%s\n" % str(advice.get("training_advice"))
+            if advice.get("comparison_advice"):
+                content += "- 普通/联邦训练对比建议：%s\n" % str(advice.get("comparison_advice"))
+            if advice.get("confidence_note"):
+                content += "- 可信度说明：%s\n" % str(advice.get("confidence_note"))
+            assisted_summary = external.get("assisted_summary") if isinstance(external, dict) else {}
+            if isinstance(assisted_summary, dict) and assisted_summary.get("reviewed"):
+                content += "- 双模型复核统计：已复核 %s，一致 %s，AI 建议提高关注 %s，冲突待人工复核 %s。\n" % (
+                    assisted_summary.get("reviewed", 0),
+                    assisted_summary.get("agreed", 0),
+                    assisted_summary.get("ai_escalated", 0),
+                    assisted_summary.get("conflicts", 0),
+                )
+            decisions = external.get("assisted_decisions") if isinstance(external, dict) else []
+            for decision in decisions[:10] if isinstance(decisions, list) else []:
+                content += "- 样本 %s：本地 %s（分数 %s），AI %s（置信度 %s），综合 %s%s。\n" % (
+                    decision.get("sample_id", decision.get("rank", "-")),
+                    decision.get("local_risk_level", "-"),
+                    decision.get("local_risk_score", "-"),
+                    decision.get("ai_risk_level", "-"),
+                    decision.get("ai_confidence", "-"),
+                    decision.get("combined_risk_level", "-"),
+                    "，需要人工复核" if decision.get("needs_manual_review") else "",
+                )
         return {
             "submission": self.public_summary(item),
             "report_markdown": content,
             "analysis": item.get("analysis", {}),
+            "external_analysis": external,
         }
 
     def set_status(self, submission_id: str, review_status: str = None, trainable: Optional[bool] = None, review_note: str = "") -> Optional[Dict]:

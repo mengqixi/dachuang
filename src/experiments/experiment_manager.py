@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""实验管理中心 - SQLite记录训练/联邦/攻击/优化实验"""
+"""历史运行记录中心 - SQLite 记录训练、联邦、攻击与优化任务。"""
 
 import os
 import json
@@ -9,10 +9,10 @@ from src.utils.data_storage import db
 
 
 class ExperimentManager:
-    """实验管理器 - 记录并追踪所有实验"""
+    """运行记录管理器 - 记录并追踪平台任务。"""
 
     def save_experiment(self, exp_type: str, name: str, params: Dict, result: Dict):
-        """保存实验记录"""
+        """保存运行记录。"""
         try:
             conn = db._get_conn()
             conn.execute(
@@ -31,7 +31,7 @@ class ExperimentManager:
             return False
 
     def get_experiments(self, limit: int = 50) -> List[Dict]:
-        """获取实验列表"""
+        """获取历史运行记录。"""
         from src.utils.data_storage import db
         try:
             conn = db._get_conn()

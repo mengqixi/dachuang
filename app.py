@@ -11,6 +11,7 @@ import threading
 import hashlib
 import hmac
 import secrets
+from collections import deque
 from datetime import datetime, timedelta
 
 # Keep BLAS/OpenMP thread stacks bounded on the 2GB deployment target.  The
@@ -50,6 +51,20 @@ from src.utils.model_manager import model_manager
 from src.utils.atomic_files import atomic_save_npy, atomic_write_bytes, atomic_write_json
 from src.user_submission_manager import SubmissionStatusError, UploadValidationError, user_submission_manager, validate_upload_file
 from src.preprocess.feature_engineering import FEATURE_NORMALIZATION_VERSION
+from src.analysis.external_advisor import (
+    ExternalAdvisorClient,
+    ExternalAdvisorConfigError,
+    ExternalAdvisorDisabledError,
+    ExternalAdvisorProviderError,
+    ExternalAdvisorResponseError,
+    ExternalAdvisorSettingsStore,
+    build_ai_assisted_decisions,
+    build_redacted_analysis_payload,
+    build_redacted_training_comparison_payload,
+    external_cache_key,
+    make_external_analysis_record,
+    test_payload as external_advisor_test_payload,
+)
 
 # ─── 日志配置 ───
 os.makedirs("logs", exist_ok=True)
@@ -213,7 +228,11 @@ ADMIN_SUBMISSIONS_CACHE_SECONDS = 15
 _dataset_prepare_lock = threading.RLock()
 _training_operation_lock = threading.Lock()
 _analysis_operation_lock = threading.Lock()
+_external_analysis_operation_lock = threading.Lock()
+_external_analysis_rate_lock = threading.Lock()
+_external_analysis_call_times = deque()
 _runtime_model_init_lock = threading.Lock()
+_external_ai_settings_store = ExternalAdvisorSettingsStore()
 
 
 def _ensure_paillier():
@@ -319,6 +338,15 @@ def _is_local_request():
     else:
         hostname = host.split(":", 1)[0]
     return hostname in ("127.0.0.1", "localhost", "::1")
+
+
+def _secret_configuration_allowed():
+    """Only accept new secrets over HTTPS or a loopback admin session."""
+    if _is_local_request() or request.is_secure:
+        return True
+    return str(os.environ.get("DACHUANG_ALLOW_INSECURE_SECRET_CONFIG", "")).lower() in {
+        "1", "true", "yes",
+    }
 
 
 def _admin_credentials():
@@ -1130,7 +1158,12 @@ def _federated_node_details():
 
 
 def _paillier_aggregation_metrics(results, global_weights):
-    """Lightweight display metrics for Paillier secure aggregation mode."""
+    """Estimate the bounded cost of adding Paillier to the weight path.
+
+    The current serving path performs plain FedAvg. These values are an
+    explicit parameter-count estimate, not measured cryptographic timings and
+    not evidence that encrypted weights participated in model aggregation.
+    """
     started = time.time()
     key_ready = bool(_paillier_ready)
     parameter_count = 0
@@ -1151,6 +1184,8 @@ def _paillier_aggregation_metrics(results, global_weights):
         "secure_aggregation": False,
         "secure_aggregation_requested": True,
         "display_only": True,
+        "timing_method": "parameter_count_estimate",
+        "actual_crypto_operations_performed": False,
         "aggregation_method": "fedavg_plain_with_paillier_demo",
         "key_status": "ready" if key_ready else "not_ready",
         "encrypted_parameter_count": parameter_count,
@@ -2007,6 +2042,110 @@ def admin_session():
     }))
 
 
+def _create_external_advisor_client(settings):
+    """Factory kept separate so tests never need a live paid provider."""
+    return ExternalAdvisorClient(settings)
+
+
+def _reserve_external_ai_call(calls_per_hour):
+    """Reserve one bounded global provider call for the 2GB deployment."""
+    now = time.time()
+    limit = max(1, min(int(calls_per_hour or 20), 100))
+    cutoff = now - 3600.0
+    with _external_analysis_rate_lock:
+        while _external_analysis_call_times and _external_analysis_call_times[0] < cutoff:
+            _external_analysis_call_times.popleft()
+        if len(_external_analysis_call_times) >= limit:
+            retry_after = max(1, int(3600 - (now - _external_analysis_call_times[0])))
+            return False, retry_after, 0
+        _external_analysis_call_times.append(now)
+        return True, 0, max(0, limit - len(_external_analysis_call_times))
+
+
+def _external_ai_settings_public(settings):
+    return _external_ai_settings_store.public_status(
+        settings,
+        secret_input_allowed=_secret_configuration_allowed(),
+    )
+
+
+@app.route("/api/admin/external-ai/settings", methods=["GET"])
+def admin_external_ai_settings_get():
+    """Return only masked provider configuration to the compact admin dialog."""
+    try:
+        settings = _external_ai_settings_store.get_effective(require_ready=False)
+        return jsonify(api_response(data=_external_ai_settings_public(settings)))
+    except ExternalAdvisorConfigError:
+        return jsonify(api_response(
+            code=500,
+            msg="外部 AI 配置无法读取，请重新保存 API 设置。",
+            data={"secret_input_allowed": _secret_configuration_allowed()},
+        )), 500
+
+
+@app.route("/api/admin/external-ai/settings", methods=["PUT", "POST"])
+def admin_external_ai_settings_save():
+    """Save encrypted provider settings without ever returning the API key."""
+    req = request.get_json(silent=True) or {}
+    secret_changed = bool(str(req.get("api_key") or "").strip()) or bool(req.get("clear_api_key"))
+    if secret_changed and not _secret_configuration_allowed():
+        return jsonify(api_response(
+            code=403,
+            msg="为防止 API Key 在网络中泄露，公网管理端必须使用 HTTPS；也可通过服务器环境变量配置密钥。",
+        )), 403
+    try:
+        settings = _external_ai_settings_store.save(req)
+        return jsonify(api_response(msg="AI 接口设置已安全保存", data=_external_ai_settings_public(settings)))
+    except ExternalAdvisorConfigError as error:
+        return jsonify(api_response(code=400, msg=str(error))), 400
+    except Exception:
+        logger.exception("Save external AI settings failed")
+        return jsonify(api_response(code=500, msg="AI 接口设置保存失败。")), 500
+
+
+@app.route("/api/admin/external-ai/settings/test", methods=["POST"])
+def admin_external_ai_settings_test():
+    """Make one explicit, fixed-data provider call to validate connectivity."""
+    req = request.get_json(silent=True) or {}
+    if str(req.get("api_key") or "").strip() and not _secret_configuration_allowed():
+        return jsonify(api_response(
+            code=403,
+            msg="公网管理端必须使用 HTTPS 后才能提交 API Key 进行测试。",
+        )), 403
+    if not _external_analysis_operation_lock.acquire(blocking=False):
+        return jsonify(api_response(code=409, msg="已有 AI 解读任务正在执行，请稍后再试。")), 409
+    try:
+        settings = _external_ai_settings_store.candidate(req)
+        settings["enabled"] = True
+        allowed, retry_after, remaining = _reserve_external_ai_call(settings.get("calls_per_hour"))
+        if not allowed:
+            return jsonify(api_response(
+                code=429,
+                msg="外部 AI 每小时调用额度已用完，请稍后再试。",
+                data={"retry_after_seconds": retry_after},
+            )), 429
+        started = time.perf_counter()
+        result = _create_external_advisor_client(settings).analyze(external_advisor_test_payload())
+        elapsed_ms = round((time.perf_counter() - started) * 1000, 2)
+        return jsonify(api_response(msg="AI 接口测试成功", data={
+            "connected": True,
+            "model": settings.get("model"),
+            "mode": settings.get("mode"),
+            "latency_ms": elapsed_ms,
+            "remaining_calls_this_hour": remaining,
+            "sample_summary": (result.get("advice") or {}).get("summary", ""),
+        }))
+    except (ExternalAdvisorConfigError, ExternalAdvisorDisabledError) as error:
+        return jsonify(api_response(code=400, msg=str(error))), 400
+    except (ExternalAdvisorProviderError, ExternalAdvisorResponseError):
+        return jsonify(api_response(code=502, msg="AI 接口测试失败，请检查地址、模型、密钥和接口模式。")), 502
+    except Exception:
+        logger.exception("External AI settings test failed")
+        return jsonify(api_response(code=500, msg="AI 接口测试失败。")), 500
+    finally:
+        _external_analysis_operation_lock.release()
+
+
 @app.route("/api/user/datasets/upload", methods=["POST"])
 def user_dataset_upload():
     """Upload a user CSV/JSON file and store it as an encrypted archive."""
@@ -2102,6 +2241,119 @@ def _submission_analysis_response(submission_id, actor="user"):
 def user_dataset_analyze(submission_id):
     """Run data profiling and dual-risk detection for a user submission."""
     return _submission_analysis_response(submission_id, actor="user")
+
+
+def _external_analysis_response(submission_id, actor="user"):
+    """Interpret a completed local analysis using aggregate-only provider input."""
+    try:
+        settings = _external_ai_settings_store.get_effective(require_ready=True)
+    except ExternalAdvisorDisabledError:
+        return jsonify(api_response(code=503, msg="AI 脱敏解读未启用，本地检测与报告仍可正常使用。")), 503
+    except ExternalAdvisorConfigError:
+        return jsonify(api_response(code=503, msg="AI 脱敏解读尚未完成接口配置，本地功能不受影响。")), 503
+    if actor != "admin" and not settings.get("user_enabled"):
+        return jsonify(api_response(code=403, msg="管理员尚未开放用户端 AI 脱敏解读。")), 403
+
+    item = user_submission_manager.get_submission(submission_id, include_preview=True)
+    if item is None:
+        return jsonify(api_response(code=404, msg="提交记录不存在。")), 404
+    analysis = item.get("analysis") if isinstance(item.get("analysis"), dict) else {}
+    trace = analysis.get("analysis_trace") if isinstance(analysis.get("analysis_trace"), dict) else {}
+    if not trace.get("analysis_id"):
+        return jsonify(api_response(code=409, msg="请先完成本地风险检测，再使用 AI 脱敏解读。")), 409
+    if int(trace.get("analyzed_rows") or analysis.get("total") or 0) <= 0:
+        return jsonify(api_response(code=409, msg="当前没有可供 AI 解读的有效分析统计。")), 409
+
+    payload = build_redacted_analysis_payload(analysis)
+    expected_cache_key = external_cache_key(payload, settings)
+    req = request.get_json(silent=True) or {}
+    force_value = req.get("force", False)
+    force = actor == "admin" and (
+        force_value is True or str(force_value).lower() in {"1", "true", "yes"}
+    )
+    cached = item.get("external_analysis") if isinstance(item.get("external_analysis"), dict) else {}
+    if not force and cached.get("input_fingerprint") == expected_cache_key:
+        cached_result = json.loads(json.dumps(cached, ensure_ascii=False))
+        cached_result["cache_reused"] = True
+        return jsonify(api_response(msg="已复用 AI 脱敏解读", data=cached_result))
+
+    if not _external_analysis_operation_lock.acquire(blocking=False):
+        return jsonify(api_response(
+            code=409,
+            msg="已有 AI 解读任务正在执行。为控制服务器资源与调用费用，请稍后再试。",
+        )), 409
+    try:
+        # Re-check after acquiring the single-call lock to avoid duplicate paid
+        # calls when two requests arrive together.
+        latest = user_submission_manager.get_submission(submission_id, include_preview=True) or {}
+        latest_analysis = latest.get("analysis") if isinstance(latest.get("analysis"), dict) else analysis
+        latest_payload = build_redacted_analysis_payload(latest_analysis)
+        latest_cache_key = external_cache_key(latest_payload, settings)
+        latest_cached = latest.get("external_analysis") if isinstance(latest.get("external_analysis"), dict) else {}
+        if not force and latest_cached.get("input_fingerprint") == latest_cache_key:
+            cached_result = json.loads(json.dumps(latest_cached, ensure_ascii=False))
+            cached_result["cache_reused"] = True
+            return jsonify(api_response(msg="已复用 AI 脱敏解读", data=cached_result))
+
+        allowed, retry_after, remaining = _reserve_external_ai_call(settings.get("calls_per_hour"))
+        if not allowed:
+            return jsonify(api_response(
+                code=429,
+                msg="外部 AI 每小时调用额度已用完，本地功能仍可继续使用。",
+                data={"retry_after_seconds": retry_after},
+            )), 429
+        provider_result = _create_external_advisor_client(settings).analyze(latest_payload)
+        record = make_external_analysis_record(latest_payload, settings, provider_result)
+        assisted = build_ai_assisted_decisions(latest_analysis, record.get("advice"))
+        record["assisted_decisions"] = assisted.get("items", [])
+        record["assisted_summary"] = assisted.get("summary", {})
+        record["decision_policy"] = assisted.get("policy")
+        record["remaining_calls_this_hour"] = remaining
+        if user_submission_manager.save_external_analysis(submission_id, record) is None:
+            return jsonify(api_response(code=404, msg="提交记录不存在。")), 404
+        _clear_submission_related_caches()
+        return jsonify(api_response(msg="AI 脱敏研判完成", data=record))
+    except (ExternalAdvisorConfigError, ExternalAdvisorDisabledError):
+        return jsonify(api_response(code=503, msg="AI 脱敏解读配置不可用，本地功能不受影响。")), 503
+    except (ExternalAdvisorProviderError, ExternalAdvisorResponseError):
+        return jsonify(api_response(
+            code=502,
+            msg="AI 解读服务暂时不可用；本地检测结果已保留，不会受到影响。",
+        )), 502
+    except Exception:
+        logger.exception("External aggregate analysis failed")
+        return jsonify(api_response(code=500, msg="AI 解读失败；本地检测结果已保留。")), 500
+    finally:
+        _external_analysis_operation_lock.release()
+
+
+@app.route("/api/user/external-ai/status", methods=["GET"])
+def user_external_ai_status():
+    """Expose feature availability without provider URL or credential metadata."""
+    try:
+        settings = _external_ai_settings_store.get_effective(require_ready=False)
+        return jsonify(api_response(data={
+            "available": bool(settings.get("ready") and settings.get("user_enabled")),
+            "enabled": bool(settings.get("enabled")),
+            "user_enabled": bool(settings.get("user_enabled")),
+            "configured": bool(settings.get("configured")),
+            "model": settings.get("model"),
+            "mode": settings.get("mode"),
+            "payload_policy": "redacted_aggregates_only",
+        }))
+    except ExternalAdvisorConfigError:
+        return jsonify(api_response(data={
+            "available": False,
+            "enabled": False,
+            "user_enabled": False,
+            "configured": False,
+            "payload_policy": "redacted_aggregates_only",
+        }))
+
+
+@app.route("/api/user/datasets/<submission_id>/external-analysis", methods=["POST"])
+def user_dataset_external_analysis(submission_id):
+    return _external_analysis_response(submission_id, actor="user")
 
 
 @app.route("/api/user/reports/<submission_id>", methods=["GET"])
@@ -2386,6 +2638,12 @@ def admin_submission_analyze(submission_id):
     return _submission_analysis_response(submission_id, actor="admin")
 
 
+@app.route("/api/admin/submissions/<submission_id>/external-analysis", methods=["POST"])
+def admin_submission_external_analysis(submission_id):
+    """Explicit admin-only AI second opinion; never called by local analysis."""
+    return _external_analysis_response(submission_id, actor="admin")
+
+
 @app.route("/api/admin/submissions/<submission_id>/archive", methods=["POST"])
 def admin_submission_archive(submission_id):
     item = user_submission_manager.set_status(submission_id, review_status="已归档")
@@ -2656,6 +2914,9 @@ def _admin_training_federated_locked():
             else {
                 "paillier_enabled": False,
                 "secure_aggregation": False,
+                "display_only": False,
+                "timing_method": "not_requested",
+                "actual_crypto_operations_performed": False,
                 "aggregation_method": "plain",
                 "note": "当前使用普通 FedAvg 聚合；如选择 Paillier，将展示参数量化、加密、密态聚合和解密耗时。",
             }
@@ -2890,6 +3151,134 @@ def _parse_meta(value):
         return parsed if isinstance(parsed, dict) else {}
     except Exception:
         return {}
+
+
+def _training_task_merged(task):
+    task = dict(task or {})
+    meta = _parse_meta(task.get("metadata"))
+    nested = _parse_meta(meta.get("metadata"))
+    return {**meta, **nested, **task}
+
+
+def _latest_training_pair(dataset_source_id="", preparation_id=""):
+    """Select matching completed local/federated records for one data revision."""
+    sqlite_tasks = db.get_training_tasks(200)
+    try:
+        legacy_tasks = [_normalize_legacy_training_record(r) for r in get_training_records(limit=200)]
+    except Exception:
+        legacy_tasks = []
+    tasks = _merge_training_tasks(sqlite_tasks, legacy_tasks, 300)
+    rows = []
+    for task in tasks:
+        merged = _training_task_merged(task)
+        if str(merged.get("status") or "completed").lower() not in {"completed", "success", "done"}:
+            continue
+        source_id = str(merged.get("dataset_source_id") or "")
+        prep_id = str(merged.get("preparation_id") or "")
+        if dataset_source_id and source_id != str(dataset_source_id):
+            continue
+        if preparation_id and prep_id != str(preparation_id):
+            continue
+        task_type = str(merged.get("task_type") or task.get("task_type") or "").lower()
+        rows.append({
+            "task": task,
+            "merged": merged,
+            "kind": "federated" if "fed" in task_type else "local",
+            "source_id": source_id,
+            "preparation_id": prep_id,
+        })
+    federated_rows = [row for row in rows if row["kind"] == "federated"]
+    local_rows = [row for row in rows if row["kind"] == "local"]
+    for fed_row in federated_rows:
+        for local_row in local_rows:
+            source_matches = bool(
+                fed_row["source_id"]
+                and fed_row["source_id"] == local_row["source_id"]
+            )
+            preparation_matches = bool(
+                fed_row["preparation_id"]
+                and fed_row["preparation_id"] == local_row["preparation_id"]
+            )
+            if source_matches and (preparation_matches or not fed_row["preparation_id"]):
+                return local_row["task"], fed_row["task"]
+    return None, None
+
+
+TRAINING_AI_COMPARISON_CACHE_KEY = "external_ai_training_security_comparison_v1"
+
+
+def _load_training_ai_comparison_cache():
+    try:
+        value = json.loads(db.get_config(TRAINING_AI_COMPARISON_CACHE_KEY, "{}") or "{}")
+        return value if isinstance(value, dict) else {}
+    except Exception:
+        return {}
+
+
+@app.route("/api/admin/training/external-comparison", methods=["POST"])
+def admin_training_external_comparison():
+    """AI-assisted security and model-path judgment using real aggregate records."""
+    try:
+        settings = _external_ai_settings_store.get_effective(require_ready=True)
+    except ExternalAdvisorDisabledError:
+        return jsonify(api_response(code=503, msg="AI 辅助判定未启用，现有训练对比仍可正常使用。")), 503
+    except ExternalAdvisorConfigError:
+        return jsonify(api_response(code=503, msg="AI 接口尚未完成配置，现有训练对比不受影响。")), 503
+
+    req = request.get_json(silent=True) or {}
+    local_task, federated_task = _latest_training_pair(
+        dataset_source_id=str(req.get("dataset_source_id") or ""),
+        preparation_id=str(req.get("preparation_id") or ""),
+    )
+    if local_task is None or federated_task is None:
+        return jsonify(api_response(
+            code=409,
+            msg="请先基于同一数据准备版本完成普通训练和四节点联邦训练。",
+        )), 409
+    payload = build_redacted_training_comparison_payload(local_task, federated_task)
+    expected_cache_key = external_cache_key(payload, settings)
+    force_value = req.get("force", False)
+    force = force_value is True or str(force_value).lower() in {"1", "true", "yes"}
+    cached = _load_training_ai_comparison_cache()
+    if not force and cached.get("input_fingerprint") == expected_cache_key:
+        cached_result = json.loads(json.dumps(cached, ensure_ascii=False))
+        cached_result["cache_reused"] = True
+        return jsonify(api_response(msg="已复用 AI 训练方案判定", data=cached_result))
+
+    if not _external_analysis_operation_lock.acquire(blocking=False):
+        return jsonify(api_response(code=409, msg="已有 AI 辅助判定正在执行，请稍后再试。")), 409
+    try:
+        cached = _load_training_ai_comparison_cache()
+        if not force and cached.get("input_fingerprint") == expected_cache_key:
+            cached_result = json.loads(json.dumps(cached, ensure_ascii=False))
+            cached_result["cache_reused"] = True
+            return jsonify(api_response(msg="已复用 AI 训练方案判定", data=cached_result))
+        allowed, retry_after, remaining = _reserve_external_ai_call(settings.get("calls_per_hour"))
+        if not allowed:
+            return jsonify(api_response(
+                code=429,
+                msg="外部 AI 每小时调用额度已用完，现有训练对比仍可使用。",
+                data={"retry_after_seconds": retry_after},
+            )), 429
+        provider_result = _create_external_advisor_client(settings).analyze(payload)
+        record = make_external_analysis_record(payload, settings, provider_result)
+        record["comparison_facts"] = {
+            "deterministic_differences": payload.get("deterministic_differences", {}),
+            "comparison_fairness": payload.get("comparison_fairness", {}),
+            "security_architecture": payload.get("security_architecture", {}),
+        }
+        record["remaining_calls_this_hour"] = remaining
+        db.set_config(TRAINING_AI_COMPARISON_CACHE_KEY, json.dumps(record, ensure_ascii=False))
+        return jsonify(api_response(msg="AI 训练方案辅助判定完成", data=record))
+    except (ExternalAdvisorConfigError, ExternalAdvisorDisabledError):
+        return jsonify(api_response(code=503, msg="AI 配置不可用，现有训练对比不受影响。")), 503
+    except (ExternalAdvisorProviderError, ExternalAdvisorResponseError):
+        return jsonify(api_response(code=502, msg="AI 服务暂时不可用，现有训练对比结果已保留。")), 502
+    except Exception:
+        logger.exception("External training comparison failed")
+        return jsonify(api_response(code=500, msg="AI 辅助判定失败，现有训练对比结果已保留。")), 500
+    finally:
+        _external_analysis_operation_lock.release()
 
 
 def _runtime_ensemble_artifacts():
@@ -3207,18 +3596,42 @@ def training_records():
 
 @app.route("/api/system/health", methods=["GET"])
 def system_health():
-    status = model_manager.get_status()
+    # The runtime ensemble is the primary model used by user-facing analysis.
+    # Keep the legacy manager status separate so health checks do not report
+    # "not trained" after the actual serving model has loaded successfully.
+    from src.detection.ensemble_detector import ensemble_detector
+
+    runtime_status = ensemble_detector.status()
+    runtime_ready = bool(runtime_status.get("is_ready") or runtime_status.get("ready"))
+    runtime_components = runtime_status.get("components") or {}
+    enabled_components = [
+        label
+        for key, label in (
+            ("isolation_forest", "Isolation Forest"),
+            ("classifier", runtime_status.get("classifier_type") or "Classifier"),
+            ("numpy_lstm", "NumPy LSTM"),
+        )
+        if runtime_components.get(key)
+    ]
+    legacy_status = model_manager.get_status()
     return jsonify(api_response(data={
         "status": "running", "version": "2.0.0",
         "paillier_ready": _paillier_ready,
-        "detector_trained": _detector_trained,
-        "real_detector_trained": status["is_ready"],
+        "detector_trained": runtime_ready,
+        "real_detector_trained": runtime_ready,
+        "local_model": {
+            "ready": runtime_ready,
+            "version": runtime_status.get("model_version") or "",
+            "classifier_type": runtime_status.get("classifier_type") or "",
+            "components": runtime_components,
+        },
+        "legacy_baseline_ready": bool(legacy_status.get("is_ready") or _detector_trained),
         "optimizer_trained": get_optimizer().agent.is_trained,
         "visitor_count": len(_visitor_log),
         "dataset_count": len(dataset_manager.list_datasets()),
         "modules": {
             "encryption": "Paillier + AES-256",
-            "detection": "IF + LogisticRegression",
+            "detection": " + ".join(enabled_components) if enabled_components else "运行时融合模型（加载中）",
             "optimization": "表格型Q-learning(500状态)",
             "federated": "真实梯度下降",
             "storage": "SQLite持久化",
@@ -3897,11 +4310,11 @@ def ensemble_status():
     return jsonify(api_response(data=ensemble_detector.status()))
 
 
-# ─── API: 实验管理 ───
+# ─── API: 历史运行记录（兼容旧接口路径） ───
 
 @app.route("/api/experiment/list", methods=["GET"])
 def experiment_list():
-    """获取实验列表"""
+    """获取历史运行记录；保留旧路径用于接口兼容。"""
     from src.experiments.experiment_manager import exp_manager
     return jsonify(api_response(data={"experiments": exp_manager.get_experiments()}))
 

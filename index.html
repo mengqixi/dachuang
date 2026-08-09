@@ -66,7 +66,9 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
 .detail-kv b{color:#244E7A}
 .chain{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.chain span{background:#EEF6FF;border:1px solid #CFE2F5;color:#1E5C9A;border-radius:999px;padding:6px 10px;font-size:13px;font-weight:700}
 .toastx{position:fixed;top:60px;right:18px;z-index:9999;color:#fff;border-radius:8px;padding:10px 15px;font-size:13px;box-shadow:0 6px 20px rgba(0,0,0,.15)}
+.mini-modal[hidden]{display:none!important}.mini-modal{position:fixed;inset:0;z-index:10020;background:rgba(20,32,46,.48);display:flex;align-items:center;justify-content:center;padding:18px}.mini-modal-card{width:min(760px,96vw);max-height:90vh;overflow:auto;background:#fff;border:1px solid #DDE7F0;border-radius:14px;box-shadow:0 22px 60px rgba(10,25,45,.28)}.mini-modal-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid #E6ECF2;font-weight:900;color:#1E5C9A}.mini-modal-body{padding:18px}.mini-modal-foot{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid #E6ECF2}.mini-close{border:0;background:#EEF2F6;border-radius:8px;width:34px;height:34px;color:#455A64}.ai-settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.ai-settings-grid .wide{grid-column:1/-1}.ai-assist-card{border:1px solid #BBD3EC;background:#F7FBFF;border-radius:10px;padding:13px;margin-top:12px}.ai-assist-card .ai-title{display:flex;justify-content:space-between;align-items:center;gap:10px;font-weight:900;color:#1E5C9A;margin-bottom:8px}.ai-decision-row{display:grid;grid-template-columns:70px 1fr 1fr;gap:8px;border-top:1px solid #E1EAF2;padding:8px 0;font-size:12px}.ai-decision-row:first-child{border-top:0}.ai-local-primary{background:#EEF6FF;border:1px solid #CFE2F5;border-radius:8px;padding:8px 10px;color:#315A7D;font-size:12px;line-height:1.6}.ai-list{margin:6px 0 0;padding-left:20px;font-size:13px;color:#455A64}.ai-status-line{font-size:12px;color:#607D8B;line-height:1.6}.ai-judgement{min-width:150px;white-space:normal;line-height:1.5}.ai-judgement .status-pill{margin-bottom:3px}.secret-note{font-size:12px;color:#8A6200;line-height:1.55}.config-status{border-radius:8px;padding:9px 11px;background:#F8FAFC;border:1px dashed #C7D2DE;font-size:12px;color:#455A64}
 @media(max-width:980px){.metric-grid,.two-col,.three-col,.node-grid{grid-template-columns:1fr}.navbar-nav{overflow-x:auto;max-width:100%}}
+@media(max-width:720px){.ai-settings-grid{grid-template-columns:1fr}.ai-settings-grid .wide{grid-column:auto}.ai-decision-row{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -134,6 +136,7 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
       </div>
       <div class="panel-body">
         <button class="btn-main me-2" onclick="analyzeCurrentSubmission()"><i class="fas fa-play"></i> 检测当前提交</button>
+        <button class="btn-lightx me-2" onclick="runUserAiAssist(event)"><i class="fas fa-wand-magic-sparkles"></i> 使用 AI 辅助判定</button>
         <button class="btn-lightx" onclick="detectFromSystemDataset()">从内置测试集抽样检测</button>
         <span class="ms-2 muted" id="detectHint">请先上传或生成登录安全样本。</span>
         <div class="metric-grid mt-3" id="riskMetrics">
@@ -144,6 +147,10 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
         </div>
         <div class="notice mt-3" id="riskTopHint">检测完成后默认按风险分数降序展示风险排名。</div>
         <div class="notice mt-2" id="currentModelHint">当前检测模型：暂无启用模型版本记录；如需追溯模型来源，请先在管理端训练中心生成模型版本。</div>
+        <div class="ai-assist-card" id="externalAnalysisBoxDetect">
+          <div class="ai-title"><span><i class="fas fa-wand-magic-sparkles"></i> AI 辅助判定</span><span class="mini-badge">按需调用</span></div>
+          <div class="ai-local-primary">本地模型是默认主判定。只有主动点击上方按钮时才调用 AI；未配置或不使用 AI 时，本页全部功能照常运行。</div>
+        </div>
       </div>
     </div>
     <div class="panel">
@@ -159,8 +166,8 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
       <div class="panel-body">
         <div class="scroll-box">
           <table class="table table-sm">
-            <thead><tr><th>排名</th><th>样本编号</th><th>用户</th><th>IP</th><th>风险等级</th><th>风险分数</th><th>攻击类型</th><th>主要因素</th><th>建议</th></tr></thead>
-            <tbody id="reasonTable"><tr><td colspan="9" class="text-muted">暂无检测结果</td></tr></tbody>
+            <thead><tr><th>排名</th><th>样本编号</th><th>用户</th><th>IP</th><th>本地风险</th><th>风险分数</th><th>攻击类型</th><th>主要因素</th><th>AI / 综合判定</th><th>建议</th></tr></thead>
+            <tbody id="reasonTable"><tr><td colspan="10" class="text-muted">暂无检测结果</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -172,6 +179,7 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
       <div class="panel-head"><i class="fas fa-file-lines text-primary"></i> 分析报告 - 结果留存</div>
       <div class="panel-body">
         <button class="btn-main me-2" onclick="loadReport()">加载报告</button>
+        <button class="btn-lightx me-2" onclick="runUserAiAssist(event)"><i class="fas fa-wand-magic-sparkles"></i> 使用 AI 辅助判定</button>
         <button class="btn-lightx" onclick="downloadReport()">下载 Markdown 报告</button>
         <div class="metric-grid mt-3" id="reportMetrics">
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">总样本</div></div>
@@ -201,6 +209,10 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
           </div>
         </div>
         <div class="subtle-note mt-3"><i class="fas fa-circle-info text-primary"></i> 报告内容来自当前提交的密码攻击风险检测结果，可下载为 Markdown。</div>
+        <div class="ai-assist-card" id="externalAnalysisBoxReport">
+          <div class="ai-title"><span><i class="fas fa-wand-magic-sparkles"></i> AI 辅助判定</span><span class="mini-badge">可选</span></div>
+          <div class="ai-local-primary">主动调用后，这里显示本地模型与 AI 第二判定的综合结果；默认报告仍完全来自本地模型。</div>
+        </div>
         <div class="report-box empty mt-3" id="reportBox">完成风险检测后可查看报告。</div>
       </div>
     </div>
@@ -211,6 +223,7 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
       <div class="panel-head"><i class="fas fa-folder-open text-primary"></i> 用户提交 - 加密归档与训练准入</div>
       <div class="panel-body">
         <button class="btn-main me-2" onclick="loadSubmissionsData(true)">刷新提交</button>
+        <button class="btn-lightx" onclick="openExternalAiSettings()"><i class="fas fa-key"></i> AI 接口设置</button>
         <div class="metric-grid mt-3" id="submissionRiskMetrics">
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">用户提交</div></div>
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">高风险样本</div></div>
@@ -272,6 +285,7 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
         <div class="compact-actions mb-3">
           <button class="btn-main" id="dataProcessTrainButton" onclick="runAdminFullTraining()"><i class="fas fa-play"></i> 运行本地基线 + 四节点联邦训练</button>
           <button class="btn-lightx" onclick="loadTrainingRecords(true)"><i class="fas fa-rotate"></i> 刷新训练结果</button>
+          <button class="btn-lightx" onclick="runTrainingAiComparison(event)"><i class="fas fa-wand-magic-sparkles"></i> AI 辅助选择模型</button>
           <span class="small-text text-muted" id="dataProcessTrainingStatus">完成训练后将显示本地基线、四节点结果和最新任务时间。</span>
         </div>
         <div class="chart-card mt-2">
@@ -281,6 +295,10 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
         </div>
         <div class="node-grid mt-3" id="federatedTrainingDetails">
           <div class="notice mb-0">尚无四节点联邦训练结果。点击上方按钮后会显示各节点样本数、准确率和损失。</div>
+        </div>
+        <div class="ai-assist-card" id="trainingAiComparisonBox">
+          <div class="ai-title"><span><i class="fas fa-wand-magic-sparkles"></i> AI 训练方案辅助判定</span><span class="mini-badge">按需调用</span></div>
+          <div class="ai-local-primary">平台先显示确定性的普通训练/联邦训练指标。只有主动点击按钮时，AI 才结合指标口径和安全机制给出模型选择判断。</div>
         </div>
       </div>
     </div>
@@ -441,6 +459,61 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
   </section>
 </main>
 
+<div class="mini-modal" id="externalAiSettingsModal" hidden role="dialog" aria-modal="true" aria-labelledby="externalAiSettingsTitle">
+  <div class="mini-modal-card">
+    <div class="mini-modal-head">
+      <span id="externalAiSettingsTitle"><i class="fas fa-key"></i> AI 接口设置</span>
+      <button class="mini-close" type="button" onclick="closeMiniModal('externalAiSettingsModal')" aria-label="关闭">×</button>
+    </div>
+    <div class="mini-modal-body">
+      <div class="ai-local-primary mb-3">AI 是可选的第二判定服务，不会替代本地模型，也不会自动调用。发给 AI 的内容仅包含聚合统计和归一化风险信号，不含账号、IP 或原始字段值。</div>
+      <div class="ai-settings-grid">
+        <label class="form-label mb-0">API Base URL
+          <input class="form-control mt-1" id="externalAiBaseUrl" placeholder="https://provider.example/v1" autocomplete="off">
+        </label>
+        <label class="form-label mb-0">模型名称
+          <input class="form-control mt-1" id="externalAiModel" value="gpt-5.6-sol" autocomplete="off">
+        </label>
+        <label class="form-label mb-0">接口模式
+          <select class="form-select mt-1" id="externalAiMode" onchange="updateExternalAiEndpointHint()">
+            <option value="chat_completions">Chat Completions</option>
+            <option value="responses">Responses</option>
+          </select>
+        </label>
+        <label class="form-label mb-0">接口路径
+          <input class="form-control mt-1" id="externalAiEndpoint" readonly value="/chat/completions">
+        </label>
+        <label class="form-label mb-0">超时（秒，5–90）
+          <input class="form-control mt-1" id="externalAiTimeout" type="number" min="5" max="90" value="45">
+        </label>
+        <label class="form-label mb-0">API Key（留空表示不修改）
+          <input class="form-control mt-1" id="externalAiApiKey" type="password" autocomplete="new-password" placeholder="已保存时只显示掩码">
+        </label>
+        <label class="form-check wide mb-0"><input class="form-check-input" type="checkbox" id="externalAiEnabled"> <span class="form-check-label">启用管理端 AI 辅助判定</span></label>
+        <label class="form-check wide mb-0"><input class="form-check-input" type="checkbox" id="externalAiUserEnabled"> <span class="form-check-label">允许用户主动选择 AI 辅助判定（仍不会自动调用）</span></label>
+      </div>
+      <div class="secret-note mt-3" id="externalAiSecretNote">API Key 由后端加密保存，页面和查询接口不会返回明文。公网配置密钥必须使用 HTTPS。</div>
+      <div class="config-status mt-2" id="externalAiConfigStatus">尚未读取配置。</div>
+    </div>
+    <div class="mini-modal-foot">
+      <button class="btn-lightx" type="button" onclick="testExternalAiSettings(event)"><i class="fas fa-plug"></i> 测试（调用一次）</button>
+      <button class="btn-lightx" type="button" onclick="closeMiniModal('externalAiSettingsModal')">取消</button>
+      <button class="btn-main" type="button" onclick="saveExternalAiSettings(event)"><i class="fas fa-save"></i> 保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="mini-modal" id="externalAiResultModal" hidden role="dialog" aria-modal="true" aria-labelledby="externalAiResultTitle">
+  <div class="mini-modal-card">
+    <div class="mini-modal-head">
+      <span id="externalAiResultTitle"><i class="fas fa-wand-magic-sparkles"></i> AI 辅助判定结果</span>
+      <button class="mini-close" type="button" onclick="closeMiniModal('externalAiResultModal')" aria-label="关闭">×</button>
+    </div>
+    <div class="mini-modal-body" id="externalAiResultModalBody"></div>
+    <div class="mini-modal-foot"><button class="btn-main" type="button" onclick="closeMiniModal('externalAiResultModal')">关闭</button></div>
+  </div>
+</div>
+
 <script>
 const APP_MODE = location.port === '5001' ? 'admin' : 'user';
 const USER_PAGES = [{id:'upload',text:'上传数据'},{id:'detect',text:'风险检测'},{id:'report',text:'分析报告'}];
@@ -455,6 +528,8 @@ let currentReport = '';
 let adminLoggedIn = false;
 let lastRiskReasons = [];
 let currentAnalysis = null;
+let currentExternalAnalysis = null;
+let currentTrainingAiComparison = null;
 let currentDatasetSourceId = '';
 const ADMIN_CURRENT_DATASET_SOURCE_KEY = 'adminCurrentDatasetSourceId';
 try{currentDatasetSourceId = localStorage.getItem(ADMIN_CURRENT_DATASET_SOURCE_KEY) || '';}catch(e){}
@@ -688,6 +763,80 @@ function privacyRiskBadge(value){
   const score=Number(p.score);
   return `<span class="status-pill ${cls}" title="${esc(p.recommendation||'隐私暴露规则评估')}">隐私${esc(p.level_zh||riskLevelText(p.level))}${Number.isFinite(score)?' '+score.toFixed(2):''}</span>`;
 }
+function closeMiniModal(id){const el=document.getElementById(id);if(el)el.hidden=true}
+function openMiniModal(id){const el=document.getElementById(id);if(el)el.hidden=false}
+function aiAssessmentText(value){return ({agree:'与本地一致',escalate:'建议提高关注',review:'判定冲突需复核',insufficient:'信息不足'})[value]||'辅助复核'}
+function aiVerdictText(value){return ({local_preferred:'当前优先使用普通训练模型',federated_preferred:'当前优先使用联邦训练模型',tradeoff:'按安全与性能需求权衡选择',not_comparable:'当前指标口径不足以直接判定'})[value]||'尚未形成模型选择判断'}
+function aiListHtml(title,values){
+  const rows=arr(values).filter(Boolean).slice(0,6);
+  return rows.length?`<div class="mt-2"><b>${esc(title)}</b><ul class="ai-list">${rows.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`:'';
+}
+function aiDecisionForRisk(row){
+  const decisions=arr(obj(currentExternalAnalysis).assisted_decisions);
+  return decisions.find(x=>String(x.sample_id)===String(row.id))||decisions.find(x=>Number(x.rank)===Number(row.rank))||null;
+}
+function aiDatasetResultHtml(result){
+  const data=obj(result), advice=obj(data.advice), summary=obj(data.assisted_summary);
+  const decisions=arr(data.assisted_decisions);
+  const decisionRows=decisions.slice(0,8).map(d=>`<div class="ai-decision-row">
+    <b>样本 ${esc(d.sample_id??('排名 '+d.rank))}</b>
+    <span>本地：${esc(riskLevelText(d.local_risk_level))} ${esc(d.local_risk_score)}</span>
+    <span>AI：${esc(riskLevelText(d.ai_risk_level))}（${esc(Math.round(Number(d.ai_confidence||0)*100))}%） → <b>${esc(riskLevelText(d.combined_risk_level))}</b>${d.needs_manual_review?' · 需人工复核':''}</span>
+  </div>`).join('');
+  return `<div class="ai-local-primary"><b>判定规则：</b>本地模型为主；AI 可以确认或提高复核等级，不能降低本地高风险，也不会修改本地风险分数。</div>
+    <div class="mt-3"><b>AI 综合说明：</b>${esc(advice.summary||'AI 已完成辅助判定。')}</div>
+    <div class="tag-line mt-2">
+      <span class="mini-badge">已复核 ${esc(summary.reviewed||0)}</span>
+      <span class="mini-badge">一致 ${esc(summary.agreed||0)}</span>
+      <span class="mini-badge">建议升级 ${esc(summary.ai_escalated||0)}</span>
+      <span class="mini-badge">冲突 ${esc(summary.conflicts||0)}</span>
+    </div>
+    ${decisionRows?`<div class="mt-3"><b>重点样本双模型判定</b>${decisionRows}</div>`:'<div class="notice mt-3">AI 未返回可映射的样本二次判定，本地结果保持不变。</div>'}
+    ${aiListHtml('安全性判断',advice.security_findings)}
+    ${aiListHtml('攻击风险判断',advice.attack_findings)}
+    ${aiListHtml('处理建议',advice.recommended_actions)}
+    <div class="ai-status-line mt-3">模型：${esc(data.model||'-')} · ${data.cache_reused?'已复用缓存，本次未重复调用':'本次已调用 AI'} · ${esc(advice.confidence_note||'AI 仅作辅助判定。')}</div>`;
+}
+function aiTrainingResultHtml(result){
+  const data=obj(result), advice=obj(data.advice), facts=obj(data.comparison_facts);
+  const fairness=obj(facts.comparison_fairness), diffs=obj(facts.deterministic_differences);
+  const gap=diffs.federated_minus_local_accuracy_percentage_points;
+  return `<div class="ai-local-primary"><b>平台边界：</b>训练指标由本地代码确定，AI 负责辅助解释和模型方案选择，不修改指标或模型权重。</div>
+    <div class="mt-3"><b>AI 方案判断：</b><span class="status-pill info ms-1">${esc(aiVerdictText(advice.comparison_verdict))}</span></div>
+    <div class="mt-2">${esc(advice.summary||'AI 已完成普通训练与联邦训练辅助判断。')}</div>
+    <div class="tag-line mt-2">
+      <span class="mini-badge">准确率数值差 ${gap===null||gap===undefined?'--':esc(Number(gap).toFixed(2))+' 个百分点'}</span>
+      <span class="mini-badge">同一数据修订 ${fairness.same_dataset_revision?'是':'否'}</span>
+      <span class="mini-badge">指标可直接排名 ${fairness.direct_accuracy_ranking_allowed?'是':'否'}</span>
+    </div>
+    ${aiListHtml('指标判断',advice.metric_findings)}
+    ${aiListHtml('安全性判断',advice.security_findings)}
+    ${aiListHtml('联邦训练权衡',advice.federated_tradeoffs)}
+    ${advice.comparison_advice?`<div class="mt-2"><b>采用建议：</b>${esc(advice.comparison_advice)}</div>`:''}
+    <div class="ai-status-line mt-3">${data.cache_reused?'已复用缓存，本次未重复调用':'本次已调用 AI'} · ${esc(advice.confidence_note||'AI 仅作辅助选择。')}</div>`;
+}
+function renderExternalAiResult(result,kind='dataset'){
+  const html=kind==='training'?aiTrainingResultHtml(result):aiDatasetResultHtml(result);
+  if(kind==='training'){
+    const target=document.getElementById('trainingAiComparisonBox');
+    if(target)target.innerHTML=`<div class="ai-title"><span><i class="fas fa-wand-magic-sparkles"></i> AI 训练方案辅助判定</span><span class="mini-badge">本地主链路</span></div>${html}`;
+  }else{
+    ['externalAnalysisBoxDetect','externalAnalysisBoxReport'].forEach(id=>{const target=document.getElementById(id);if(target)target.innerHTML=`<div class="ai-title"><span><i class="fas fa-wand-magic-sparkles"></i> AI 辅助判定</span><span class="mini-badge">双模型复核</span></div>${html}`;});
+  }
+  return html;
+}
+function showExternalAiResultModal(result,kind='dataset'){
+  const body=document.getElementById('externalAiResultModalBody');
+  if(body)body.innerHTML=kind==='training'?aiTrainingResultHtml(result):aiDatasetResultHtml(result);
+  openMiniModal('externalAiResultModal');
+}
+function resetExternalAiDatasetResult(){
+  currentExternalAnalysis=null;
+  ['externalAnalysisBoxDetect','externalAnalysisBoxReport'].forEach(id=>{
+    const target=document.getElementById(id);
+    if(target)target.innerHTML='<div class="ai-title"><span><i class="fas fa-wand-magic-sparkles"></i> AI 辅助判定</span><span class="mini-badge">按需调用</span></div><div class="ai-local-primary">本地模型是默认主判定。只有主动点击按钮时才调用 AI；不使用 AI 时平台全部功能照常运行。</div>';
+  });
+}
 function parseJsonObject(value){
   if(typeof value==='string'){
     try{return obj(JSON.parse(value))}catch(e){return {}}
@@ -708,7 +857,8 @@ function aggregationSummary(metric){
   const p=obj(m.paillier);
   const method=m.aggregation_method || p.aggregation_method || '';
   if(method==='paillier' || p.paillier_enabled){
-    return `聚合方式：Paillier 安全聚合；状态 ${p.key_status||p.status||'-'}；加密 ${p.encryption_time_ms??'-'}ms，聚合 ${p.aggregation_time_ms??'-'}ms，解密 ${p.decryption_time_ms??'-'}ms，参数 ${p.encrypted_parameter_count??'-'} 个。${p.note?' '+p.note:''}`;
+    const estimate=p.timing_method==='parameter_count_estimate'||p.display_only;
+    return `模型聚合：普通 FedAvg；Paillier ${estimate?'接入开销估算':'测量'}：加密 ${p.encryption_time_ms??'-'}ms，聚合 ${p.aggregation_time_ms??'-'}ms，解密 ${p.decryption_time_ms??'-'}ms，参数 ${p.encrypted_parameter_count??'-'} 个。${p.note?' '+p.note:''}`;
   }
   if(method==='plain')return '聚合方式：普通 FedAvg。';
   return '';
@@ -761,7 +911,10 @@ function lifecycleBadge(row){
 function submissionActionButtons(row){
   const id=esc(row.id);
   const actions=arr(row.allowed_actions);
-  const buttons=[`<button class="btn-lightx me-1" onclick="analyzeSubmission('${id}')">分析</button>`];
+  const buttons=[
+    `<button class="btn-lightx me-1" onclick="analyzeSubmission('${id}')">本地分析</button>`,
+    `<button class="btn-lightx me-1" onclick="runAdminSubmissionAi('${id}',event)">AI辅助</button>`
+  ];
   if(actions.includes('archive'))buttons.push(`<button class="btn-lightx me-1" onclick="archiveSubmission('${id}')">归档</button>`);
   if(actions.includes('mark_trainable'))buttons.push(`<button class="btn-lightx me-1" onclick="markTrainable('${id}')">可训练</button>`);
   if(actions.includes('reject'))buttons.push(`<button class="btn-lightx" onclick="rejectSubmission('${id}')">拒绝</button>`);
@@ -877,7 +1030,7 @@ function renderUploadSummary(d){
     ? `<div class="mt-2">${warnings.map(w=>`<div class="status-pill warn me-1 mb-1">${esc(w)}</div>`).join('')}</div>`
     : '<div class="mt-2"><span class="status-pill ok">数据结构可用于当前风险检测流程</span></div>';
   privacyNotice.innerHTML=`${sensitiveText}<div class="mt-2">${schemaText}</div>${warningText}`;
-  if(d.id){currentSubmissionId=d.id;localStorage.setItem('currentSubmissionId',d.id);detectHint.textContent='当前提交：'+d.id;}
+  if(d.id){currentSubmissionId=d.id;localStorage.setItem('currentSubmissionId',d.id);detectHint.textContent='当前提交：'+d.id;resetExternalAiDatasetResult();currentAnalysis=null;}
 }
 function setUploadStatus(message,type='info'){
   const color=type==='bad'?'#C62828':type==='ok'?'#2E7D32':'#2F5F93';
@@ -957,11 +1110,29 @@ async function analyzeCurrentSubmission(){
   if(!currentSubmissionId){toast('请先上传或生成登录安全样本','bad');return}
   const res=await api(`/api/user/datasets/${currentSubmissionId}/analyze`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:1000})});
   if(!res.ok){toast(res.error,'bad');return}
+  resetExternalAiDatasetResult();
   renderAnalysis(res.data); toast('风险检测完成','ok');
+}
+async function runUserAiAssist(ev){
+  if(!currentSubmissionId){toast('请先上传数据并完成本地检测','bad');return}
+  if(!currentAnalysis || !obj(currentAnalysis.analysis_trace).analysis_id){toast('请先完成本地风险检测','bad');return}
+  const btn=ev&&ev.currentTarget, oldHtml=btn?btn.innerHTML:'';
+  if(btn){btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> AI 判定中';}
+  try{
+    const res=await apiWithTimeout(`/api/user/datasets/${encodeURIComponent(currentSubmissionId)}/external-analysis`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'},100000);
+    if(!res.ok){toast(res.error||'AI 辅助判定失败，本地结果不受影响','bad');return}
+    currentExternalAnalysis=obj(res.data);
+    renderExternalAiResult(currentExternalAnalysis,'dataset');
+    renderAnalysis(currentAnalysis);
+    toast(currentExternalAnalysis.cache_reused?'已复用 AI 判定缓存':'AI 辅助判定完成','ok');
+  }finally{
+    if(btn){btn.disabled=false;btn.innerHTML=oldHtml;}
+  }
 }
 async function detectFromSystemDataset(){
   const res=await api('/api/ensemble/detect_from_dataset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:50})});
   if(!res.ok){toast(res.error || '请先在管理端处理训练数据源','bad');return}
+  resetExternalAiDatasetResult();
   renderDatasetDetection(res.data);
   toast('内置测试集抽样检测完成','ok');
 }
@@ -1048,7 +1219,7 @@ function renderAnalysis(d){
   riskTopHint.textContent=rows.length
     ? `已按风险分数降序展示 ${rows.length} 条风险排名，完整检测样本数 ${d.total||0}。${rows.length>=100?' 仅展示风险分数最高的前 100 条。':''}`
     : `本次检测未发现需要优先关注的中高风险样本，完整检测样本数 ${d.total||0}。`;
-  reasonTable.innerHTML=rows.length?rows.map(r=>`<tr>
+  reasonTable.innerHTML=rows.length?rows.map(r=>{const ai=aiDecisionForRisk(r);return `<tr>
     <td>${esc(r.rank||'-')}</td>
     <td>${esc(r.id)}</td>
     <td>${esc(r.username||'-')}</td>
@@ -1057,8 +1228,9 @@ function renderAnalysis(d){
     <td>${esc(r.risk_score)}</td>
     <td>${esc(r.attack_type||'-')}</td>
     <td>${esc(r.dominant_factor||arr(r.trigger_features)[0]||'-')}</td>
+    <td class="ai-judgement">${ai?`<span class="status-pill ${ai.needs_manual_review?'warn':'info'}">综合 ${esc(riskLevelText(ai.combined_risk_level))}</span><div>AI ${esc(riskLevelText(ai.ai_risk_level))} · ${esc(Math.round(Number(ai.ai_confidence||0)*100))}%</div><div class="text-muted">${esc(ai.needs_manual_review?'需人工复核':'与本地结果一致')}</div>`:'<span class="text-muted">未使用 AI</span>'}</td>
     <td>${esc(r.suggestion)}</td>
-  </tr>`).join(''):'<tr><td colspan="9" class="text-muted">暂无中高风险样本</td></tr>';
+  </tr>`}).join(''):'<tr><td colspan="10" class="text-muted">暂无中高风险样本</td></tr>';
 }
 function renderReportStructured(payload){
   const data=obj(payload);
@@ -1115,7 +1287,10 @@ async function loadReport(){
   if(!res.ok){toast(res.error,'bad');return}
   currentReport=res.data.report_markdown||'暂无报告内容';
   currentAnalysis=obj(res.data.analysis);
+  currentExternalAnalysis=obj(res.data.external_analysis || obj(res.data.submission).external_analysis);
   renderReportStructured(res.data);
+  if(Object.keys(currentExternalAnalysis).length)renderExternalAiResult(currentExternalAnalysis,'dataset');
+  else resetExternalAiDatasetResult();
   reportBox.textContent=currentReport;
   reportBox.classList.toggle('empty', !res.data.report_markdown);
 }
@@ -1128,6 +1303,71 @@ function renderDistTags(value,labelMap={}){
     .slice(0,4);
   if(!entries.length)return '<span class="text-muted">-</span>';
   return entries.map(([k,v])=>`<span class="mini-badge">${esc(labelMap[k]||k)} ${esc(v)}</span>`).join(' ');
+}
+
+function updateExternalAiEndpointHint(){
+  const mode=document.getElementById('externalAiMode'), endpoint=document.getElementById('externalAiEndpoint');
+  if(endpoint)endpoint.value=mode&&mode.value==='responses'?'/responses':'/chat/completions';
+}
+function externalAiFormPayload(){
+  const value={
+    enabled:!!document.getElementById('externalAiEnabled')?.checked,
+    user_enabled:!!document.getElementById('externalAiUserEnabled')?.checked,
+    base_url:String(document.getElementById('externalAiBaseUrl')?.value||'').trim(),
+    model:String(document.getElementById('externalAiModel')?.value||'').trim(),
+    mode:String(document.getElementById('externalAiMode')?.value||'chat_completions'),
+    timeout_seconds:Number(document.getElementById('externalAiTimeout')?.value||45)
+  };
+  const key=String(document.getElementById('externalAiApiKey')?.value||'').trim();
+  if(key)value.api_key=key;
+  return value;
+}
+function applyExternalAiSettings(data){
+  const d=obj(data);
+  document.getElementById('externalAiEnabled').checked=!!d.enabled;
+  document.getElementById('externalAiUserEnabled').checked=!!d.user_enabled;
+  document.getElementById('externalAiBaseUrl').value=d.base_url||'';
+  document.getElementById('externalAiModel').value=d.model||'gpt-5.6-sol';
+  document.getElementById('externalAiMode').value=d.mode||'chat_completions';
+  document.getElementById('externalAiTimeout').value=d.timeout_seconds||45;
+  const keyInput=document.getElementById('externalAiApiKey');
+  keyInput.value='';
+  keyInput.placeholder=d.api_key_configured?`${d.api_key_masked||'密钥已保存'}（留空不修改）`:'输入新的 API Key';
+  keyInput.disabled=d.secret_input_allowed===false;
+  updateExternalAiEndpointHint();
+  const source=d.source==='environment'?'服务器环境变量':d.source==='admin_ui'?'管理端加密配置':'未配置';
+  document.getElementById('externalAiConfigStatus').innerHTML=`状态：<b>${d.ready?'已启用并可调用':d.configured?'已配置但未启用':'尚未完整配置'}</b> · 来源：${esc(source)} · 模型：${esc(d.model||'-')} · 每小时上限：${esc(d.calls_per_hour||20)} 次${arr(d.managed_fields).length?`<br>环境变量覆盖字段：${esc(arr(d.managed_fields).join('、'))}`:''}`;
+  document.getElementById('externalAiSecretNote').textContent=d.secret_input_allowed===false
+    ? '当前管理端不是 HTTPS，页面禁止提交新密钥。请使用 HTTPS 或在服务器环境变量中配置 API Key。'
+    : 'API Key 由后端 AES-256-GCM 加密保存，页面和查询接口不会返回明文。';
+}
+async function openExternalAiSettings(){
+  openMiniModal('externalAiSettingsModal');
+  document.getElementById('externalAiConfigStatus').textContent='正在读取配置...';
+  const res=await api('/api/admin/external-ai/settings');
+  if(!res.ok){document.getElementById('externalAiConfigStatus').textContent=res.error||'配置读取失败';return}
+  applyExternalAiSettings(res.data);
+}
+async function saveExternalAiSettings(ev){
+  const btn=ev&&ev.currentTarget, oldHtml=btn?btn.innerHTML:'';
+  if(btn){btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> 保存中';}
+  try{
+    const res=await api('/api/admin/external-ai/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(externalAiFormPayload())});
+    if(!res.ok){toast(res.error||'保存失败','bad');return}
+    applyExternalAiSettings(res.data);toast('AI 接口设置已保存','ok');
+  }finally{if(btn){btn.disabled=false;btn.innerHTML=oldHtml;}}
+}
+async function testExternalAiSettings(ev){
+  const btn=ev&&ev.currentTarget, oldHtml=btn?btn.innerHTML:'';
+  if(btn){btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> 测试中';}
+  document.getElementById('externalAiConfigStatus').textContent='正在使用固定脱敏测试数据调用一次 AI...';
+  try{
+    const res=await apiWithTimeout('/api/admin/external-ai/settings/test',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(externalAiFormPayload())},100000);
+    if(!res.ok){document.getElementById('externalAiConfigStatus').textContent=res.error||'接口测试失败';toast(res.error||'接口测试失败','bad');return}
+    const d=obj(res.data);
+    document.getElementById('externalAiConfigStatus').textContent=`测试成功：${d.model||'-'} / ${d.mode||'-'} / ${d.latency_ms||'-'} ms；本小时剩余 ${d.remaining_calls_this_hour??'-'} 次。`;
+    toast('AI 接口测试成功','ok');
+  }finally{if(btn){btn.disabled=false;btn.innerHTML=oldHtml;}}
 }
 
 async function adminLogin(){
@@ -1365,6 +1605,19 @@ async function analyzeSubmission(id){
   await loadSubmissionsData(true);
   return r;
 }
+async function runAdminSubmissionAi(id,ev){
+  const btn=ev&&ev.currentTarget, oldHtml=btn?btn.innerHTML:'';
+  if(btn){btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> AI判定';}
+  try{
+    const r=await apiWithTimeout(`/api/admin/submissions/${encodeURIComponent(id)}/external-analysis`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'},100000);
+    if(!r.ok){toast(r.error||'AI 辅助判定失败，本地结果不受影响','bad');return r}
+    showExternalAiResultModal(r.data,'dataset');
+    invalidateSubmissionAndDataPages();
+    await loadSubmissionsData(true);
+    toast(obj(r.data).cache_reused?'已复用 AI 判定缓存':'AI 辅助判定完成','ok');
+    return r;
+  }finally{if(btn){btn.disabled=false;btn.innerHTML=oldHtml;}}
+}
 async function archiveSubmission(id){const r=await api(`/api/admin/submissions/${id}/archive`,{method:'POST'});invalidateSubmissionAndDataPages();toast(r.ok?'已归档':r.error,r.ok?'ok':'bad');loadSubmissionsData(true);}
 async function markTrainable(id){const r=await api(`/api/admin/submissions/${id}/mark-trainable`,{method:'POST'});invalidateSubmissionAndDataPages();toast(r.ok?'已标记可训练':r.error,r.ok?'ok':'bad');loadSubmissionsData(true);}
 async function rejectSubmission(id){const r=await api(`/api/admin/submissions/${id}/reject`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:'管理员确认暂不进入训练池'})});invalidateSubmissionAndDataPages();toast(r.ok?'已拒绝进入训练池':r.error,r.ok?'ok':'bad');loadSubmissionsData(true);}
@@ -1400,10 +1653,10 @@ function renderTrainingResult(data,type){
   const version=d.model_version||metric.model_version||d.version||'-';
   const samples=d.samples||metric.samples||currentDatasetSource?.samples||'-';
   const source=d.source||metric.source||currentDatasetSource?.source_type||currentDatasetSource?.source||'-';
-  const method=d.aggregation_method||metric.aggregation_method||'paillier';
+  const method=d.aggregation_method||metric.aggregation_method||(type==='federated'?'plain':'centralized');
   const paillierObj=obj(d.paillier||metric.paillier||agg);
-  const paillier=d.paillier_enabled||metric.paillier_enabled||paillierObj.paillier_enabled||method==='paillier';
-  const paillierLine=paillier?`<div class="subtle-note mt-2"><i class="fas fa-lock text-primary"></i> Paillier：加密 ${esc(paillierObj.encryption_time_ms??agg.encryption_time_ms??metric.encryption_time_ms??'-')} ms，密态聚合 ${esc(paillierObj.aggregation_time_ms??agg.aggregation_time_ms??metric.aggregation_time_ms??'-')} ms，解密 ${esc(paillierObj.decryption_time_ms??agg.decryption_time_ms??metric.decryption_time_ms??'-')} ms，加密参数 ${esc(paillierObj.encrypted_parameter_count??agg.encrypted_parameter_count??metric.encrypted_parameter_count??'-')} 个。</div>`:'';
+  const paillier=type==='federated'&&(d.paillier_enabled||metric.paillier_enabled||paillierObj.paillier_enabled||method==='paillier');
+  const paillierLine=paillier?`<div class="subtle-note mt-2"><i class="fas fa-lock text-primary"></i> Paillier 接入开销估算（未进入实际权重链路）：加密 ${esc(paillierObj.encryption_time_ms??agg.encryption_time_ms??metric.encryption_time_ms??'-')} ms，密态聚合 ${esc(paillierObj.aggregation_time_ms??agg.aggregation_time_ms??metric.aggregation_time_ms??'-')} ms，解密 ${esc(paillierObj.decryption_time_ms??agg.decryption_time_ms??metric.decryption_time_ms??'-')} ms，参数 ${esc(paillierObj.encrypted_parameter_count??agg.encrypted_parameter_count??metric.encrypted_parameter_count??'-')} 个。</div>`:'';
   trainingResultSummary.innerHTML=`
     <div class="title">${type==='local'?'本地训练完成':'四节点联邦训练完成'}</div>
     <div class="result-grid">
@@ -1479,24 +1732,22 @@ function renderAggregationVisual(){
   if(typeof aggregationVisualBox==='undefined')return;
   aggregationVisualBox.innerHTML=`
     <div class="compare-head">
-      <b>聚合方式对比结果</b>
-      <span class="mini-badge">FedAvg / Paillier</span>
+      <b>聚合与安全边界</b>
+      <span class="mini-badge">代码事实</span>
     </div>
     <div class="compare-split">
       <div class="compare-box">
-        <h6>普通 FedAvg</h6>
-        <div class="compare-row"><span>训练效率</span><div class="bar-track"><div class="bar-fill" style="width:86%"></div></div><b>高</b></div>
-        <div class="compare-row"><span>隐私保护</span><div class="bar-track"><div class="bar-fill fed" style="width:42%"></div></div><b>基础</b></div>
-        <div class="compare-row"><span>计算开销</span><div class="bar-track"><div class="bar-fill loss" style="width:34%"></div></div><b>低</b></div>
+        <h6>当前模型权重链路</h6>
+        <div class="small-text">四节点各自训练线性模型，服务端按样本量执行 FedAvg。</div>
+        <div class="tag-line mt-2"><span class="mini-badge">实际用于模型</span><span class="mini-badge">secure_aggregation: false</span></div>
       </div>
       <div class="compare-box">
-        <h6>Paillier 安全聚合展示层</h6>
-        <div class="compare-row"><span>训练效率</span><div class="bar-track"><div class="bar-fill cost" style="width:50%"></div></div><b>中</b></div>
-        <div class="compare-row"><span>隐私保护</span><div class="bar-track"><div class="bar-fill fed" style="width:88%"></div></div><b>高</b></div>
-        <div class="compare-row"><span>计算开销</span><div class="bar-track"><div class="bar-fill loss" style="width:74%"></div></div><b>高</b></div>
+        <h6>Paillier 接入开销估算层</h6>
+        <div class="small-text">根据当前参数量估算量化、加密、密态求和和解密开销，用于评估安全聚合接入成本。</div>
+        <div class="tag-line mt-2"><span class="mini-badge">明确标记为估算</span><span class="mini-badge">尚未替代权重链路</span></div>
       </div>
     </div>
-    <div class="compare-explain">当前实际模型权重由 FedAvg 聚合；Paillier 部分用于展示参数量化、加密、密态聚合与解密开销，尚未替代当前训练权重链路。</div>`;
+    <div class="compare-explain">页面不再使用固定“隐私百分比”冒充测量结果。AI 只能依据上述边界、真实训练指标和明确标注的估算值进行辅助判断。</div>`;
 }
 function renderTrainingChart(local,fed){
   const canvas=document.getElementById('trainingCompareChart');
@@ -1562,11 +1813,6 @@ function renderCompareChartCore(canvas,fallback,local={},fed={},chartRef){
   const labelMax=Math.max(localLabels,fedLabels,2);
   const lLabelScore=localLabels/labelMax*100;
   const fLabelScore=fedLabels/labelMax*100;
-  const fedMethod=String(fed.method||fed.aggregation_method||'').toLowerCase();
-  const lPrivacy=25;
-  const fPrivacy=fedMethod.includes('paillier')?90:(hasFed?58:0);
-  const lCost=30;
-  const fCost=fedMethod.includes('paillier')?78:(hasFed?48:0);
   if(fallback){
     const safeWidth=(v)=>Math.max(2,Math.min(100,Number(v)||0));
     const row=(name,lv,fv,ls,fs)=>`
@@ -1589,8 +1835,6 @@ function renderCompareChartCore(canvas,fallback,local={},fed={},chartRef){
       ${row('样本覆盖',lSamples,fSamples,local.samples||'--',fed.samples||'--')}
       ${row('节点覆盖',lNodeScore,fNodeScore,localNodes+' 节点',hasFed?fedNodes+' 节点':'--')}
       ${row('标签覆盖',lLabelScore,fLabelScore,localLabels+' 类',hasFed?fedLabels+' 类':'--')}
-      ${row('隐私保护',lPrivacy,fPrivacy,'集中训练',hasFed?(fedMethod.includes('paillier')?'Paillier':'FedAvg'):'--')}
-      ${row('计算开销',lCost,fCost,'较低',hasFed?(fedMethod.includes('paillier')?'较高':'中等'):'--')}
       ${!hasFed?'<div class="small-text text-muted mt-2">当前只有本地训练记录，四节点联邦训练完成后会自动加入对比。</div>':''}
       ${!hasLocal?'<div class="small-text text-muted mt-2">当前只有联邦训练记录，本地训练完成后会自动加入对比。</div>':''}`;
   }
@@ -1598,14 +1842,14 @@ function renderCompareChartCore(canvas,fallback,local={},fed={},chartRef){
   const oldChart=chartRef&&chartRef.get?chartRef.get():null;
   if(oldChart)oldChart.destroy();
   const datasets=[];
-  if(hasLocal)datasets.push({label:'本地训练',data:[lAcc,lErr,lLossScore,lSamples,lNodeScore,lLabelScore,lPrivacy,lCost],backgroundColor:'#4F83C2'});
-  if(hasFed)datasets.push({label:'四节点联邦',data:[fAcc,fErr,fLossScore,fSamples,fNodeScore,fLabelScore,fPrivacy,fCost],backgroundColor:'#73A942'});
+  if(hasLocal)datasets.push({label:'本地训练',data:[lAcc,lErr,lLossScore,lSamples,lNodeScore,lLabelScore],backgroundColor:'#4F83C2'});
+  if(hasFed)datasets.push({label:'四节点联邦',data:[fAcc,fErr,fLossScore,fSamples,fNodeScore,fLabelScore],backgroundColor:'#73A942'});
   if(!datasets.length){canvas.style.display='none';return}
   canvas.style.display='block';
   const chart=new Chart(canvas,{
     type:'bar',
     data:{
-      labels:['准确率','错误率','损失表现','样本覆盖','节点覆盖','标签覆盖','隐私保护','计算开销'],
+      labels:['准确率','错误率','损失表现','样本覆盖','节点覆盖','标签覆盖'],
       datasets
     },
     options:{
@@ -1640,7 +1884,7 @@ function renderTrainingCompare(){
     : '--';
   const paillier=fed.paillier||{};
   const paillierText=paillier.paillier_enabled
-    ? `FedAvg 实际聚合；Paillier 展示层：加密 ${paillier.encryption_time_ms||'-'}ms，密态聚合 ${paillier.aggregation_time_ms||'-'}ms，解密 ${paillier.decryption_time_ms||'-'}ms`
+    ? `FedAvg 实际聚合；Paillier 接入开销估算：加密 ${paillier.encryption_time_ms||'-'}ms，密态聚合 ${paillier.aggregation_time_ms||'-'}ms，解密 ${paillier.decryption_time_ms||'-'}ms`
     : '普通 FedAvg：不展示密态聚合耗时';
   trainingCompareBox.innerHTML=`
     <div class="compare-head">
@@ -1698,6 +1942,24 @@ async function runAdminFederatedTrain(refresh=true){
   if(r.ok)clearAdminCache();
   if(refresh)await Promise.allSettled([loadNodes(true),loadTrainingRecords(true,true)]);
   return r;
+}
+async function runTrainingAiComparison(ev){
+  const local=obj(trainingCompareState.local), fed=obj(trainingCompareState.federated);
+  if(!Object.keys(local).length || !Object.keys(fed).length){toast('请先完成同一数据版本的普通训练和四节点联邦训练','bad');return}
+  const btn=ev&&ev.currentTarget, oldHtml=btn?btn.innerHTML:'';
+  if(btn){btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> AI 判断中';}
+  try{
+    const r=await apiWithTimeout('/api/admin/training/external-comparison',{
+      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+        dataset_source_id:currentDatasetSourceId||'',
+        preparation_id:obj(currentPreparation).preparation_id||''
+      })
+    },100000);
+    if(!r.ok){toast(r.error||'AI 辅助判断失败，现有训练结果不受影响','bad');return}
+    currentTrainingAiComparison=obj(r.data);
+    renderExternalAiResult(currentTrainingAiComparison,'training');
+    toast(currentTrainingAiComparison.cache_reused?'已复用 AI 模型选择缓存':'AI 模型选择判断完成','ok');
+  }finally{if(btn){btn.disabled=false;btn.innerHTML=oldHtml;}}
 }
 async function runAdminFullTraining(){
   await ensureTrainingSource();
