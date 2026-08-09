@@ -12,6 +12,8 @@ from sklearn.ensemble import IsolationForest
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from typing import Tuple, List, Dict, Any
 
+from src.detection.scoring import calibrate_isolation_forest, isolation_forest_risk_score
+
 
 class DummyModule:
     """当PyTorch不可用时使用的虚拟模块"""
@@ -89,15 +91,14 @@ class IsolationForestDetector:
 
     def fit(self, X: np.ndarray) -> None:
         self.model.fit(X)
+        calibrate_isolation_forest(self.model, X)
 
     def predict(self, X: np.ndarray) -> np.ndarray:
         predictions = self.model.predict(X)
         return np.where(predictions == -1, 1, 0)
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
-        scores = self.model.decision_function(X)
-        prob = 1 - (scores - scores.min()) / (scores.max() - scores.min() + 1e-8)
-        return prob
+        return isolation_forest_risk_score(self.model, X)
 
 
 class HybridAttackDetector:

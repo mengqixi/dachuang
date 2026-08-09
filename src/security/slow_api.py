@@ -50,7 +50,7 @@ class SlowAPILogger:
                 with open(self.log_path, "a", encoding="utf-8") as f:
                     f.write(line + "\n")
         except Exception as e:
-            logger.warning("Failed to write slow_api log: %s", e)
+            logger.warning("Failed to write slow_api log: {}", e)
 
 
 class SlowAPIDetector:

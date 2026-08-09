@@ -215,6 +215,7 @@ class TestSecurityEventsApiFlask(unittest.TestCase):
     def test_root_still_200(self):
         resp = self.app.get("/")
         self.assertEqual(resp.status_code, 200)
+        resp.close()
 
 
 if __name__ == "__main__":

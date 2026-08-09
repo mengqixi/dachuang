@@ -12,6 +12,7 @@ from loguru import logger
 
 from src.detection.models.isolation_forest import IsolationForestModel
 from src.detection.models.lstm_detector import LSTMDetector
+from src.detection.scoring import calibrate_isolation_forest, isolation_forest_risk_score
 
 
 class HybridDetector:
@@ -252,7 +253,7 @@ class RealDetector:
         self.mlp_coef = None
         self.mlp_intercept = None
 
-        logger.info("RealDetector初始化: IF(%.1f) + MLP(%.1f), %d维",
+        logger.info("RealDetector初始化: IF({:.1f}) + MLP({:.1f}), {}维",
                     self.if_weight, self.mlp_weight, feature_dim)
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> Dict[str, Any]:
@@ -265,10 +266,11 @@ class RealDetector:
         Returns:
             训练指标
         """
-        logger.info("开始训练真实检测器: X.shape=%s", X.shape)
+        logger.info("开始训练真实检测器: X.shape={}", X.shape)
 
         # 训练IF
         self.if_model.fit(X)
+        calibrate_isolation_forest(self.if_model, X)
         logger.info("IF训练完成")
 
         # 训练MLP
@@ -276,7 +278,7 @@ class RealDetector:
         self.mlp_coef = self.mlp_model.coef_.copy()
         self.mlp_intercept = self.mlp_model.intercept_.copy()
         train_acc = self.mlp_model.score(X, y)
-        logger.info("MLP训练完成, 训练准确率=%.4f", train_acc)
+        logger.info("MLP训练完成, 训练准确率={:.4f}", train_acc)
 
         self._is_fitted = True
 
@@ -293,8 +295,7 @@ class RealDetector:
             (combined_pred, if_score_norm, mlp_score)
         """
         # IF: -1异常, 1正常 → 归一化为[0,1]异常分数
-        if_raw = self.if_model.decision_function(X)
-        if_score = 1.0 - (if_raw - if_raw.min()) / (if_raw.max() - if_raw.min() + 1e-10)
+        if_score = isolation_forest_risk_score(self.if_model, X)
         if_binary = (if_score > 0.5).astype(int)
 
         # MLP: 预测概率
@@ -313,8 +314,7 @@ class RealDetector:
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
         """返回异常概率 [0, 1]"""
-        if_raw = self.if_model.decision_function(X)
-        if_score = 1.0 - (if_raw - if_raw.min()) / (if_raw.max() - if_raw.min() + 1e-10)
+        if_score = isolation_forest_risk_score(self.if_model, X)
 
         if self.mlp_coef is not None:
             z = np.dot(X, self.mlp_coef.T) + self.mlp_intercept
@@ -336,7 +336,7 @@ class RealDetector:
             "mlp_intercept": self.mlp_intercept,
             "feature_dim": self.feature_dim,
         }, "%s_real.pkl" % path)
-        logger.info("RealDetector已保存: %s", path)
+        logger.info("RealDetector已保存: {}", path)
 
     def load(self, path: str) -> bool:
         import joblib
@@ -348,8 +348,8 @@ class RealDetector:
             self.mlp_intercept = state["mlp_intercept"]
             self.feature_dim = state["feature_dim"]
             self._is_fitted = True
-            logger.info("RealDetector已加载: %s", path)
+            logger.info("RealDetector已加载: {}", path)
             return True
         except Exception as e:
-            logger.warning("RealDetector加载失败: %s", e)
+            logger.warning("RealDetector加载失败: {}", e)
             return False

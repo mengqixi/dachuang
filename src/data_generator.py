@@ -189,7 +189,7 @@ def generate_training_data(n_samples: int = 10000, attack_ratio: float = 0.35) -
     X, y = X[idx], y[idx]
     types = [types[i] for i in idx]
 
-    logger.info("训练数据生成完成: %d条, %d维, 攻击占比=%.2f%%", len(X), N_FEATURES, np.mean(y) * 100)
+    logger.info("训练数据生成完成: {}条, {}维, 攻击占比={:.2f}%", len(X), N_FEATURES, np.mean(y) * 100)
     return X, y, types
 
 
@@ -204,7 +204,7 @@ def save_dataset(X: np.ndarray, y: np.ndarray, types: List[str], prefix: str):
         for i in range(len(X)):
             vals = ",".join(["%.6f" % X[i, j] for j in range(N_FEATURES)])
             f.write("%s,%d,%s\n" % (vals, y[i], types[i]))
-    logger.info("数据集已保存: %s (%d条)", filepath, len(X))
+    logger.info("数据集已保存: {} ({}条)", filepath, len(X))
 
 
 def ensure_data_generated():
@@ -213,7 +213,7 @@ def ensure_data_generated():
     test_path = os.path.join(DATA_DIR, "test.csv")
 
     if os.path.exists(train_path) and os.path.exists(test_path):
-        logger.info("训练数据已存在: %s", train_path)
+        logger.info("训练数据已存在: {}", train_path)
         return _load_data()
 
     logger.info("生成10000条训练数据...")
@@ -224,7 +224,7 @@ def ensure_data_generated():
 
     save_dataset(X_train, y_train, t_train, "train")
     save_dataset(X_test, y_test, t_test, "test")
-    logger.info("数据生成完成: 训练集%d条, 测试集%d条", len(X_train), len(X_test))
+    logger.info("数据生成完成: 训练集{}条, 测试集{}条", len(X_train), len(X_test))
     return X_train, y_train, X_test, y_test
 
 

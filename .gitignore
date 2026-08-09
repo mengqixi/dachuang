@@ -46,6 +46,22 @@ data/ipdb/*.mmdb
 .env.local
 data/keys/
 
+# Runtime state and generated artifacts
+data/system.db
+data/datasets/processed/
+data/federated/**/*.npy
+data/models/
+data/user_submissions/
+data/training_records.json
+data/logs/
+logs/
+*.pid
+
+# Local assistant/check artifacts
+.claude/settings.local.json
+.tmp_*/
+tools_inspect_plan.py
+
 # 操作系统
 Thumbs.db
 .DS_Store

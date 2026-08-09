@@ -46,7 +46,7 @@ class QLearningAgent:
         self._trained = False
         self._train_step = 0
         logger.info(
-            "QLearningAgent initialized: Q-table=%dx%d (%.1fKB)",
+            "QLearningAgent initialized: Q-table={}x{} ({:.1f}KB)",
             self.n_states,
             self.n_actions,
             self.q_table.nbytes / 1024,
@@ -93,7 +93,7 @@ class QLearningAgent:
         return obs, reward, bool(done), info
 
     def train(self, total_timesteps: int = 50000) -> List[float]:
-        logger.info("Start Q-learning training: %d steps", total_timesteps)
+        logger.info("Start Q-learning training: {} steps", total_timesteps)
         episode_rewards: List[float] = []
         total_reward = 0.0
         self.epsilon = self.epsilon_init
@@ -132,7 +132,7 @@ class QLearningAgent:
         if total_reward or not episode_rewards:
             episode_rewards.append(total_reward)
         self._trained = True
-        logger.info("Q-learning training complete: %d episodes", len(episode_rewards))
+        logger.info("Q-learning training complete: {} episodes", len(episode_rewards))
         return episode_rewards
 
     def decode_action(self, action: int) -> Tuple[int, int]:
@@ -148,7 +148,7 @@ class QLearningAgent:
             epsilon=self.epsilon,
             trained=self._trained,
         )
-        logger.info("Q-table saved: %s (%d entries)", save_path, self.q_table.size)
+        logger.info("Q-table saved: {} ({} entries)", save_path, self.q_table.size)
 
     def load(self, path: str) -> bool:
         load_path = path + "_qtable.npz"
@@ -159,10 +159,10 @@ class QLearningAgent:
             self.gamma = float(data["gamma"])
             self.epsilon = float(data["epsilon"])
             self._trained = bool(data["trained"])
-            logger.info("Q-table loaded: %s", load_path)
+            logger.info("Q-table loaded: {}", load_path)
             return True
         except Exception as exc:
-            logger.warning("Failed to load Q-table %s: %s", load_path, exc)
+            logger.warning("Failed to load Q-table {}: {}", load_path, exc)
             return False
 
     @property

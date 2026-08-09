@@ -170,6 +170,7 @@ class TestSecurityEventLoggerFlask(unittest.TestCase):
         resp = self.app.get("/")
         self.assertEqual(resp.status_code, 200)
         self.assertIn("X-Trace-Id", resp.headers)
+        resp.close()
 
 
 if __name__ == "__main__":

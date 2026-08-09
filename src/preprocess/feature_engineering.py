@@ -34,13 +34,27 @@ FEATURE_NAMES = [
     "anomaly_score",
 ]
 
+# One fixed transform is shared by preparation, training and inference.  A
+# per-file min/max transform makes the same row receive different values in a
+# one-row upload, a 500-row upload and the training dataset.
+FEATURE_NORMALIZATION_VERSION = "security-fixed-ranges-v1"
+FEATURE_MIN_VALUES = np.array([
+    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+    0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+], dtype=np.float64)
+FEATURE_MAX_VALUES = np.array([
+    10.0, 8.0, 100.0, 1000.0, 5.0, 1_000_000.0, 3600.0,
+    1.0, 100.0, 7200.0, 10_000.0, 10.0, 1.0, 1.0, 1.0,
+    5.0, 10.0, 1.0,
+], dtype=np.float64)
+
 
 UNSW_FEATURE_ALIASES = {
     "key_generation_time": ["key_generation_time", "stime"],
     "ciphertext_entropy": ["ciphertext_entropy", "ct_ftp_cmd"],
     "hash_collision_count": ["hash_collision_count", "ct_srv_src"],
-    "request_frequency": ["request_frequency", "rate"],
-    "response_time": ["response_time", "sload"],
+    "request_frequency": ["request_frequency", "request_rate", "rate", "flow_packets_s"],
+    "response_time": ["response_time", "latency", "dur", "sload"],
     "payload_size": ["payload_size", "spkts", "sbytes"],
     "connection_duration": ["connection_duration", "dur"],
     "packet_interarrival": ["packet_interarrival", "sjit"],
@@ -98,7 +112,25 @@ def extract_features_structured(row: Dict) -> np.ndarray:
     vec = np.zeros(len(FEATURE_NAMES), dtype=np.float64)
     for i, feature in enumerate(FEATURE_NAMES):
         vec[i] = _read_first(row, UNSW_FEATURE_ALIASES.get(feature, [feature]))
+    # API/upload schemas often express response latency in milliseconds while
+    # the canonical model feature uses seconds.
+    if row.get("response_time_ms") not in (None, ""):
+        vec[FEATURE_NAMES.index("response_time")] = _to_float(row.get("response_time_ms")) / 1000.0
     return vec
+
+
+def normalize_security_features(X: np.ndarray) -> np.ndarray:
+    """Apply the canonical, batch-independent security feature transform."""
+    X = np.asarray(X, dtype=np.float64)
+    if X.size == 0:
+        return X
+    if X.shape[-1] != len(FEATURE_NAMES):
+        raise ValueError("security feature matrix must have %d columns" % len(FEATURE_NAMES))
+    return np.clip(
+        (X - FEATURE_MIN_VALUES) / (FEATURE_MAX_VALUES - FEATURE_MIN_VALUES),
+        0.0,
+        1.0,
+    )
 
 
 def minmax_normalize(X: np.ndarray, fit_params: Optional[Dict] = None) -> np.ndarray:
@@ -129,18 +161,15 @@ def load_security_csv(filepath: str, limit: Optional[int] = None) -> Tuple[np.nd
             rows.append(row)
             X_rows.append(vec)
             y_vals.append(label)
+            # The caller uses ``limit`` as a processing ceiling.  Stop while
+            # streaming instead of reading and feature-extracting the whole
+            # file before truncating it; large CSV files otherwise make the
+            # management "prepare nodes" action unnecessarily slow.
+            if limit and len(X_rows) >= int(limit):
+                break
 
     if not X_rows:
         return np.empty((0, len(FEATURE_NAMES))), np.empty(0, dtype=np.int32), []
-    if limit and len(X_rows) > limit:
-        if limit == 1:
-            indices = [0]
-        else:
-            step = (len(X_rows) - 1) / float(limit - 1)
-            indices = [int(round(i * step)) for i in range(limit)]
-        X_rows = [X_rows[i] for i in indices]
-        y_vals = [y_vals[i] for i in indices]
-        rows = [rows[i] for i in indices]
     return np.asarray(X_rows, dtype=np.float64), np.asarray(y_vals, dtype=np.int32), rows
 
 

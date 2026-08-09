@@ -66,7 +66,7 @@ def read_events(log_path, limit=DEFAULT_LIMIT, event_type=None, risk_level=None,
                     continue
                 matches.append(normalized)
     except Exception as e:
-        logger.warning("Failed to read security events log: %s", e)
+        logger.warning("Failed to read security events log: {}", e)
         return ([], 0) if return_total else []
 
     matches.reverse()

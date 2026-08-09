@@ -212,6 +212,12 @@ class TestAPI(unittest.TestCase):
     def setUpClass(cls):
         from app import app
         cls.app = app.test_client()
+        login = cls.app.post(
+            "/api/admin/login",
+            json={"username": "root", "password": "root"},
+        )
+        if login.status_code != 200:
+            raise AssertionError("local test admin login failed")
 
     def test_health(self):
         resp = self.app.get("/api/system/health")
@@ -271,6 +277,7 @@ class TestAPI(unittest.TestCase):
         resp = self.app.get("/")
         self.assertEqual(resp.status_code, 200)
         html = resp.data.decode()
+        resp.close()
         self.assertIn("Chart", html)
         self.assertIn("glass", html)
 

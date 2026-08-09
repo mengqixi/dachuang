@@ -31,7 +31,7 @@ class DataStorage:
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
         self._init_db()
         self._collect_count = 0
-        logger.info("DataStorage初始化完成: %s", db_path)
+        logger.info("DataStorage初始化完成: {}", db_path)
 
     def _get_conn(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path, timeout=10)
@@ -853,7 +853,7 @@ class DataStorage:
         import threading
         t = threading.Thread(target=self._collector_thread, args=(interval,), daemon=True)
         t.start()
-        logger.info("数据采集器已启动: interval=%.1fs", interval)
+        logger.info("数据采集器已启动: interval={:.1f}s", interval)
 
     def _cleanup_old_data(self, days: int = 180):
         """清理180天前的历史数据"""
@@ -867,7 +867,7 @@ class DataStorage:
             finally:
                 conn.close()
         except Exception as e:
-            logger.warning("清理旧数据失败: %s", e)
+            logger.warning("清理旧数据失败: {}", e)
 
     def get_statistics(self) -> Dict[str, Any]:
         """获取综合统计数据"""

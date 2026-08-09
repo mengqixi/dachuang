@@ -3,8 +3,8 @@ import logging
 import yaml
 import sys
 import os
+import numpy as np
 
-from src.encryption.paillier import Paillier, EncryptedGradientAggregator
 from src.detection.feature_extractor import FeatureExtractor
 from src.detection.attack_detector import HybridAttackDetector
 from src.optimization.rl_optimizer import AdaptiveEncryptionManager
@@ -12,6 +12,7 @@ from src.federated.fate_client import FATEClient, FederatedTrainingManager
 from src.federated.pipeline_manager import FederatedPipelineManager
 
 def setup_logging():
+    os.makedirs("logs", exist_ok=True)
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -22,7 +23,7 @@ def setup_logging():
     )
 
 def load_config(config_path: str = "config/config.yaml") -> dict:
-    with open(config_path, 'r') as f:
+    with open(config_path, 'r', encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 def main():
@@ -123,6 +124,11 @@ def run_federated(config: dict):
     logger = logging.getLogger(__name__)
     logger.info("Running federated learning mode")
 
+    if not config.get("fate", {}).get("enabled", False):
+        raise RuntimeError(
+            "External FATE integration is disabled. The active web application uses the local four-node FedAvg simulation."
+        )
+
     fate_client = FATEClient(
         host=config['fate']['host'],
         port=config['fate']['port']
@@ -150,5 +156,4 @@ def run_federated(config: dict):
         logger.error(f"Failed to submit federated job: {e}")
 
 if __name__ == "__main__":
-    import numpy as np
     main()

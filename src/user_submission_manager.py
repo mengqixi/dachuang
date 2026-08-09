@@ -15,6 +15,7 @@ import json
 import os
 import re
 import shutil
+import threading
 import time
 import uuid
 from datetime import datetime
@@ -38,8 +39,9 @@ from src.preprocess.feature_engineering import (
     FEATURE_NAMES,
     extract_features_structured,
     infer_label,
-    minmax_normalize,
+    normalize_security_features,
 )
+from src.utils.atomic_files import atomic_write_bytes, atomic_write_json
 
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(__file__))
@@ -56,6 +58,8 @@ MAX_UPLOAD_ROWS = 50000
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 MAX_UPLOAD_COLUMNS = 200
 SUPPORTED_UPLOAD_EXTENSIONS = {"csv", "json"}
+_KEY_LOCK = threading.Lock()
+_INDEX_LOCK = threading.RLock()
 
 
 class UploadValidationError(ValueError):
@@ -325,13 +329,11 @@ def _read_index() -> Dict:
 
 def _write_index(data: Dict) -> None:
     _ensure_dirs()
-    tmp = INDEX_FILE + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    os.replace(tmp, INDEX_FILE)
+    with _INDEX_LOCK:
+        atomic_write_json(INDEX_FILE, data)
 
 
-def _get_key() -> bytes:
+def _get_key_unlocked() -> bytes:
     _ensure_dirs()
     if AES is None or get_random_bytes is None:
         raise RuntimeError("pycryptodome is required for AES encrypted archive storage")
@@ -345,9 +347,15 @@ def _get_key() -> bytes:
         except Exception:
             pass
     key = get_random_bytes(32)
-    with open(KEY_FILE, "wb") as f:
-        f.write(base64.b64encode(key))
+    atomic_write_bytes(KEY_FILE, base64.b64encode(key))
     return key
+
+
+def _get_key() -> bytes:
+    # Two first uploads arriving together must not generate different archive
+    # keys and overwrite one another.
+    with _KEY_LOCK:
+        return _get_key_unlocked()
 
 
 def _encrypt_file(src_path: str, dest_path: str) -> Dict:
@@ -357,11 +365,7 @@ def _encrypt_file(src_path: str, dest_path: str) -> Dict:
     with open(src_path, "rb") as f:
         plaintext = f.read()
     ciphertext, tag = cipher.encrypt_and_digest(plaintext)
-    with open(dest_path, "wb") as f:
-        f.write(b"DCENC1")
-        f.write(nonce)
-        f.write(tag)
-        f.write(ciphertext)
+    atomic_write_bytes(dest_path, b"DCENC1" + nonce + tag + ciphertext)
     return {
         "algorithm": "AES-256-GCM",
         "cipher_size": os.path.getsize(dest_path),
@@ -654,7 +658,7 @@ def _features_from_rows(rows: List[Dict]) -> Tuple[np.ndarray, np.ndarray]:
         y.append(infer_label(row))
     if not X:
         return np.empty((0, len(FEATURE_NAMES))), np.empty(0, dtype=np.int32)
-    return minmax_normalize(np.asarray(X, dtype=np.float64)), np.asarray(y, dtype=np.int32)
+    return normalize_security_features(np.asarray(X, dtype=np.float64)), np.asarray(y, dtype=np.int32)
 
 
 def _reason_for_detection(det: Dict, row: Optional[Dict] = None) -> str:
@@ -712,13 +716,19 @@ def _num(row: Dict, *keys: str, default: float = 0.0) -> float:
     return default
 
 
+def _response_time_seconds(row: Dict) -> float:
+    if row.get("response_time_ms") not in (None, ""):
+        return _num(row, "response_time_ms") / 1000.0
+    return _num(row, "response_time", "latency", "dur")
+
+
 def _trigger_features(row: Optional[Dict]) -> List[str]:
     if not row:
         return []
     triggers = []
     failed = _num(row, "failed_attempts", "ct_dst_src_ltm")
     freq = _num(row, "request_rate", "request_frequency", "rate")
-    response = _num(row, "response_time_ms", "response_time", "latency", "dur")
+    response = _response_time_seconds(row)
     session = _num(row, "session_duration", "connection_duration", "dur")
     password_strength = _num(row, "password_strength", default=3)
     unusual_hour = _num(row, "unusual_hour")
@@ -729,7 +739,7 @@ def _trigger_features(row: Optional[Dict]) -> List[str]:
         triggers.append("失败次数偏高")
     if freq >= 80:
         triggers.append("请求频率偏高")
-    if response >= 1200:
+    if response >= 1.2:
         triggers.append("响应时间异常")
     if session >= 1800:
         triggers.append("会话时长异常")
@@ -773,7 +783,7 @@ def _component_scores(row: Optional[Dict], det: Dict) -> Dict:
     model_score = _clip_score(det.get("risk_score", det.get("score", 0)))
     failed = _num(row, "failed_attempts", "ct_dst_src_ltm")
     freq = _num(row, "request_rate", "request_frequency", "rate")
-    response = _num(row, "response_time_ms", "response_time", "latency", "dur")
+    response = _response_time_seconds(row)
     unusual_hour = _num(row, "unusual_hour")
     password_strength = _num(row, "password_strength", default=3)
     login_success = _num(row, "login_success", default=1)
@@ -781,7 +791,7 @@ def _component_scores(row: Optional[Dict], det: Dict) -> Dict:
     failed_score = _clip_score(min(failed, 20) / 20)
     request_score = _clip_score(min(freq, 200) / 200)
     unusual_score = _clip_score(0.75 if unusual_hour >= 1 else 0.0)
-    response_score = _clip_score(min(response, 3000) / 3000)
+    response_score = _clip_score(min(response, 3.0) / 3.0)
     device_ip_score = 0.0
     if row.get("ip") or row.get("src_ip") or row.get("source_ip") or row.get("srcip"):
         device_ip_score += 0.15
@@ -835,7 +845,7 @@ def _risk_breakdown(row: Optional[Dict], det: Dict) -> Dict:
     component_scores = _component_scores(row, det)
     failed = _num(row, "failed_attempts", "ct_dst_src_ltm")
     freq = _num(row, "request_rate", "request_frequency", "rate")
-    response = _num(row, "response_time_ms", "response_time", "latency", "dur")
+    response = _response_time_seconds(row)
     session = _num(row, "session_duration", "connection_duration", "dur")
     password_strength = _num(row, "password_strength", default=3)
     unusual_hour = _num(row, "unusual_hour")
@@ -856,10 +866,10 @@ def _risk_breakdown(row: Optional[Dict], det: Dict) -> Dict:
             "explain": "短时间高频请求可能对应自动化脚本、扫描或异常重试。",
         },
         {
-            "name": "响应时间",
+            "name": "响应时间（秒）",
             "value": response,
-            "threshold": ">= 1200ms 触发关注",
-            "impact": "中" if response >= 1200 else "低",
+            "threshold": ">= 1.2s 触发关注",
+            "impact": "中" if response >= 1.2 else "低",
             "explain": "响应时间异常可能说明请求负载偏大或接口被异常访问。",
         },
         {
@@ -970,14 +980,15 @@ def _clean_suggestions(summary: Dict) -> List[str]:
 
 
 def _update_submission(submission_id: str, patch: Dict) -> Optional[Dict]:
-    data = _read_index()
-    for i, item in enumerate(data["submissions"]):
-        if item.get("id") == submission_id:
-            item.update(patch)
-            item["updated_at"] = _now()
-            data["submissions"][i] = item
-            _write_index(data)
-            return item
+    with _INDEX_LOCK:
+        data = _read_index()
+        for i, item in enumerate(data["submissions"]):
+            if item.get("id") == submission_id:
+                item.update(patch)
+                item["updated_at"] = _now()
+                data["submissions"][i] = item
+                _write_index(data)
+                return item
     return None
 
 
@@ -1007,6 +1018,11 @@ class UserSubmissionManager:
             label_col = _detect_label_column(columns)
             schema_check = _schema_check(profile, columns, label_col, sensitive_columns, truncated=truncated)
             enc_info = _encrypt_file(plain_path, enc_path)
+            # The encrypted archive is the durable copy.  Plaintext is only a
+            # short-lived analysis file and is removed before metadata is
+            # committed.  Existing legacy submissions with a plain path remain
+            # readable, but new submissions no longer persist one.
+            os.remove(plain_path)
 
             item = {
                 "id": submission_id,
@@ -1019,7 +1035,7 @@ class UserSubmissionManager:
                 "encrypted": True,
                 "encryption": enc_info["algorithm"],
                 "encrypted_path": enc_path,
-                "plain_temp_path": plain_path,
+                "plain_temp_path": None,
                 "file_size": os.path.getsize(src_path),
                 "sha256": enc_info["sha256"],
                 "row_count": profile["rows"],
@@ -1035,9 +1051,17 @@ class UserSubmissionManager:
                 "report_path": None,
                 "source": "用户上传数据",
             }
-            data = _read_index()
-            data["submissions"].append(item)
-            _write_index(data)
+            with _INDEX_LOCK:
+                data = _read_index()
+                # A missing legacy index may rebuild from the archive that was
+                # just created. Replace that inferred row with the complete
+                # validated metadata instead of storing a duplicate.
+                data["submissions"] = [
+                    existing for existing in data.get("submissions", [])
+                    if existing.get("id") != submission_id
+                ]
+                data["submissions"].append(item)
+                _write_index(data)
             return self.public_summary(item)
         except Exception:
             for cleanup_path in (plain_path, enc_path):
@@ -1130,8 +1154,8 @@ class UserSubmissionManager:
         """Return user submissions as lightweight dataset source records.
 
         The management data page needs to show newly uploaded user data even
-        before it is approved for training. Only rows with usable samples and a
-        server-side temporary CSV/JSON path can be prepared as a training source.
+        before it is approved for training. Encrypted archives are decrypted to
+        a short-lived file only while analysis or training reads them.
         """
         items = sorted(_read_index().get("submissions", []), key=lambda v: v.get("upload_time", ""), reverse=True)
         sources = []
@@ -1140,7 +1164,10 @@ class UserSubmissionManager:
             if row_count <= 0:
                 continue
             plain_path = item.get("plain_temp_path") or ""
-            exists = bool(plain_path and os.path.exists(plain_path))
+            encrypted_path = item.get("encrypted_path") or ""
+            plain_exists = bool(plain_path and os.path.exists(plain_path))
+            archive_exists = bool(encrypted_path and os.path.exists(encrypted_path))
+            exists = plain_exists or archive_exists
             trainable = bool(item.get("trainable")) and row_count > 0 and exists
             risk = item.get("risk_summary") or {}
             risk_desc = []
@@ -1154,7 +1181,7 @@ class UserSubmissionManager:
                 "name": "用户提交数据",
                 "source": item.get("filename") or item.get("id"),
                 "source_type": "user_submission",
-                "path": plain_path if exists else None,
+                "path": plain_path if plain_exists else None,
                 "samples": row_count,
                 "features": int(item.get("column_count") or 0),
                 "label_column": item.get("label_column"),
@@ -1263,10 +1290,11 @@ class UserSubmissionManager:
 
         row_by_id = {i + 1: row for i, row in enumerate(rows)}
         model_version = "runtime"
+        detector_status = {}
         if detector is not None:
             try:
-                status = detector.status() if hasattr(detector, "status") else {}
-                model_version = str(status.get("version") or status.get("model_version") or "runtime")
+                detector_status = detector.status() if hasattr(detector, "status") else {}
+                model_version = str(detector_status.get("version") or detector_status.get("model_version") or "runtime")
             except Exception:
                 model_version = "runtime"
         source_dataset = item.get("source") or "user_submission"
@@ -1392,6 +1420,13 @@ class UserSubmissionManager:
             "suggestions": _clean_suggestions(summary),
             "sensitive_columns": item.get("sensitive_columns", []),
             "privacy_notice": item.get("privacy_notice", ""),
+            "runtime_model": detector_status,
+            "current_model_versions": [{
+                "model_type": "runtime_ensemble",
+                "model_version": model_version,
+                "version": model_version,
+                "metadata": detector_status,
+            }] if detector_status else [],
             "analyzed_at": _now(),
         }
         report_path = self._write_clean_report(item, analysis)
@@ -1470,14 +1505,22 @@ class UserSubmissionManager:
         if sensitive_columns:
             lines.append("- 本次识别并处理的敏感字段：%s。" % "、".join(sensitive_columns))
 
-        versions = analysis.get("current_model_versions", {}) or {}
+        versions = analysis.get("current_model_versions", []) or []
         active_models = []
-        if versions.get("federated"):
-            active_models.append("联邦模型：%s" % versions["federated"].get("version_id", "unknown"))
-        if versions.get("local"):
-            active_models.append("本地模型：%s" % versions["local"].get("version_id", "unknown"))
-        if versions.get("default"):
-            active_models.append("默认模型：%s" % versions["default"].get("version_id", "unknown"))
+        if isinstance(versions, list):
+            for version in versions:
+                if not isinstance(version, dict):
+                    continue
+                model_type = version.get("model_type") or "runtime_ensemble"
+                version_name = version.get("model_version") or version.get("version") or "runtime"
+                active_models.append("%s：%s" % (model_type, version_name))
+        elif isinstance(versions, dict):
+            for model_type, version in versions.items():
+                if isinstance(version, dict):
+                    active_models.append("%s：%s" % (
+                        model_type,
+                        version.get("version_id") or version.get("model_version") or "runtime",
+                    ))
         lines.extend([
             "",
             "## 六、模型与指标说明",
@@ -1530,61 +1573,64 @@ class UserSubmissionManager:
                 patch["review_status"] = REVIEW_STATUS["archived"]
                 patch["reviewed_at"] = _now()
         if patch:
-            data = _read_index()
-            item = next((x for x in data.get("submissions", []) if x.get("id") == submission_id), None)
-            if item is None:
-                return None
-            if (patch.get("trainable") or patch.get("review_status") == REVIEW_STATUS["trainable"]) and int(item.get("row_count") or 0) <= 0:
-                raise SubmissionStatusError("样本数为 0 的提交不能进入训练池，请重新上传有效 CSV/JSON 数据。")
-            history = item.get("review_history", [])
-            if not isinstance(history, list):
-                history = []
-            history.append({
-                "time": _now(),
-                "review_status": patch.get("review_status", item.get("review_status", REVIEW_STATUS["pending"])),
-                "trainable": bool(patch.get("trainable", item.get("trainable", False))),
-                "note": patch.get("review_note", review_note or ""),
-            })
-            patch["review_history"] = history[-20:]
-        item = _update_submission(submission_id, patch)
-        return self.public_summary(item) if item else None
+            with _INDEX_LOCK:
+                data = _read_index()
+                item = next((x for x in data.get("submissions", []) if x.get("id") == submission_id), None)
+                if item is None:
+                    return None
+                if (patch.get("trainable") or patch.get("review_status") == REVIEW_STATUS["trainable"]) and int(item.get("row_count") or 0) <= 0:
+                    raise SubmissionStatusError("样本数为 0 的提交不能进入训练池，请重新上传有效 CSV/JSON 数据。")
+                history = item.get("review_history", [])
+                if not isinstance(history, list):
+                    history = []
+                history.append({
+                    "time": _now(),
+                    "review_status": patch.get("review_status", item.get("review_status", REVIEW_STATUS["pending"])),
+                    "trainable": bool(patch.get("trainable", item.get("trainable", False))),
+                    "note": patch.get("review_note", review_note or ""),
+                })
+                patch["review_history"] = history[-20:]
+                item = _update_submission(submission_id, patch)
+                return self.public_summary(item) if item else None
+        return None
 
     def mark_used_for_training(self, source_ids: List[str], task_type: str, model_version: str = "", samples: int = 0) -> List[Dict]:
         if not source_ids:
             return []
-        data = _read_index()
-        updated = []
-        now = _now()
-        source_set = set(source_ids)
-        for item in data.get("submissions", []):
-            if item.get("id") not in source_set:
-                continue
-            history = item.get("training_history", [])
-            if not isinstance(history, list):
-                history = []
-            history.append({
-                "time": now,
-                "task_type": task_type,
-                "model_version": model_version,
-                "samples": int(samples or 0),
-            })
-            versions = item.get("model_versions", [])
-            if not isinstance(versions, list):
-                versions = []
-            if model_version:
-                versions.append(model_version)
-            item["training_history"] = history[-20:]
-            item["training_runs"] = int(item.get("training_runs") or 0) + 1
-            item["last_training_at"] = now
-            item["last_training_task_type"] = task_type
-            item["last_model_version"] = model_version
-            item["model_versions"] = versions[-10:]
-            item["review_status"] = REVIEW_STATUS["trainable"]
-            item["trainable"] = True
-            updated.append(self.public_summary(item))
-        if updated:
-            _write_index(data)
-        return updated
+        with _INDEX_LOCK:
+            data = _read_index()
+            updated = []
+            now = _now()
+            source_set = set(source_ids)
+            for item in data.get("submissions", []):
+                if item.get("id") not in source_set:
+                    continue
+                history = item.get("training_history", [])
+                if not isinstance(history, list):
+                    history = []
+                history.append({
+                    "time": now,
+                    "task_type": task_type,
+                    "model_version": model_version,
+                    "samples": int(samples or 0),
+                })
+                versions = item.get("model_versions", [])
+                if not isinstance(versions, list):
+                    versions = []
+                if model_version:
+                    versions.append(model_version)
+                item["training_history"] = history[-20:]
+                item["training_runs"] = int(item.get("training_runs") or 0) + 1
+                item["last_training_at"] = now
+                item["last_training_task_type"] = task_type
+                item["last_model_version"] = model_version
+                item["model_versions"] = versions[-10:]
+                item["review_status"] = REVIEW_STATUS["trainable"]
+                item["trainable"] = True
+                updated.append(self.public_summary(item))
+            if updated:
+                _write_index(data)
+            return updated
 
     def load_trainable_features(self, ids: Optional[List[str]] = None, limit: int = MAX_TRAIN_ROWS) -> Tuple[np.ndarray, np.ndarray, Dict]:
         selected = []

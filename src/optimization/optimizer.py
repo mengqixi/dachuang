@@ -338,10 +338,10 @@ class AdaptiveOptimizer:
         return [asdict(r) for r in self.history[-200:]]
 
     def train(self, episodes: int = 500) -> List[float]:
-        logger.info("开始训练优化智能体: %d episodes", episodes)
+        logger.info("开始训练优化智能体: {} episodes", episodes)
         total_steps = episodes * 100
         rewards = self.agent.train(total_timesteps=total_steps)
-        logger.info("优化智能体训练完成: avg_reward=%.2f", np.mean(rewards[-100:]) if rewards else 0)
+        logger.info("优化智能体训练完成: avg_reward={:.2f}", np.mean(rewards[-100:]) if rewards else 0)
         return rewards
 
     def get_status(self) -> Dict[str, Any]:

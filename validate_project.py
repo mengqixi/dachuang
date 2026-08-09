@@ -1,53 +1,59 @@
-import os
+#!/usr/bin/env python3
+"""Read-only structural and syntax validation for the active application."""
 
-def check_project_structure():
-    expected_files = [
-        'requirements.txt',
-        'config/config.yaml',
-        'config/logging.yaml',
-        'src/encryption/paillier.py',
-        'src/encryption/aby3_protocol.py',
-        'src/detection/feature_extractor.py',
-        'src/detection/attack_detector.py',
-        'src/optimization/rl_optimizer.py',
-        'src/optimization/environment_model.py',
-        'src/federated/fate_client.py',
-        'src/federated/pipeline_manager.py',
-        'src/main.py',
-        'docker/docker-compose.yml',
-        'docker/Dockerfile',
-        'tests/test_encryption.py',
-        'tests/test_detection.py',
-        'tests/test_optimization.py',
-        'data/sample_training_data.csv',
-        'README.md'
-    ]
-    
-    print("=== 项目结构验证 ===")
-    all_exists = True
-    
-    for file_path in expected_files:
-        if os.path.exists(file_path):
-            print(f"✓ {file_path}")
-        else:
-            print(f"✗ {file_path} - 缺失")
-            all_exists = False
-    
-    if all_exists:
-        print("\n✅ 所有文件已创建成功！")
-    else:
-        print("\n❌ 部分文件缺失")
-    
-    print("\n=== 项目目录结构 ===")
-    for root, dirs, files in os.walk('.'):
-        level = root.replace('.', '').count(os.sep)
-        indent = ' ' * 2 * level
-        print(f"{indent}{os.path.basename(root)}/")
-        subindent = ' ' * 2 * (level + 1)
-        for file in files[:5]:
-            print(f"{subindent}{file}")
-        if len(files) > 5:
-            print(f"{subindent}... (共 {len(files)} 个文件)")
+from pathlib import Path
+import py_compile
+import sys
+
+
+PROJECT_ROOT = Path(__file__).resolve().parent
+REQUIRED_FILES = (
+    "app.py",
+    "index.html",
+    "requirements.txt",
+    "config/config.yaml",
+    "src/preprocess/feature_engineering.py",
+    "src/preprocess/federated_splitter.py",
+    "src/detection/ensemble_detector.py",
+    "src/detection/scoring.py",
+    "src/federated/aggregator.py",
+    "src/federated/client.py",
+    "src/user_submission_manager.py",
+    "src/utils/atomic_files.py",
+    "tests/test_data_model_consistency.py",
+    "tests/test_http_surface.py",
+)
+
+
+def main() -> int:
+    errors = []
+    print("=== 项目结构 ===")
+    for relative in REQUIRED_FILES:
+        path = PROJECT_ROOT / relative
+        exists = path.is_file()
+        print(f"[{'OK' if exists else 'MISSING'}] {relative}")
+        if not exists:
+            errors.append(f"缺少文件: {relative}")
+
+    print("\n=== Python 语法 ===")
+    python_files = [PROJECT_ROOT / "app.py"]
+    python_files.extend((PROJECT_ROOT / "src").rglob("*.py"))
+    python_files.extend((PROJECT_ROOT / "tests").rglob("*.py"))
+    for path in sorted(python_files):
+        try:
+            py_compile.compile(str(path), doraise=True)
+        except py_compile.PyCompileError as error:
+            relative = path.relative_to(PROJECT_ROOT)
+            errors.append(f"语法错误: {relative}: {error.msg}")
+
+    if errors:
+        for error in errors:
+            print(f"[FAIL] {error}")
+        return 1
+    print(f"[OK] 已检查 {len(python_files)} 个 Python 文件")
+    print("\n下一步: python -m unittest discover tests -v")
+    return 0
+
 
 if __name__ == "__main__":
-    check_project_structure()
+    sys.exit(main())

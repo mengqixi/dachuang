@@ -18,7 +18,7 @@ COPY . .
 # 创建必要目录
 RUN mkdir -p logs data uploads
 
-EXPOSE 5000
+EXPOSE 5000 5001
 
 # 启动Flask应用
 CMD ["python", "app.py"]

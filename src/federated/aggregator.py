@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """FedAvg聚合服务器 - 支持Paillier加密梯度聚合"""
 
+import threading
+
 import numpy as np
 from typing import Dict, List
 from loguru import logger
@@ -13,6 +15,21 @@ class FedAvgServer:
         self.global_weights = None
         self.round = 0
         self._accuracy_history = []
+        self.context_id = None
+        self._lock = threading.RLock()
+
+    def ensure_context(self, context_id: str) -> bool:
+        """Reset aggregation state when the prepared dataset revision changes."""
+        normalized = str(context_id or "unversioned")
+        with self._lock:
+            changed = self.context_id != normalized
+            if changed:
+                self.context_id = normalized
+                self.global_weights = None
+                self.round = 0
+                self._accuracy_history = []
+                logger.info("FedAvg context reset: {}", normalized)
+            return changed
 
     def aggregate(self, client_results: List[Dict]) -> np.ndarray:
         """FedAvg加权聚合
@@ -23,58 +40,66 @@ class FedAvgServer:
         Returns:
             聚合后的全局权重
         """
-        total_samples = sum(r.get("samples", 0) for r in client_results if r.get("weights") is not None)
-        if total_samples == 0:
-            logger.warning("FedAvg: 无有效客户端结果")
-            return self.global_weights
+        with self._lock:
+            valid = [
+                r for r in client_results
+                if r.get("weights") is not None and int(r.get("samples") or 0) > 0
+            ]
+            if not valid:
+                logger.warning("FedAvg: 无有效客户端结果")
+                return self.global_weights
+            expected_shape = np.asarray(valid[0]["weights"]).shape
+            valid = [r for r in valid if np.asarray(r["weights"]).shape == expected_shape]
+            total_samples = sum(int(r.get("samples") or 0) for r in valid)
+            if total_samples <= 0:
+                return self.global_weights
 
-        # 加权平均
-        weighted_sum = None
-        for r in client_results:
-            w = r.get("weights")
-            if w is None:
-                continue
-            weight = r["samples"] / total_samples
-            if weighted_sum is None:
-                weighted_sum = w * weight
-            else:
-                weighted_sum += w * weight
+            weighted_sum = np.zeros(expected_shape, dtype=np.float64)
+            weighted_accuracy = 0.0
+            weighted_loss = 0.0
+            loss_samples = 0
+            for result in valid:
+                samples = int(result.get("samples") or 0)
+                ratio = samples / total_samples
+                weighted_sum += np.asarray(result["weights"], dtype=np.float64) * ratio
+                weighted_accuracy += float(result.get("accuracy") or 0.0) * ratio
+                if result.get("loss") is not None:
+                    weighted_loss += float(result.get("loss") or 0.0) * samples
+                    loss_samples += samples
 
-        self.global_weights = weighted_sum
-        self.round += 1
+            self.global_weights = weighted_sum
+            self.round += 1
+            avg_loss = weighted_loss / loss_samples if loss_samples else 0.0
+            self._accuracy_history.append({
+                "round": self.round,
+                "accuracy": round(weighted_accuracy, 4),
+                "display_accuracy": round(weighted_accuracy, 4),
+                "loss": round(avg_loss, 4),
+                "context_id": self.context_id,
+                "samples": total_samples,
+            })
 
-        avg_acc = float(np.mean([r.get("accuracy", 0) for r in client_results]))
-        losses = [r.get("loss") for r in client_results if r.get("loss") is not None]
-        avg_loss = float(np.mean(losses)) if losses else 0.0
-        if self._accuracy_history:
-            previous_display = float(self._accuracy_history[-1].get(
-                "display_accuracy",
-                self._accuracy_history[-1].get("accuracy", avg_acc),
-            ))
-            max_up = 0.035
-            max_down = 0.02
-            delta = avg_acc - previous_display
-            if delta > max_up:
-                display_acc = previous_display + max_up
-            elif delta < -max_down:
-                display_acc = previous_display - max_down
-            else:
-                display_acc = avg_acc
-        else:
-            display_acc = avg_acc
-        self._accuracy_history.append({
-            "round": self.round,
-            "accuracy": round(avg_acc, 4),
-            "display_accuracy": round(float(display_acc), 4),
-            "loss": round(avg_loss, 4),
-        })
-
-        logger.info("FedAvg 第%d轮: %d个客户端, avg_acc=%.4f, avg_loss=%.4f",
-                    self.round, len(client_results), avg_acc, avg_loss)
-        return self.global_weights
+            logger.info(
+                "FedAvg round={} clients={} weighted_accuracy={:.4f} weighted_loss={:.4f}",
+                self.round,
+                len(valid),
+                weighted_accuracy,
+                avg_loss,
+            )
+            return self.global_weights.copy()
 
     def get_history(self) -> List[Dict]:
-        return self._accuracy_history
+        with self._lock:
+            return [dict(item) for item in self._accuracy_history]
+
+    def get_status(self) -> Dict:
+        with self._lock:
+            return {
+                "context_id": self.context_id,
+                "round": self.round,
+                "has_global_weights": self.global_weights is not None,
+                "history": [dict(item) for item in self._accuracy_history],
+            }
 
 
 class PaillierGradientEncryptor:
@@ -91,7 +116,7 @@ class PaillierGradientEncryptor:
                 self._paillier.generate_keys()
                 logger.info("Paillier梯度加密器已初始化")
             except Exception as e:
-                logger.warning("Paillier初始化失败: %s", e)
+                logger.warning("Paillier初始化失败: {}", e)
         return self._paillier
 
     def encrypt_gradient(self, gradient: np.ndarray) -> np.ndarray:

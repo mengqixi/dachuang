@@ -1,12 +1,17 @@
 app:
   name: "crypto_attack_detection"
   version: "1.0.0"
-  description: "基于机器学习的密码攻击检测与加密算法自适应优化研究"
+  description: "密码风险检测、加密存储与联邦训练演示平台"
 
-fate:
-  host: "localhost"
-  port: 9380
-  version: "1.11.0"
+# The active web runtime is app.py. It serves the same Flask application on
+# ports 5000 (user) and 5001 (admin) and stores durable state in SQLite/files.
+runtime:
+  entrypoint: "app.py"
+  user_port: 5000
+  admin_port: 5001
+  storage: "sqlite_and_files"
+  database_path: "data/system.db"
+  federated_mode: "four_local_simulated_nodes"
 
 encryption:
   paillier:
@@ -16,6 +21,7 @@ encryption:
 
 detection:
   feature_dim: 18
+  preprocessing_version: "security-fixed-ranges-v1"
   isolation_forest:
     n_estimators: 100
     contamination: 0.1
@@ -38,15 +44,10 @@ optimization:
   state_space:
     risk_levels: ["low", "medium", "high", "critical"]
 
-database:
-  type: "mysql"
+# Optional research integration used only by `python -m src.main --mode federated`.
+# It is not part of the active web application's four-node simulation.
+fate:
+  enabled: false
   host: "localhost"
-  port: 3306
-  database: "crypto_detection"
-  username: "admin"
-  password: "password"
-
-redis:
-  host: "localhost"
-  port: 6379
-  db: 0
+  port: 9380
+  version: "1.11.0"

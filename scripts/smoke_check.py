@@ -1,61 +1,56 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""Lightweight smoke checks for the user/admin Flask endpoints.
-
-This script intentionally uses only the Python standard library. It checks the
-main pages and key JSON APIs without mutating business data by default.
-"""
+"""Read-only smoke checks for the canonical user/admin Flask application."""
 
 import argparse
 import json
 import sys
 import urllib.error
-import urllib.parse
 import urllib.request
 
 
-def _request(method, url, payload=None, timeout=8):
-    body = None
-    headers = {}
-    if payload is not None:
-        body = json.dumps(payload).encode("utf-8")
-        headers["Content-Type"] = "application/json"
-    req = urllib.request.Request(url, data=body, headers=headers, method=method)
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            raw = resp.read()
-            text = raw.decode("utf-8", errors="replace")
-            return resp.status, text, dict(resp.headers)
-    except urllib.error.HTTPError as e:
-        raw = e.read()
-        return e.code, raw.decode("utf-8", errors="replace"), dict(e.headers)
-    except Exception as e:
-        return 0, str(e), {}
+class SmokeClient:
+    def __init__(self):
+        self.opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor())
+
+    def request(self, method, url, payload=None, timeout=8):
+        body = None
+        headers = {}
+        if payload is not None:
+            body = json.dumps(payload).encode("utf-8")
+            headers["Content-Type"] = "application/json"
+        request = urllib.request.Request(url, data=body, headers=headers, method=method)
+        try:
+            with self.opener.open(request, timeout=timeout) as response:
+                return response.status, response.read().decode("utf-8", errors="replace"), dict(response.headers)
+        except urllib.error.HTTPError as error:
+            return error.code, error.read().decode("utf-8", errors="replace"), dict(error.headers)
+        except Exception as error:
+            return 0, str(error), {}
 
 
-def _json(text):
+def parse_json(text):
     try:
-        return json.loads(text)
-    except Exception:
+        value = json.loads(text)
+        return value if isinstance(value, dict) else {}
+    except (TypeError, ValueError):
         return {}
 
 
-def check_page(name, url, contains=None):
-    status, text, _ = _request("GET", url)
-    ok = status == 200 and (contains is None or contains in text)
-    return ok, "%s GET %s -> %s" % (name, url, status)
+def page_check(client, name, url):
+    status, text, _ = client.request("GET", url)
+    ok = status == 200 and "密码攻击检测与隐私训练平台" in text
+    return ok, f"{name}: GET {url} -> http={status}"
 
 
-def check_api(name, url, expected_codes=(200,), method="GET", payload=None):
-    status, text, _ = _request(method, url, payload=payload)
-    data = _json(text)
-    api_code = data.get("code") if isinstance(data, dict) else None
-    ok = status == 200 and api_code in expected_codes
-    return ok, "%s %s %s -> http=%s api_code=%s" % (name, method, url, status, api_code)
+def api_check(client, name, url, method="GET", payload=None, expected_http=(200,), expected_api=(200,)):
+    status, text, _ = client.request(method, url, payload=payload)
+    api_code = parse_json(text).get("code")
+    ok = status in expected_http and api_code in expected_api
+    return ok, f"{name}: {method} {url} -> http={status}, api={api_code}"
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Run lightweight smoke checks.")
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Run non-mutating Flask smoke checks.")
     parser.add_argument("--user-base", default="http://127.0.0.1:5000")
     parser.add_argument("--admin-base", default="http://127.0.0.1:5001")
     parser.add_argument("--admin-user", default="")
@@ -65,32 +60,33 @@ def main():
 
     user = args.user_base.rstrip("/")
     admin = args.admin_base.rstrip("/")
-
+    client = SmokeClient()
     checks = [
-        check_page("user page", user + "/", "用户端"),
-        check_api("system health", user + "/api/system/health"),
-        check_api("dataset status", user + "/api/dataset/unsw/status"),
-        check_page("admin page", admin + "/", "管理端"),
-        check_api("admin session", admin + "/api/admin/session"),
+        page_check(client, "user page", user + "/"),
+        api_check(client, "system health", user + "/api/system/health"),
+        api_check(client, "dataset status", user + "/api/dataset/unsw/status"),
+        page_check(client, "admin page", admin + "/"),
+        api_check(client, "admin session", admin + "/api/admin/session"),
     ]
 
     if args.check_admin_login:
         if not args.admin_user or not args.admin_password:
-            checks.append((False, "admin login skipped: --admin-user and --admin-password are required"))
+            checks.append((False, "admin login: credentials were not supplied"))
         else:
-            checks.append(check_api(
+            checks.append(api_check(
+                client,
                 "admin login",
                 admin + "/api/admin/login",
                 method="POST",
                 payload={"username": args.admin_user, "password": args.admin_password},
             ))
+            checks.append(api_check(client, "authenticated session", admin + "/api/admin/session"))
 
-    failed = 0
+    failures = 0
     for ok, message in checks:
         print(("[OK] " if ok else "[FAIL] ") + message)
-        failed += 0 if ok else 1
-
-    return 1 if failed else 0
+        failures += 0 if ok else 1
+    return 1 if failures else 0
 
 
 if __name__ == "__main__":

@@ -1,7 +1,5 @@
-#!/bin/bash
-echo "========================================"
-echo "密码攻击检测系统 - 前端服务器"
-echo "========================================"
-echo ""
-echo "正在启动服务器..."
-python3 -m http.server 8080
+#!/usr/bin/env bash
+set -euo pipefail
+project_dir="$(cd "$(dirname "$0")" && pwd)"
+cd "$project_dir"
+exec python3 app.py

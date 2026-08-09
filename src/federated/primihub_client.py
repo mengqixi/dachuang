@@ -506,9 +506,9 @@ class PrimiHubNodeManager:
     管理多个PrimiHub节点的生命周期和通信配置。
     """
 
-    def __init__(self):
+    def __init__(self, client: Optional[PrimiHubClient] = None):
         self.nodes: Dict[str, Dict] = {}
-        self._client = PrimiHubClient()
+        self._client = client or PrimiHubClient()
 
     def register_node(self, node_id: str, address: str, role: str = "worker") -> None:
         """注册一个PrimiHub节点"""
@@ -538,7 +538,7 @@ class PrimiHubNodeManager:
 
 # 全局单例
 primihub_client = PrimiHubClient()
-node_manager = PrimiHubNodeManager()
+node_manager = PrimiHubNodeManager(client=primihub_client)
 
 
 class RealFederatedClient:

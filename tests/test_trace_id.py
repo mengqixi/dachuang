@@ -56,6 +56,7 @@ class TestTraceIdFlask(unittest.TestCase):
         resp = self.app.get("/")
         self.assertEqual(resp.status_code, 200)
         self.assertIn("X-Trace-Id", resp.headers)
+        resp.close()
 
     def test_has_response_time_header(self):
         resp = self.app.get("/api/system/health")

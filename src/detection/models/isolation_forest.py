@@ -9,6 +9,8 @@ import numpy as np
 from sklearn.ensemble import IsolationForest
 from loguru import logger
 
+from src.detection.scoring import calibrate_isolation_forest, isolation_forest_risk_score
+
 
 class IsolationForestModel:
     """孤立森林异常检测模型
@@ -51,6 +53,7 @@ class IsolationForestModel:
         """
         logger.info(f"训练孤立森林: X.shape={X.shape}")
         self.model.fit(X)
+        calibrate_isolation_forest(self.model, X)
         self._is_fitted = True
         logger.info("孤立森林训练完成")
         return self
@@ -76,12 +79,7 @@ class IsolationForestModel:
         Returns:
             异常概率分数 [0, 1]
         """
-        scores = self.model.decision_function(X)
-        # 将异常分数映射到 [0, 1]，分数越低越异常
-        prob = 1.0 - (scores - scores.min()) / (
-            scores.max() - scores.min() + 1e-8
-        )
-        return np.clip(prob, 0.0, 1.0)
+        return isolation_forest_risk_score(self.model, X)
 
     def anomaly_score(self, X: np.ndarray) -> np.ndarray:
         """获取原始异常分数

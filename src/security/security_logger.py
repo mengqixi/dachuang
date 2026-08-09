@@ -47,7 +47,7 @@ class SecurityEventLogger:
                 with open(self._request_log_path, "a", encoding="utf-8") as f:
                     f.write(line + "\n")
         except Exception as e:
-            logger.warning("Failed to write security lifecycle log: %s", e)
+            logger.warning("Failed to write security lifecycle log: {}", e)
 
     def _write_security_event(self, event):
         """Write normalized security events to security_events.log."""
@@ -62,7 +62,7 @@ class SecurityEventLogger:
                 if len(self._events) > self._max_events:
                     self._events = self._events[-self._max_events:]
         except Exception as e:
-            logger.warning("Failed to write security event log: %s", e)
+            logger.warning("Failed to write security event log: {}", e)
 
     def log_request_start(self, trace_id, path, method, ip):
         event = {

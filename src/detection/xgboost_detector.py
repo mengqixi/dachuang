@@ -22,7 +22,7 @@ class XGBoostDetector:
     def fit(self, X: np.ndarray, y: np.ndarray) -> Dict:
         """训练XGBoost模型"""
         import xgboost as xgb
-        logger.info("训练XGBoost: X.shape=%s", X.shape)
+        logger.info("训练XGBoost: X.shape={}", X.shape)
 
         self.model = xgb.XGBClassifier(
             n_estimators=100, max_depth=6, learning_rate=0.1,
@@ -34,7 +34,7 @@ class XGBoostDetector:
         train_acc = float(self.model.score(X, y))
         self._is_fitted = True
         self._feature_dim = X.shape[1]
-        logger.info("XGBoost训练完成: accuracy=%.4f", train_acc)
+        logger.info("XGBoost训练完成: accuracy={:.4f}", train_acc)
         return {"accuracy": train_acc}
 
     def predict(self, X: np.ndarray) -> np.ndarray:
@@ -52,7 +52,7 @@ class XGBoostDetector:
             path = os.path.join(MODEL_DIR, "xgboost.pkl")
         import joblib
         joblib.dump(self.model, path)
-        logger.info("XGBoost已保存: %s", path)
+        logger.info("XGBoost已保存: {}", path)
 
     def load(self, path: str = None) -> bool:
         if path is None:
@@ -61,10 +61,10 @@ class XGBoostDetector:
             import joblib
             self.model = joblib.load(path)
             self._is_fitted = True
-            logger.info("XGBoost已加载: %s", path)
+            logger.info("XGBoost已加载: {}", path)
             return True
         except Exception as e:
-            logger.warning("XGBoost加载失败: %s", e)
+            logger.warning("XGBoost加载失败: {}", e)
             return False
 
     def is_fitted(self) -> bool:

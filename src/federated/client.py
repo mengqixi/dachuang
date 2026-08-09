@@ -28,9 +28,9 @@ class FederatedClient:
             self.X = np.load(X_path)
             self.y = np.load(y_path)
             self._loaded = True
-            logger.info("客户端[%s] 加载数据: %d条", self.name, len(self.y))
+            logger.info("客户端[{}] 加载数据: {}条", self.name, len(self.y))
             return True
-        logger.warning("客户端[%s] 无数据", self.name)
+        logger.warning("客户端[{}] 无数据", self.name)
         return False
 
     @staticmethod
@@ -82,13 +82,22 @@ class FederatedClient:
         n_samples, n_features = X.shape
 
         if len(np.unique(y)) < 2:
-            majority_acc = float(np.mean(y == y[0])) if len(y) else 0.0
+            # A one-class node still contributes a meaningful intercept.  The
+            # old zero vector reported accuracy=1 while representing neither
+            # an all-normal nor an all-attack local model.
+            prior = float(np.clip(np.mean(y), 0.01, 0.99))
+            if global_weights is not None and len(global_weights) == n_features + 1:
+                weights = np.asarray(global_weights, dtype=np.float64).copy()
+            else:
+                weights = np.zeros(n_features + 1, dtype=np.float64)
+            weights[-1] = np.log(prior / (1.0 - prior))
             return {
-                "weights": np.zeros(n_features + 1, dtype=np.float64),
+                "weights": weights,
                 "samples": int(n_samples),
-                "accuracy": round(majority_acc, 4),
-                "loss": 0.0,
+                "accuracy": 1.0,
+                "loss": round(float(-np.log(prior if y[0] else 1.0 - prior)), 4),
                 "name": self.name,
+                "validation_scope": "single_class_training_data",
             }
 
         seed = sum(ord(ch) for ch in self.name) + n_samples

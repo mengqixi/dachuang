@@ -13,8 +13,16 @@ import numpy as np
 from loguru import logger
 
 from src.data_generator import FEATURE_NAMES
+from src.detection.scoring import calibrate_isolation_forest, isolation_forest_risk_score
 
-MODEL_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "models")
+# This manager is the legacy platform baseline (IF + logistic + Q-learning).
+# Keep its files separate from the user-facing runtime ensemble artifacts.
+MODEL_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+    "data",
+    "models",
+    "platform_baseline",
+)
 
 
 class ModelManager:
@@ -52,7 +60,7 @@ class ModelManager:
             self._version_counter = int(v)
         except Exception:
             self._version_counter = 0
-        logger.info("ModelManager初始化完成: %s (version=%d)", MODEL_DIR, self._version_counter)
+        logger.info("ModelManager初始化完成: {} (version={})", MODEL_DIR, self._version_counter)
 
     def _get_if_path(self) -> str:
         return os.path.join(MODEL_DIR, "isolation_forest.pkl")
@@ -66,7 +74,7 @@ class ModelManager:
     def _get_q_path(self) -> str:
         return os.path.join(MODEL_DIR, "q_table.npy")
 
-    def auto_load_or_train(self, X_train: np.ndarray, y_train: np.ndarray):
+    def auto_load_or_train(self, X_train: np.ndarray, y_train: np.ndarray, train_if_missing: bool = True):
         """启动时自动加载或训练所有模型
 
         Args:
@@ -81,6 +89,14 @@ class ModelManager:
         if self._check_saved_models():
             logger.info("检测到已保存的模型文件，直接加载")
             self._load_all()
+            return
+
+        if not train_if_missing:
+            self.training_status = {
+                "status": "idle",
+                "progress": 0,
+                "message": "平台基线模型尚未训练；需要时可从管理接口显式启动。",
+            }
             return
 
         # 无模型则后台训练
@@ -102,12 +118,12 @@ class ModelManager:
 
             # 加载IF
             self.if_model = joblib.load(self._get_if_path())
-            logger.info("加载IF模型: %s", self._get_if_path())
+            logger.info("加载IF模型: {}", self._get_if_path())
 
             # 加载MLP权重
             self.mlp_coef = np.load(self._get_mlp_weights_path())
             self.mlp_intercept = np.load(self._get_mlp_bias_path())
-            logger.info("加载MLP权重: %s", self._get_mlp_weights_path())
+            logger.info("加载MLP权重: {}", self._get_mlp_weights_path())
             from sklearn.linear_model import LogisticRegression
             self.mlp_model = LogisticRegression()
             self.mlp_model.coef_ = self.mlp_coef
@@ -120,12 +136,12 @@ class ModelManager:
             self.q_agent = QLearningAgent()
             self.q_agent.q_table = q_data.get("q_table", np.zeros((500, 6)))
             self.q_agent._trained = True
-            logger.info("加载Q-table: %s", self._get_q_path())
+            logger.info("加载Q-table: {}", self._get_q_path())
 
             self.is_ready = True
             logger.info("所有模型加载完成")
         except Exception as e:
-            logger.warning("加载模型失败: %s，将重新训练", e)
+            logger.warning("加载模型失败: {}，将重新训练", e)
             self._train_all(None, None)
 
     def _train_all(self, X_train: np.ndarray, y_train: np.ndarray):
@@ -140,7 +156,7 @@ class ModelManager:
                 X_train, y_train, _, _ = ensure_data_generated()
 
             n = len(X_train)
-            logger.info("开始训练所有模型: %d条数据", n)
+            logger.info("开始训练所有模型: {}条数据", n)
 
             # 1. 训练Isolation Forest
             self.training_status["message"] = "训练Isolation Forest..."
@@ -150,6 +166,7 @@ class ModelManager:
                 contamination=0.15, random_state=42, n_jobs=1
             )
             self.if_model.fit(X_train)
+            calibrate_isolation_forest(self.if_model, X_train)
             import joblib
             joblib.dump(self.if_model, self._get_if_path())
             self.training_status["progress"] = 33
@@ -166,7 +183,7 @@ class ModelManager:
             np.save(self._get_mlp_bias_path(), self.mlp_intercept)
             train_acc = self.mlp_model.score(X_train, y_train)
             self.training_status["progress"] = 66
-            logger.info("MLP训练完成: train_acc=%.4f", train_acc)
+            logger.info("MLP训练完成: train_acc={:.4f}", train_acc)
 
             # 3. 训练Q-learning
             self.training_status["message"] = "训练Q-learning智能体(500 episodes)..."
@@ -192,7 +209,7 @@ class ModelManager:
                 "samples": n,
                 "q_episodes": len(rewards),
             })
-            logger.info("所有模型训练完成: accuracy=%.4f", acc)
+            logger.info("所有模型训练完成: accuracy={:.4f}", acc)
 
             # 保存版本
             self._save_versioned()
@@ -216,7 +233,7 @@ class ModelManager:
         except Exception as e:
             self.training_status["status"] = "failed"
             self.training_status["message"] = str(e)
-            logger.error("模型训练失败: %s", e)
+            logger.error("模型训练失败: {}", e)
 
     def predict(self, X: np.ndarray) -> np.ndarray:
         """混合模型预测（IF + MLP加权投票）
@@ -231,8 +248,7 @@ class ModelManager:
             return np.zeros(len(X))
 
         # IF决策函数
-        if_raw = self.if_model.decision_function(X)
-        if_score = 1.0 - (if_raw - if_raw.min()) / (if_raw.max() - if_raw.min() + 1e-10)
+        if_score = isolation_forest_risk_score(self.if_model, X)
 
         # MLP预测概率
         if self.mlp_coef is not None:
@@ -250,8 +266,7 @@ class ModelManager:
         if not self.is_ready or self.if_model is None:
             return np.zeros(len(X))
 
-        if_raw = self.if_model.decision_function(X)
-        if_score = 1.0 - (if_raw - if_raw.min()) / (if_raw.max() - if_raw.min() + 1e-10)
+        if_score = isolation_forest_risk_score(self.if_model, X)
 
         if self.mlp_coef is not None:
             z = np.dot(X, self.mlp_coef.T) + self.mlp_intercept
@@ -308,9 +323,9 @@ class ModelManager:
                 pass
 
             self._cleanup_old_versions()
-            logger.info("模型版本已保存: v%d", ver)
+            logger.info("模型版本已保存: v{}", ver)
         except Exception as e:
-            logger.warning("保存模型版本失败: %s", e)
+            logger.warning("保存模型版本失败: {}", e)
 
     def _cleanup_old_versions(self, keep: int = 5):
         """清理超出保留数量的旧版本"""
@@ -354,7 +369,7 @@ class ModelManager:
         import shutil
         base = os.path.join(MODEL_DIR, "v%d" % version)
         if not os.path.exists(base + "_if.pkl"):
-            logger.warning("版本v%d不存在", version)
+            logger.warning("版本v{}不存在", version)
             return False
         try:
             shutil.copy(base + "_if.pkl", self._get_if_path())
@@ -372,10 +387,10 @@ class ModelManager:
                 db.set_config("model_version", str(version))
             except Exception:
                 pass
-            logger.info("模型已回滚到v%d", version)
+            logger.info("模型已回滚到v{}", version)
             return True
         except Exception as e:
-            logger.warning("回滚失败: %s", e)
+            logger.warning("回滚失败: {}", e)
             return False
 
     # ─── 三模型对比 ───
@@ -410,8 +425,7 @@ class ModelManager:
 
         # 2. IF 单独检测
         if self.if_model is not None:
-            if_raw = self.if_model.decision_function(X_test)
-            if_score = 1.0 - (if_raw - if_raw.min()) / (if_raw.max() - if_raw.min() + 1e-10)
+            if_score = isolation_forest_risk_score(self.if_model, X_test)
             if_preds = (if_score > 0.5).astype(int)
             if_acc = float(np.mean(if_preds == y_test))
             if_fp = float(np.sum((if_preds == 1) & (y_test == 0)))

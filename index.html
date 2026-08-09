@@ -240,7 +240,12 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
           <span>训练数据源</span><i class="fas fa-arrow-right muted"></i><span>统一字段</span><i class="fas fa-arrow-right muted"></i><span>分层切分</span><i class="fas fa-arrow-right muted"></i><span>四节点数据</span><i class="fas fa-arrow-right muted"></i><span>训练入口</span>
         </div>
         <button class="btn-main me-2" onclick="loadDataProcessPage(true,event)">刷新数据源</button>
-        <button class="btn-lightx" onclick="processSystemDataset(event)">处理当前数据源并生成节点</button>
+        <button class="btn-lightx" onclick="processSystemDataset(event)">同步当前源到四节点</button>
+        <div class="subtle-note mt-3" id="dataProcessPolicyBox">处理规则加载中。数据准备与模型训练是两个独立步骤。</div>
+        <div class="compare-split mt-3" id="dataProcessStructureBox">
+          <div class="compare-box"><h6>运行时检测模型</h6><div class="small-text text-muted">状态加载中</div></div>
+          <div class="compare-box"><h6>训练与节点关系</h6><div class="small-text text-muted">关系加载中</div></div>
+        </div>
         <div class="metric-grid mt-3" id="systemDataMetrics">
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">当前数据源</div></div>
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">样本</div></div>
@@ -506,6 +511,7 @@ function sortDatasetSourcesForDisplay(sources){
   });
 }
 let currentDatasetSource = null;
+let currentPreparation = {};
 let auditState = {eventOffset:0, visitOffset:0, events:[], visits:[], totalEvents:0, totalVisits:0, suspiciousKey:'', suspiciousEvents:[], suspiciousVisits:[]};
 let trainingCompareState = {local:null, federated:null};
 let trainingCompareChartObj = null;
@@ -722,10 +728,13 @@ function currentModelText(versions){
 function trainingDataNote(metric){
   const m=metric.meta||{};
   const parts=[];
+  if(m.preparation_id)parts.push(`准备版本 ${m.preparation_id}`);
   if(m.source_count!=null)parts.push(`来源 ${m.source_count} 份`);
   if(m.samples!=null)parts.push(`样本 ${m.samples}`);
   if(m.label_distribution)parts.push(`标签 ${labelDistText(m.label_distribution)}`);
   if(m.node_count)parts.push(`节点 ${m.node_count}`);
+  if(m.uses_prepared_nodes===true)parts.push('复用已准备节点');
+  if(m.uses_prepared_nodes===false && String(m.task_type||'').includes('local'))parts.push('本地训练不经过节点');
   if(m.rounds!=null && Number(m.rounds)>0)parts.push(`轮次 ${m.rounds}`);
   return parts.join('；');
 }
@@ -1114,6 +1123,39 @@ async function adminLogout(){await api('/api/admin/logout',{method:'POST'});loca
 async function loadAdminData(force=false){
   await Promise.allSettled([loadDatasetSourcesData(force), loadSubmissionsData(force)]);
 }
+function renderDataProcessStructure(data){
+  const d=obj(data);
+  const policy=obj(d.processing_policy);
+  const models=obj(d.model_inventory);
+  const runtime=obj(models.runtime_detector);
+  const baseline=obj(models.platform_baseline);
+  const local=obj(models.local_training);
+  const fed=obj(models.federated_training);
+  const paillier=obj(models.paillier);
+  const prep=obj(d.processed);
+  const policyBox=document.getElementById('dataProcessPolicyBox');
+  const structureBox=document.getElementById('dataProcessStructureBox');
+  if(policyBox){
+    const scope=prep.process_scope==='first_limit_rows'?'前 5 万条':'当前源全部样本';
+    policyBox.innerHTML=`<b>当前处理规则：</b>数据源未变化时直接复用；检测到变化时按${esc(scope)}全量重建统一数组和四节点文件，不做逐条增量追加。<span class="mini-badge ms-1">准备版本 ${esc(prep.preparation_id||'尚未生成')}</span>`;
+  }
+  if(structureBox){
+    structureBox.innerHTML=`
+      <div class="compare-box">
+        <h6>系统运行时检测模型</h6>
+        <div><b>${esc(runtime.name||'IF + XGBoost + LSTM 融合模型')}</b></div>
+        <div class="small-text text-muted mt-1">状态：${runtime.ready?'<span class="status-pill ok">模型文件已就绪</span>':'<span class="status-pill warn">模型文件不完整</span>'}；用于用户端风险检测。</div>
+        <div class="small-text text-muted mt-2">并行基线：${esc(baseline.name||'IF + 逻辑回归 + Q-learning')}；用于${esc(baseline.used_by||'兼容检测和参数优化')}。</div>
+        <div class="small-text text-muted mt-2">${esc(local.relation||'本地训练直接使用当前源并更新运行时模型。')}</div>
+      </div>
+      <div class="compare-box">
+        <h6>四节点与联邦模型</h6>
+        <div><b>${esc(fed.name||'四节点线性模型 + FedAvg')}</b></div>
+        <div class="small-text text-muted mt-1">${esc(fed.relation||'联邦训练使用已准备节点，聚合结果独立追踪。')}</div>
+        <div class="small-text text-muted mt-2">Paillier：${esc(paillier.relation||'当前用于安全聚合流程说明。')}</div>
+      </div>`;
+  }
+}
 async function loadDatasetSourcesData(force=false){
   try{
     if(force){clearAdminCache('/api/dataset/unsw/status'); clearAdminCache('/api/admin/datasets/sources');}
@@ -1133,19 +1175,21 @@ async function loadDatasetSourcesData(force=false){
     const sd=obj(st.data);
     const sourcesData=obj(sourcesRes.data);
     const sources=arr(sourcesData.sources);
+    currentPreparation=obj(sourcesData.processed);
     currentDatasetSource = chooseCurrentDatasetSource(sources, sourcesData.processed, sd);
     currentDatasetSourceId = obj(currentDatasetSource).id || '';
     if(currentDatasetSourceId)rememberCurrentDatasetSource(currentDatasetSourceId);
     const displaySources = sortDatasetSourcesForDisplay(sources);
     const sourceTotalSamples=sources.reduce((sum,s)=>sum+(Number(s.samples)||0),0);
     const preparedCount=sources.filter(s=>s.prepared_for_federated).length;
+    renderDataProcessStructure(sourcesData);
     systemDataMetrics.innerHTML=[
       ['当前训练源',currentDatasetSource.source_type||currentDatasetSource.source||sd.source_type||'未检测'],
       ['当前源样本',currentDatasetSource.samples||sd.samples||0],
       ['已发现数据样本',sourceTotalSamples],
       ['已生成节点源',preparedCount]
     ].map(x=>`<div class="metric"><div class="metric-value">${esc(x[1])}</div><div class="metric-label">${x[0]}</div></div>`).join('');
-    if(typeof trainingSourceBox!=='undefined')trainingSourceBox.innerHTML=`<b>当前训练数据源：</b>${esc(currentDatasetSource.name||currentDatasetSource.source||sd.source||'未检测')} <span class="mini-badge">${esc(currentDatasetSource.source_type||sd.source_type||'-')}</span><div class="small-text text-muted mt-1">当前源样本 ${esc(currentDatasetSource.samples||sd.samples||0)} 条；已发现数据样本 ${esc(sourceTotalSamples)} 条。下方表格统计的是服务器已识别的全部可用数据源，不等于当前训练源。</div>`;
+    if(typeof trainingSourceBox!=='undefined')trainingSourceBox.innerHTML=`<b>当前训练数据源：</b>${esc(currentDatasetSource.name||currentDatasetSource.source||sd.source||'未检测')} <span class="mini-badge">${esc(currentDatasetSource.source_type||sd.source_type||'-')}</span><div class="small-text text-muted mt-1">当前源样本 ${esc(currentDatasetSource.samples||sd.samples||0)} 条；准备版本 ${esc(currentPreparation.preparation_id||'尚未生成')}。本地训练直接使用当前源；联邦训练使用同一准备版本的四节点数据。</div>`;
     if(typeof trainDataMetric!=='undefined')trainDataMetric.textContent=currentDatasetSource.samples||sd.samples||0;
     if(typeof trainFeatureMetric!=='undefined')trainFeatureMetric.textContent=currentDatasetSource.features||sd.features||0;
     if(typeof trainNodeMetric!=='undefined')trainNodeMetric.textContent=(currentDatasetSource.prepared_for_federated||sd.ready_for_federated)?'ready':'missing';
@@ -1225,7 +1269,7 @@ function datasetSourceActions(s){
   if(obj(s).source_type==='user_submission' && !obj(s).trainable){
     return '<span class="small-text text-muted">先标记可训练</span>';
   }
-  const label=obj(s).prepared_for_federated?'重新生成节点':'生成节点';
+  const label=obj(s).prepared_for_federated?'检查更新并同步':'同步到四节点';
   return `<button class="btn-lightx btn-sm" onclick="prepareDatasetSource('${esc(id)}',event)">${label}</button>`;
 }
 function refreshDataProcessAfterPrepare(){
@@ -1243,9 +1287,10 @@ async function prepareDatasetSource(sourceId,ev){
   if(btn){btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> 生成中';}
   try{
     const r=await apiWithTimeout(`/api/admin/datasets/${encodeURIComponent(sourceId)}/prepare`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:50000})},90000);
-    toast(r.ok?'节点已生成':r.error,r.ok?'ok':'bad');
+    toast(r.ok?(obj(r.data).reused?'数据未变化，已复用现有节点':'当前源已全量同步到四节点'):r.error,r.ok?'ok':'bad');
     if(r.ok){
       rememberCurrentDatasetSource(sourceId);
+      currentPreparation=obj(r.data);
       refreshDataProcessAfterPrepare();
     }
     return r;
@@ -1253,14 +1298,15 @@ async function prepareDatasetSource(sourceId,ev){
     if(btn){btn.disabled=false;btn.innerHTML=oldHtml;}
   }
 }
-async function processSystemDatasetImpl(){
+async function processSystemDatasetImpl(refresh=true){
   const sourceId=currentDatasetSourceId||'';
   const url=sourceId?`/api/admin/datasets/${encodeURIComponent(sourceId)}/prepare`:'/api/dataset/unsw/process';
   const r=await apiWithTimeout(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:50000})},90000);
-  toast(r.ok?'处理完成':r.error,r.ok?'ok':'bad');
+  toast(r.ok?(obj(r.data).reused?'数据未变化，已复用现有节点':'当前源已全量重建并生成节点'):r.error,r.ok?'ok':'bad');
   if(r.ok){
     if(sourceId)rememberCurrentDatasetSource(sourceId);
-    refreshDataProcessAfterPrepare();
+    currentPreparation=obj(r.data);
+    if(refresh)refreshDataProcessAfterPrepare();
   }
   return r;
 }
@@ -1269,7 +1315,7 @@ async function processSystemDataset(ev){
   const oldHtml=btn?btn.innerHTML:'';
   if(btn){btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> 处理中...';}
   try{
-    return await processSystemDatasetImpl();
+    return await processSystemDatasetImpl(true);
   }finally{
     if(btn){btn.disabled=false;btn.innerHTML=oldHtml;}
   }
@@ -1289,6 +1335,7 @@ async function loadNodes(force=false){
   const r=force?await api('/api/federated/nodes'):await cachedApi('/api/federated/nodes');
   const data=obj(r.data);
   const nodes=arr(data.nodes);
+  const preparation=obj(data.preparation);
   const html=nodes.length?nodes.map(n=>{
     const labels=obj(n.label_distribution);
     const normal=n.normal_samples??labels['0']??0;
@@ -1297,13 +1344,13 @@ async function loadNodes(force=false){
       <i class="fas fa-building"></i><b>${esc(n.name)}</b>
       <div>${esc(n.samples||0)} 条 · ${esc(n.node_type||'模拟联邦节点')}</div>
       <div class="small-text text-muted">正常 ${esc(normal)} / 攻击 ${esc(attack)} / 特征 ${esc(n.feature_dim||0)}</div>
-      <div class="small-text text-muted">来源：${esc(n.source_type||'-')}</div>
+      <div class="small-text text-muted">来源：${esc(n.source_type||'-')} · 准备版本：${esc(n.preparation_id||preparation.preparation_id||'-')}</div>
       <span class="status-pill ${n.ready?'ok':'warn'}">${n.ready?'ready':'not ready'}</span>
     </div>`;
   }).join(''):'<div class="text-muted">暂无节点数据</div>';
   if(typeof fedNodes!=='undefined')fedNodes.innerHTML=html;
   if(typeof fedNodesDataProcess!=='undefined')fedNodesDataProcess.innerHTML=html;
-  if(typeof fedNodeExplain!=='undefined')fedNodeExplain.textContent=data.explanation||'四节点数据由训练数据池按标签分层划分得到。';
+  if(typeof fedNodeExplain!=='undefined')fedNodeExplain.textContent=`${data.explanation||'四节点数据由训练数据池按标签分层划分得到。'} 当前准备版本：${preparation.preparation_id||'-'}。`;
 }
 function renderTrainingResult(data,type){
   const d=obj(data);
@@ -1347,8 +1394,24 @@ function trainingRecordToCompare(row){
     method:(metric.aggregation_method||m.aggregation_method||row.aggregation_method||String(row.task_type||'').replace('admin_',''))||'-',
     paillier:m.paillier||{},
     clients,
-    label_distribution:m.label_distribution||{}
+    label_distribution:m.label_distribution||{},
+    dataset_source_id:m.dataset_source_id||row.dataset_source_id||'',
+    preparation_id:m.preparation_id||row.preparation_id||'',
+    uses_prepared_nodes:m.uses_prepared_nodes===true
   };
+}
+function trainingTaskMatchesCurrentPreparation(row){
+  const meta=parseJsonObject(row.metadata);
+  const nested=parseJsonObject(meta.metadata);
+  const merged={...meta,...nested,...obj(row)};
+  const sourceId=String(merged.dataset_source_id||'');
+  if(!currentDatasetSourceId || sourceId!==String(currentDatasetSourceId))return false;
+  const currentPrep=String(obj(currentPreparation).preparation_id||'');
+  const taskPrep=String(merged.preparation_id||'');
+  if(currentPrep)return taskPrep===currentPrep;
+  const preparedSamples=Number(obj(currentPreparation).samples||0);
+  const taskSamples=Number(merged.samples||row.samples||0);
+  return preparedSamples>0 && taskSamples===preparedSamples;
 }
 function updateTrainingCompare(type,data){
   if(type==='local')trainingCompareState.local=data;
@@ -1389,13 +1452,13 @@ function renderAggregationVisual(){
         <div class="compare-row"><span>计算开销</span><div class="bar-track"><div class="bar-fill loss" style="width:34%"></div></div><b>低</b></div>
       </div>
       <div class="compare-box">
-        <h6>Paillier 安全聚合</h6>
+        <h6>Paillier 安全聚合展示层</h6>
         <div class="compare-row"><span>训练效率</span><div class="bar-track"><div class="bar-fill cost" style="width:50%"></div></div><b>中</b></div>
         <div class="compare-row"><span>隐私保护</span><div class="bar-track"><div class="bar-fill fed" style="width:88%"></div></div><b>高</b></div>
         <div class="compare-row"><span>计算开销</span><div class="bar-track"><div class="bar-fill loss" style="width:74%"></div></div><b>高</b></div>
       </div>
     </div>
-    <div class="compare-explain">FedAvg 用于联邦聚合基线；Paillier 在聚合阶段增强参数隐私，但会增加加密、聚合和解密耗时。</div>`;
+    <div class="compare-explain">当前实际模型权重由 FedAvg 聚合；Paillier 部分用于展示参数量化、加密、密态聚合与解密开销，尚未替代当前训练权重链路。</div>`;
 }
 function renderTrainingChart(local,fed){
   const canvas=document.getElementById('trainingCompareChart');
@@ -1524,9 +1587,9 @@ function renderTrainingCompare(){
   renderFederatedTrainingDetails(fed);
   const status=document.getElementById('dataProcessTrainingStatus');
   if(status){
-    const localVersion=local.version&&local.version!=='-'?local.version:'尚无本地训练';
-    const fedVersion=fed.version&&fed.version!=='-'?fed.version:'尚无联邦训练';
-    status.textContent=`本地：${localVersion}；联邦：${fedVersion}`;
+    const localVersion=local.version&&local.version!=='-'?local.version:'当前准备版本尚无本地训练';
+    const fedVersion=fed.version&&fed.version!=='-'?fed.version:'当前准备版本尚无联邦训练';
+    status.textContent=`准备版本 ${obj(currentPreparation).preparation_id||'-'}；本地：${localVersion}；联邦：${fedVersion}`;
   }
   if(typeof trainingCompareBox==='undefined')return;
   const lp=pctValue(local.accuracy), fp=pctValue(fed.accuracy);
@@ -1539,7 +1602,7 @@ function renderTrainingCompare(){
     : '--';
   const paillier=fed.paillier||{};
   const paillierText=paillier.paillier_enabled
-    ? `Paillier：加密 ${paillier.encryption_time_ms||'-'}ms，密态聚合 ${paillier.aggregation_time_ms||'-'}ms，解密 ${paillier.decryption_time_ms||'-'}ms`
+    ? `FedAvg 实际聚合；Paillier 展示层：加密 ${paillier.encryption_time_ms||'-'}ms，密态聚合 ${paillier.aggregation_time_ms||'-'}ms，解密 ${paillier.decryption_time_ms||'-'}ms`
     : '普通 FedAvg：不展示密态聚合耗时';
   trainingCompareBox.innerHTML=`
     <div class="compare-head">
@@ -1603,9 +1666,13 @@ async function runAdminFullTraining(){
   const button=document.getElementById('dataProcessTrainButton');
   if(button){button.disabled=true;button.innerHTML='<i class="fas fa-spinner fa-spin"></i> 正在训练';}
   const status=document.getElementById('dataProcessTrainingStatus');
-  if(status)status.textContent='正在执行本地基线训练，然后执行四节点联邦训练，请稍候。';
+  if(status)status.textContent='正在确认当前源准备版本，然后执行本地基线和四节点联邦训练。';
   trainingResultSummary.innerHTML='<div class="title">训练进行中</div><div class="subtle-note"><i class="fas fa-spinner fa-spin text-primary"></i> 正在依次执行本地基线训练和四节点联邦训练，完成后右侧同步展示结果。</div>';
   try{
+    const prepared=await processSystemDatasetImpl(false);
+    if(!prepared.ok)return;
+    currentPreparation=obj(prepared.data);
+    await loadDatasetSourcesData(false);
     const local=await runAdminLocalTrain(false);
     if(!local.ok)return;
     const fed=await runAdminFederatedTrain(false);
@@ -1624,13 +1691,15 @@ async function loadDataProcessPage(force=false,ev=null){
   const oldHtml=btn?btn.innerHTML:'';
   if(btn){btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> 刷新中...';}
   try{
-    return await Promise.allSettled([loadDatasetSourcesData(force),loadNodes(force),loadTrainingRecords(force,false)]);
+    await loadDatasetSourcesData(force);
+    return await Promise.allSettled([loadNodes(force),loadTrainingRecords(force,false)]);
   }finally{
     if(btn){btn.disabled=false;btn.innerHTML=oldHtml;}
   }
 }
 async function loadTrainingPage(force=false){
-  await Promise.allSettled([loadDatasetSourcesData(force),loadNodes(force),loadTrainingRecords(force,false)]);
+  await loadDatasetSourcesData(force);
+  await Promise.allSettled([loadNodes(force),loadTrainingRecords(force,false)]);
 }
 async function loadTrainingRecords(force=false, withVersions=true){
   const url='/api/admin/training/tasks?limit=50';
@@ -1638,8 +1707,10 @@ async function loadTrainingRecords(force=false, withVersions=true){
   const r=force?await api(url):await cachedApi(url);
   const rows=arr(obj(r.data).tasks);
   latestTrainingTasks=rows;
-  const latestLocal=rows.find(x=>String(x.task_type||'').includes('local'));
-  const latestFed=rows.find(x=>String(x.task_type||'').includes('federated')||String(x.task_type||'').includes('fed'));
+  const currentRows=rows.filter(trainingTaskMatchesCurrentPreparation);
+  const latestLocal=currentRows.find(x=>String(x.task_type||'').includes('local'));
+  const latestFed=currentRows.find(x=>String(x.task_type||'').includes('federated')||String(x.task_type||'').includes('fed'));
+  trainingCompareState={local:null,federated:null};
   if(latestLocal)trainingCompareState.local=trainingRecordToCompare(latestLocal);
   if(latestFed)trainingCompareState.federated=trainingRecordToCompare(latestFed);
   renderTrainingCompare();

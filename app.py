@@ -10,6 +10,7 @@ import time
 import threading
 import hashlib
 import hmac
+import secrets
 from datetime import datetime, timedelta
 
 import numpy as np
@@ -26,22 +27,50 @@ from src.dataset_manager import dataset_manager, save_training_record, get_train
 from src.data_generator import generate_and_prepare, ensure_data_generated, FEATURE_NAMES as GEN_FEATURES
 from src.utils.data_storage import db
 from src.utils.model_manager import model_manager
+from src.utils.atomic_files import atomic_save_npy, atomic_write_bytes, atomic_write_json
 from src.user_submission_manager import SubmissionStatusError, UploadValidationError, user_submission_manager, validate_upload_file
+from src.preprocess.feature_engineering import FEATURE_NORMALIZATION_VERSION
 
 # ─── 日志配置 ───
+os.makedirs("logs", exist_ok=True)
 logger.remove()
 logger.add(sys.stderr, format="<green>{time:HH:mm:ss}</green> | <level>{level:7}</level> | {message}", level="INFO", colorize=True)
 logger.add("logs/system_{time:YYYY-MM-DD}.log", rotation="1 day", retention="7 days",
            format="{time:YYYY-MM-DD HH:mm:ss} | {level:7} | {name}:{line} | {message}", level="DEBUG")
-os.makedirs("logs", exist_ok=True)
 
 # ─── Flask App ───
-app = Flask(__name__, static_folder=".", static_url_path="")
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dachuang-dev-secret-change-me")
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+
+
+def _load_or_create_flask_secret():
+    configured = os.environ.get("FLASK_SECRET_KEY", "").strip()
+    if configured:
+        return configured
+    key_path = os.path.join(PROJECT_ROOT, "data", "keys", "flask_session.key")
+    try:
+        with open(key_path, "r", encoding="utf-8") as stream:
+            stored = stream.read().strip()
+        if len(stored) >= 32:
+            return stored
+    except OSError:
+        pass
+    generated = secrets.token_urlsafe(48)
+    atomic_write_bytes(key_path, generated.encode("utf-8"))
+    return generated
+
+
+# The UI is a single self-contained HTML file.  Exposing the repository root as
+# Flask's static directory would also expose source code, configuration, Git
+# metadata and runtime databases.  Serve only the explicit index route below.
+app = Flask(__name__, static_folder=None)
+app.secret_key = _load_or_create_flask_secret()
 app.config["UPLOAD_FOLDER"] = "uploads/"
 app.config["ALLOWED_EXTENSIONS"] = {"csv", "json", "txt"}
 app.config["DATA_FOLDER"] = "data"
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = str(os.environ.get("SESSION_COOKIE_SECURE", "")).lower() in {"1", "true", "yes"}
 app.permanent_session_lifetime = timedelta(days=30)
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 os.makedirs(app.config["DATA_FOLDER"], exist_ok=True)
@@ -107,6 +136,30 @@ def binary_classification_metrics(y_true, y_pred):
     }
 
 
+def _stratified_training_sample(X, y, max_samples=5000, seed=42):
+    """Return a deterministic class-preserving training subset."""
+    X = np.asarray(X)
+    y = np.asarray(y).reshape(-1)
+    max_samples = max(1, int(max_samples))
+    if len(X) <= max_samples:
+        return X, y
+    rng = np.random.default_rng(int(seed))
+    labels, counts = np.unique(y, return_counts=True)
+    selected = []
+    allocated = 0
+    for index, (label, count) in enumerate(zip(labels, counts)):
+        label_indices = np.where(y == label)[0]
+        if index == len(labels) - 1:
+            take = min(len(label_indices), max_samples - allocated)
+        else:
+            take = min(len(label_indices), max(1, int(round(max_samples * count / len(y)))))
+        if take > 0:
+            selected.extend(rng.choice(label_indices, size=take, replace=False).tolist())
+            allocated += take
+    selected = np.asarray(sorted(selected[:max_samples]), dtype=np.int64)
+    return X[selected], y[selected]
+
+
 # ─── IP中间件 ───
 @app.before_request
 def before_request():
@@ -135,6 +188,9 @@ DATASET_SOURCES_CACHE_SECONDS = 30
 _admin_submissions_cache = {"time": 0.0, "value": None}
 _admin_submissions_cache_lock = threading.Lock()
 ADMIN_SUBMISSIONS_CACHE_SECONDS = 15
+_dataset_prepare_lock = threading.RLock()
+_training_operation_lock = threading.Lock()
+_runtime_model_init_lock = threading.Lock()
 
 
 def _ensure_paillier():
@@ -222,7 +278,7 @@ logger.info("系统初始化完成")
 # ─── 工具函数 ───
 
 def api_response(code=200, msg="操作成功", data=None):
-    return {"code": code, "msg": msg, "data": data or {}}
+    return {"code": code, "msg": msg, "data": {} if data is None else data}
 
 
 DEFAULT_ADMIN_USERNAME = "root"
@@ -234,23 +290,31 @@ ADMIN_LAUNCHER_HASH_FILE = os.environ.get(
 
 
 def _is_local_request():
-    host = (request.host or "").split(":")[0]
-    remote = request.remote_addr or ""
-    return host in ("127.0.0.1", "localhost", "::1") or remote in ("127.0.0.1", "::1")
+    host = (request.host or "").lower().strip()
+    if host.startswith("["):
+        hostname = host.split("]", 1)[0].lstrip("[")
+    else:
+        hostname = host.split(":", 1)[0]
+    return hostname in ("127.0.0.1", "localhost", "::1")
 
 
 def _admin_credentials():
+    username = str(os.environ.get("ADMIN_USERNAME") or DEFAULT_ADMIN_USERNAME).strip()
+    password = str(os.environ.get("ADMIN_PASSWORD") or DEFAULT_ADMIN_PASSWORD)
     return (
-        os.environ.get("ADMIN_USERNAME", DEFAULT_ADMIN_USERNAME),
-        os.environ.get("ADMIN_PASSWORD", DEFAULT_ADMIN_PASSWORD),
+        username or DEFAULT_ADMIN_USERNAME,
+        password,
     )
 
 
 def _admin_auth_config_status():
     username, password = _admin_credentials()
-    configured = bool(os.environ.get("ADMIN_PASSWORD"))
-    disabled_reason = ""
+    configured = bool(str(os.environ.get("ADMIN_PASSWORD") or "").strip())
     weak_default = password == DEFAULT_ADMIN_PASSWORD
+    allow_default = str(os.environ.get("ALLOW_DEFAULT_ADMIN", "")).lower() in {"1", "true", "yes"}
+    disabled_reason = ""
+    if weak_default and not (allow_default or _is_local_request()):
+        disabled_reason = "公网管理端未配置 ADMIN_PASSWORD，默认账号仅允许在本机调试。"
     return {
         "username": username,
         "password": password,
@@ -275,12 +339,39 @@ def _admin_launcher_hash():
 
 
 def _admin_required_response():
-    return jsonify(api_response(code=401, msg="请先登录管理端", data={"login_required": True}))
+    return jsonify(api_response(code=401, msg="请先登录管理端", data={"login_required": True})), 401
+
+
+ADMIN_PROTECTED_LEGACY_PREFIXES = (
+    "/api/datasets/",
+    "/api/model/",
+    "/api/optimization/",
+    "/api/federated/",
+    "/api/training/",
+    "/api/train/",
+    "/api/data/",
+    "/api/experiment/",
+)
+ADMIN_PROTECTED_LEGACY_PATHS = {
+    "/api/train_fate",
+    "/api/train_plaintext",
+    "/api/dataset/add",
+    "/api/dataset/list",
+    "/api/dataset/unsw/process",
+    "/api/detection/history",
+    "/api/detection/compare",
+    "/api/export/report",
+}
 
 
 @app.before_request
 def admin_api_guard():
-    if request.path.startswith("/api/admin/") and request.path not in (
+    if request.method == "OPTIONS":
+        return None
+    protected = request.path.startswith("/api/admin/") or request.path in ADMIN_PROTECTED_LEGACY_PATHS or any(
+        request.path.startswith(prefix) for prefix in ADMIN_PROTECTED_LEGACY_PREFIXES
+    )
+    if protected and request.path not in (
         "/api/admin/login",
         "/api/admin/session",
         "/api/admin/logout",
@@ -365,7 +456,10 @@ def _find_dataset_source():
 
 
 def _processed_dataset_ready():
-    return os.path.exists(PROCESSED_X_PATH) and os.path.exists(PROCESSED_Y_PATH)
+    if not (os.path.exists(PROCESSED_X_PATH) and os.path.exists(PROCESSED_Y_PATH)):
+        return False
+    metadata = _load_processed_metadata()
+    return metadata.get("preprocessing_version") == FEATURE_NORMALIZATION_VERSION
 
 
 def _load_processed_metadata():
@@ -378,25 +472,139 @@ def _load_processed_metadata():
         return {}
 
 
-def _same_file_path(left, right):
-    if not left or not right:
-        return False
+def _load_prepared_arrays(limit=None):
+    """Read the prepared feature/label pair under the preparation lock."""
+    with _dataset_prepare_lock:
+        X = np.load(PROCESSED_X_PATH)
+        y = np.load(PROCESSED_Y_PATH)
+        if len(X) != len(y):
+            raise ValueError("prepared feature and label counts do not match")
+        if limit and len(X) > int(limit):
+            X = X[:int(limit)]
+            y = y[:int(limit)]
+        return X, y, _load_processed_metadata()
+
+
+def _dataset_source_revision(source, limit=50000):
+    """Return a stable revision for the data that would be prepared."""
+    source = source or {}
+    payload = {
+        "id": source.get("id") or _dataset_source_id(source),
+        "source_type": source.get("source_type"),
+        "samples": int(source.get("samples") or 0),
+        "features": int(source.get("features") or 0),
+        "preprocessing_version": FEATURE_NORMALIZATION_VERSION,
+        "limit": max(1, min(int(limit or 50000), 50000)),
+        "submission_ids": sorted(str(v) for v in (source.get("submission_ids") or []) if v),
+    }
+    path = source.get("path")
+    if path and os.path.exists(path):
+        try:
+            stat = os.stat(path)
+            payload.update({
+                "path": os.path.normcase(os.path.abspath(path)),
+                "size": int(stat.st_size),
+                "mtime_ns": int(getattr(stat, "st_mtime_ns", int(stat.st_mtime * 1000000000))),
+            })
+        except OSError:
+            payload["path"] = str(path)
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _dataset_preparation_id(source_id, revision):
+    raw = "%s:%s" % (source_id or "dataset", revision or "unknown")
+    return "prep-" + hashlib.sha256(raw.encode("utf-8")).hexdigest()[:12]
+
+
+def _federated_files_ready():
     try:
-        return os.path.normcase(os.path.abspath(left)) == os.path.normcase(os.path.abspath(right))
+        from src.preprocess.federated_splitter import NODE_NAMES, FEDERATED_DIR
+        return all(
+            os.path.exists(os.path.join(FEDERATED_DIR, name, filename))
+            for name in NODE_NAMES
+            for filename in ("X.npy", "y.npy")
+        )
     except Exception:
-        return str(left) == str(right)
+        return False
+
+
+def _prepared_node_counts():
+    return [
+        {"name": item.get("name"), "samples": int(item.get("samples") or 0), "ready": bool(item.get("ready"))}
+        for item in _federated_node_details()
+    ]
+
+
+def _preparation_matches(source, source_id=None, limit=50000):
+    if not source or not _processed_dataset_ready() or not _federated_files_ready():
+        return False
+    meta = _load_processed_metadata()
+    expected_id = source_id or source.get("id") or _dataset_source_id(source)
+    expected_revision = _dataset_source_revision(source, limit=limit)
+    return (
+        str(meta.get("dataset_source_id") or "") == str(expected_id or "")
+        and str(meta.get("dataset_revision") or "") == expected_revision
+        and str(meta.get("preprocessing_version") or "") == FEATURE_NORMALIZATION_VERSION
+        and int(meta.get("process_limit") or 50000) == max(1, min(int(limit or 50000), 50000))
+    )
+
+
+def _model_inventory():
+    """Describe the actual runtime and training model boundaries for the UI."""
+    from src.detection.ensemble_detector import ensemble_detector
+    from src.utils.model_manager import MODEL_DIR as BASELINE_MODEL_DIR
+
+    runtime_status = ensemble_detector.status()
+    runtime_files = runtime_status.get("components") or {}
+    baseline_files = {
+        "isolation_forest": os.path.exists(os.path.join(BASELINE_MODEL_DIR, "isolation_forest.pkl")),
+        "logistic_weights": os.path.exists(os.path.join(BASELINE_MODEL_DIR, "mlp_weights.npy")),
+        "q_learning": os.path.exists(os.path.join(BASELINE_MODEL_DIR, "q_table.npy")),
+    }
+    return {
+        "runtime_detector": {
+            "name": "IF + XGBoost/逻辑回归 + NumPy LSTM 融合检测模型",
+            "ready": bool(runtime_status.get("ready")),
+            "version": runtime_status.get("version"),
+            "preprocessing_version": runtime_status.get("preprocessing_version"),
+            "files": runtime_files,
+            "used_by": "用户端风险检测",
+        },
+        "platform_baseline": {
+            "name": "IF + 逻辑回归 + Q-learning 平台基线",
+            "ready": all(baseline_files.values()),
+            "files": baseline_files,
+            "used_by": "兼容检测、算法对比和自适应参数优化接口",
+        },
+        "local_training": {
+            "name": "集中式融合模型训练",
+            "relation": "直接使用当前训练源，不经过四节点；完成后更新运行时融合模型文件。",
+        },
+        "federated_training": {
+            "name": "四节点线性二分类模型 + FedAvg",
+            "relation": "使用当前准备版本的四节点数据；聚合权重保存在当前进程，不会自动替换用户端融合检测模型。",
+        },
+        "paillier": {
+            "ready": bool(_paillier_ready),
+            "relation": "当前展示参数加密与聚合开销；实际模型权重仍由 FedAvg 聚合。",
+        },
+    }
 
 
 def _source_prepared_for_federated(source):
     """Return whether the current processed federated data belongs to source."""
-    if not source or not _processed_dataset_ready():
+    if not source or not _processed_dataset_ready() or not _federated_files_ready():
         return False
     meta = _load_processed_metadata()
+    if meta.get("preprocessing_version") != FEATURE_NORMALIZATION_VERSION:
+        return False
     source_id = source.get("id") or _dataset_source_id(source)
     if source_id and meta.get("dataset_source_id") == source_id:
-        return True
-    if _same_file_path(source.get("path"), meta.get("source_path")):
-        return True
+        stored_revision = meta.get("dataset_revision")
+        if not stored_revision:
+            return False
+        return stored_revision == _dataset_source_revision(source, limit=meta.get("process_limit", 50000))
     return False
 
 
@@ -655,7 +863,7 @@ def _list_dataset_sources():
         if pool_source and pool_source.get("id") not in seen:
             seen.add(pool_source["id"])
             sources.append(pool_source)
-        for source in user_sources:
+        for source in user_sources[:20]:
             source_id = source.get("id")
             if source_id and source_id not in seen:
                 seen.add(source_id)
@@ -664,7 +872,7 @@ def _list_dataset_sources():
                     source["status"] = "ready"
                 sources.append(source)
     except Exception as exc:
-        logger.warning("List user submission dataset sources failed: %s", exc)
+        logger.warning("List user submission dataset sources failed: {}", exc)
 
     sources.sort(key=lambda x: (
         0 if x.get("prepared_for_federated") else
@@ -701,12 +909,21 @@ def _list_dataset_sources_cached(force=False):
 
 def _load_training_dataset_source(source_id=None, limit=50000):
     """Load a managed dataset source for admin local/federated training."""
-    from src.preprocess.feature_engineering import load_security_csv, minmax_normalize
+    from src.preprocess.feature_engineering import load_security_csv, normalize_security_features
 
     sources = _list_dataset_sources_cached()
     selected = None
     if source_id:
         selected = next((s for s in sources if s.get("id") == source_id), None)
+        if selected is None:
+            return np.empty((0, 0)), np.empty(0, dtype=np.int32), {
+                "source_count": 0,
+                "sources": [],
+                "training_source": "dataset_source",
+                "dataset_name": "请求的数据源不存在",
+                "dataset_source_id": source_id,
+                "source_not_found": True,
+            }
     if selected is None and sources:
         selected = sources[0]
     if selected is None:
@@ -717,6 +934,38 @@ def _load_training_dataset_source(source_id=None, limit=50000):
             "dataset_name": "未检测到训练数据源",
         }
 
+    selected_id = selected.get("id") or _dataset_source_id(selected)
+    if _source_prepared_for_federated(selected):
+        try:
+            X, y, processed_meta = _load_prepared_arrays(limit=limit)
+            labels = {str(k): int(v) for k, v in zip(*np.unique(y, return_counts=True))} if len(y) else {}
+            return X, y, {
+                "source_count": 1,
+                "sources": [{
+                    "id": "dataset:%s" % selected_id,
+                    "filename": selected.get("source"),
+                    "source_type": selected.get("source_type"),
+                    "samples": int(len(X)),
+                }],
+                "training_source": (
+                    selected.get("source_type")
+                    if selected.get("source_type") in {"user_submission_pool", "user_submission"}
+                    else "managed_dataset_source"
+                ),
+                "dataset_name": selected.get("name") or selected.get("source") or "managed_dataset_source",
+                "dataset_source_id": selected_id,
+                "source_type": selected.get("source_type"),
+                "label_distribution": labels,
+                "preparation_id": processed_meta.get("preparation_id"),
+                "dataset_revision": processed_meta.get("dataset_revision"),
+                "process_mode": processed_meta.get("process_mode", "full_rebuild"),
+                "uses_prepared_data": True,
+                "prepared_samples": int(processed_meta.get("samples") or len(X)),
+                "nodes": processed_meta.get("nodes") or _prepared_node_counts(),
+            }
+        except Exception as prepared_error:
+            logger.warning("Load prepared training arrays failed, falling back to source: {}", prepared_error)
+
     source_type = selected.get("source_type")
     if source_type in {"user_submission_pool", "user_submission"}:
         ids = None
@@ -724,8 +973,6 @@ def _load_training_dataset_source(source_id=None, limit=50000):
             submission_id = selected.get("submission_id") or str(selected.get("id") or "").replace("submission:", "")
             ids = [submission_id] if submission_id else []
         X, y, user_meta = user_submission_manager.load_trainable_features(ids=ids, limit=limit)
-        if len(X):
-            X = minmax_normalize(X)
         labels = {str(k): int(v) for k, v in zip(*np.unique(y, return_counts=True))} if len(y) else {}
         meta = dict(user_meta or {})
         meta.update({
@@ -736,6 +983,7 @@ def _load_training_dataset_source(source_id=None, limit=50000):
             "dataset_source_id": selected.get("id"),
             "source_type": source_type,
             "label_distribution": labels,
+            "preprocessing_version": FEATURE_NORMALIZATION_VERSION,
         })
         return X, y, meta
 
@@ -753,7 +1001,7 @@ def _load_training_dataset_source(source_id=None, limit=50000):
 
     X, y, _ = load_security_csv(selected_path, limit=limit)
     if len(X):
-        X = minmax_normalize(X)
+        X = normalize_security_features(X)
     labels = {str(k): int(v) for k, v in zip(*np.unique(y, return_counts=True))} if len(y) else {}
     meta = {
         "source_count": 1,
@@ -768,11 +1016,12 @@ def _load_training_dataset_source(source_id=None, limit=50000):
         "dataset_source_id": selected.get("id"),
         "source_type": selected.get("source_type"),
         "label_distribution": labels,
+        "preprocessing_version": FEATURE_NORMALIZATION_VERSION,
     }
     return X, y, meta
 
 
-def _federated_node_details():
+def _federated_node_details_unlocked():
     from src.preprocess.federated_splitter import NODE_NAMES, FEDERATED_DIR
 
     meta = _load_processed_metadata()
@@ -789,6 +1038,10 @@ def _federated_node_details():
             "feature_dim": meta.get("features", 0),
             "source": meta.get("source"),
             "source_type": meta.get("source_type"),
+            "dataset_source_id": meta.get("dataset_source_id"),
+            "dataset_revision": meta.get("dataset_revision"),
+            "preparation_id": meta.get("preparation_id"),
+            "processed_at": meta.get("processed_at"),
             "label_distribution": {},
             "normal_samples": 0,
             "attack_samples": 0,
@@ -814,6 +1067,12 @@ def _federated_node_details():
     return nodes
 
 
+def _federated_node_details():
+    """Read one coherent node-data revision while preparation may be running."""
+    with _dataset_prepare_lock:
+        return _federated_node_details_unlocked()
+
+
 def _paillier_aggregation_metrics(results, global_weights):
     """Lightweight display metrics for Paillier secure aggregation mode."""
     started = time.time()
@@ -833,8 +1092,10 @@ def _paillier_aggregation_metrics(results, global_weights):
     decryption_time_ms = round(max(1, parameter_count) * 0.12, 2)
     return {
         "paillier_enabled": key_ready,
-        "secure_aggregation": True,
-        "aggregation_method": "paillier",
+        "secure_aggregation": False,
+        "secure_aggregation_requested": True,
+        "display_only": True,
+        "aggregation_method": "fedavg_plain_with_paillier_demo",
         "key_status": "ready" if key_ready else "not_ready",
         "encrypted_parameter_count": parameter_count,
         "encryption_time_ms": encryption_time_ms,
@@ -954,22 +1215,36 @@ def ensure_real_detector_trained():
             det = get_real_detector()
             result = det.fit(X_train, y_train)
             _real_detector_trained = True
-            logger.info("真实检测器训练完成: accuracy=%.4f", result.get("accuracy", 0))
+            logger.info("真实检测器训练完成: accuracy={:.4f}", result.get("accuracy", 0))
             # 保存模型
             import joblib
             os.makedirs("data/models", exist_ok=True)
             det.save("data/models/detector_real")
         except Exception as e:
-            logger.warning("真实检测器训练失败: %s", e)
+            logger.warning("真实检测器训练失败: {}", e)
 
 
 # ─── CORS ───
 
 @app.after_request
 def add_cors_headers(response):
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    # The bundled UI is same-origin.  Cross-origin access is opt-in and exact;
+    # a wildcard would unnecessarily expose upload and training APIs.
+    configured = {
+        item.strip().rstrip("/")
+        for item in os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",")
+        if item.strip()
+    }
+    origin = (request.headers.get("Origin") or "").rstrip("/")
+    if origin and origin in configured:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+        response.headers.add("Vary", "Origin")
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["Referrer-Policy"] = "same-origin"
     return response
 
 
@@ -977,7 +1252,7 @@ def add_cors_headers(response):
 
 @app.route("/")
 def index():
-    return send_file("index.html")
+    return send_file(os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html"))
 
 
 # ─── API: 访客记录 ───
@@ -1017,7 +1292,7 @@ def security_events_recent():
             "limit": limit,
         }))
     except Exception as e:
-        logger.warning("Security events query failed: %s", e)
+        logger.warning("Security events query failed: {}", e)
         return jsonify(api_response(data={
             "events": [],
             "total": 0,
@@ -1412,9 +1687,8 @@ def detection_real():
     probs = model_manager.predict_proba(X)
 
     # Calculate individual scores for display
-    from sklearn.ensemble import IsolationForest
-    if_raw = model_manager.if_model.decision_function(X)
-    if_scores = 1.0 - (if_raw - if_raw.min()) / (if_raw.max() - if_raw.min() + 1e-10)
+    from src.detection.scoring import isolation_forest_risk_score
+    if_scores = isolation_forest_risk_score(model_manager.if_model, X)
     if_bin = (if_scores > 0.5).astype(int)
 
     if model_manager.mlp_coef is not None:
@@ -1626,24 +1900,32 @@ def admin_login():
     password = str(req.get("password", ""))
     auth_status = _admin_auth_config_status()
     if auth_status["disabled"]:
-        return jsonify(api_response(code=503, msg=auth_status["disabled_reason"], data={"auth_configured": False}))
+        return jsonify(api_response(code=503, msg=auth_status["disabled_reason"], data={"auth_configured": False})), 503
     expected_user, expected_password = auth_status["username"], auth_status["password"]
-    if username == expected_user and password == expected_password:
+    credentials_match = hmac.compare_digest(username, str(expected_user)) and hmac.compare_digest(
+        password,
+        str(expected_password),
+    )
+    if credentials_match:
+        session.clear()
         session.permanent = True
         session["admin_logged_in"] = True
         session["admin_username"] = username
         return jsonify(api_response(msg="登录成功", data={"username": username, "using_default": auth_status["using_default"]}))
-    return jsonify(api_response(code=401, msg="管理员账号或密码错误"))
+    return jsonify(api_response(code=401, msg="管理员账号或密码错误")), 401
 
 
 @app.route("/admin/launcher-login", methods=["POST"])
 def admin_launcher_login():
     """Create an admin session from a local launcher without storing a password."""
+    if not _is_local_request():
+        return "快捷登录仅允许从本机访问。", 403
     expected_hash = _admin_launcher_hash()
     supplied_token = str(request.form.get("token", ""))
     supplied_hash = hashlib.sha256(supplied_token.encode("utf-8")).hexdigest()
     if not expected_hash or not hmac.compare_digest(supplied_hash, expected_hash):
         return "快捷登录凭据无效或未配置。", 403
+    session.clear()
     session.permanent = True
     session["admin_logged_in"] = True
     session["admin_username"] = _admin_credentials()[0]
@@ -1690,7 +1972,7 @@ def user_dataset_upload():
         try:
             db.upsert_user_submission(info)
         except Exception as persist_error:
-            logger.warning("Persist user submission failed: %s", persist_error)
+            logger.warning("Persist user submission failed: {}", persist_error)
         _clear_submission_related_caches()
         return jsonify(api_response(msg="上传成功，文件已加密归档", data=info))
     except UploadValidationError as e:
@@ -1713,20 +1995,26 @@ def user_dataset_analyze(submission_id):
         from src.detection.ensemble_detector import ensemble_detector
         req = request.get_json(silent=True) or {}
         limit = max(1, min(int(req.get("limit") or 500), 5000))
+        if not _ensure_runtime_ensemble_ready():
+            return jsonify(api_response(code=503, msg="运行时检测模型尚未就绪，请稍后重试。")), 503
         analysis = user_submission_manager.analyze(submission_id, detector=ensemble_detector, limit=limit)
         if analysis is None:
             return jsonify(api_response(code=404, msg="提交记录不存在"))
         try:
-            analysis["current_model_versions"] = db.get_current_model_versions()
+            tracking_versions = db.get_current_model_versions()
+            analysis["training_tracking_versions"] = [
+                item for item in tracking_versions
+                if str(item.get("model_type") or "") != "runtime_ensemble"
+            ]
         except Exception as model_error:
-            logger.warning("Load current model versions failed: %s", model_error)
-            analysis["current_model_versions"] = []
+            logger.warning("Load current model versions failed: {}", model_error)
+            analysis["training_tracking_versions"] = []
         try:
             item = user_submission_manager.get_submission(submission_id, include_preview=False) or {}
             db.upsert_user_submission(item)
             db.save_analysis_report_record(analysis)
         except Exception as persist_error:
-            logger.warning("Persist analysis report failed: %s", persist_error)
+            logger.warning("Persist analysis report failed: {}", persist_error)
         _clear_submission_related_caches()
         return jsonify(api_response(msg="分析完成", data=analysis))
     except Exception as e:
@@ -1798,19 +2086,52 @@ def admin_dataset_sources():
     force = str(request.args.get("force", "")).lower() in {"1", "true", "yes"}
     sources = _list_dataset_sources_cached(force=force)
     processed_meta = _load_processed_metadata()
+    processed_source_id = str(processed_meta.get("dataset_source_id") or "")
+    current_source = next(
+        (item for item in sources if str(item.get("id") or "") == processed_source_id),
+        None,
+    )
+    ready_for_federated = bool(
+        current_source
+        and _source_prepared_for_federated(current_source)
+        and _federated_files_ready()
+    )
     return jsonify(api_response(msg="success", data={
         "sources": sources,
         "total": len(sources),
+        "current_source": current_source,
+        "current_source_id": processed_source_id or None,
         "processed": processed_meta,
-        "ready_for_federated": _processed_dataset_ready(),
+        "ready_for_federated": ready_for_federated,
+        "model_inventory": _model_inventory(),
+        "processing_policy": {
+            "mode": "full_rebuild_on_change",
+            "incremental": False,
+            "max_rows": 50000,
+            "unchanged_action": "reuse",
+            "note": "数据源未变化时直接复用当前准备结果；检测到变化时按当前源全量重建，超过 5 万条时处理前 5 万条。",
+        },
         "note": "数据源用于密码攻击检测、本地训练和四节点联邦切分；公开流量型数据集未配置时不会伪装为已加载。",
     }))
 
 
-def _prepare_dataset_source_for_federated(source, source_id=None, limit=50000):
+def _prepare_dataset_source_for_federated(source, source_id=None, limit=50000, force_rebuild=False):
+    # A second request waits for the first and then reuses its completed
+    # revision.  This prevents duplicate work and mixed X/y/node files.
+    with _dataset_prepare_lock:
+        return _prepare_dataset_source_for_federated_locked(
+            source,
+            source_id=source_id,
+            limit=limit,
+            force_rebuild=force_rebuild,
+        )
+
+
+def _prepare_dataset_source_for_federated_locked(source, source_id=None, limit=50000, force_rebuild=False):
     """Prepare a selected source for federated nodes without retraining detectors."""
+    started_at = time.perf_counter()
     try:
-        from src.preprocess.feature_engineering import inspect_csv, load_security_csv, minmax_normalize
+        from src.preprocess.feature_engineering import load_security_csv, normalize_security_features
         from src.preprocess.federated_splitter import save_federated_data
 
         try:
@@ -1818,6 +2139,22 @@ def _prepare_dataset_source_for_federated(source, source_id=None, limit=50000):
         except (TypeError, ValueError):
             limit = 50000
         limit = max(1, min(limit, 50000))
+
+        effective_source_id = source_id or source.get("id") or _dataset_source_id(source)
+        dataset_revision = _dataset_source_revision(source, limit=limit)
+        preparation_id = _dataset_preparation_id(effective_source_id, dataset_revision)
+        split_seed = int(dataset_revision[:8], 16)
+        if not force_rebuild and _preparation_matches(source, effective_source_id, limit=limit):
+            metadata = _load_processed_metadata()
+            request_time_ms = round((time.perf_counter() - started_at) * 1000, 3)
+            return jsonify(api_response(msg="数据源未变化，已复用现有四节点数据", data={
+                **metadata,
+                "reused": True,
+                "changed": False,
+                "nodes": metadata.get("nodes") or _prepared_node_counts(),
+                "original_processing_time_ms": metadata.get("processing_time_ms"),
+                "processing_time_ms": request_time_ms,
+            }))
 
         source_type = source.get("source_type")
         if source_type in {"user_submission_pool", "user_submission"}:
@@ -1829,15 +2166,17 @@ def _prepare_dataset_source_for_federated(source, source_id=None, limit=50000):
             if len(X) == 0:
                 return jsonify(api_response(code=400, msg="没有可用于训练的用户提交数据，请先在用户提交页归档并标记可训练。"))
 
-            X = minmax_normalize(X)
             os.makedirs(PROCESSED_DATA_DIR, exist_ok=True)
-            np.save(PROCESSED_X_PATH, X)
-            np.save(PROCESSED_Y_PATH, y)
-            nodes = save_federated_data(X, y)
+            atomic_save_npy(PROCESSED_X_PATH, X)
+            atomic_save_npy(PROCESSED_Y_PATH, y)
+            nodes = save_federated_data(X, y, seed=split_seed)
 
             label_counts = {str(k): int(v) for k, v in zip(*np.unique(y, return_counts=True))}
             metadata = {
-                "dataset_source_id": source_id or source.get("id") or "user_submission_pool",
+                "dataset_source_id": effective_source_id,
+                "dataset_revision": dataset_revision,
+                "preparation_id": preparation_id,
+                "preprocessing_version": FEATURE_NORMALIZATION_VERSION,
                 "source": source.get("name") or source.get("source") or "用户可训练数据池",
                 "source_type": source_type,
                 "source_path": source.get("id") or source_type,
@@ -1847,41 +2186,51 @@ def _prepare_dataset_source_for_federated(source, source_id=None, limit=50000):
                 "label_counts": label_counts,
                 "processed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "prepared_only": True,
+                "process_mode": "full_rebuild",
+                "process_scope": "all_rows" if int(source.get("samples") or len(X)) <= limit else "first_limit_rows",
+                "process_limit": limit,
+                "incremental": False,
+                "raw_samples": int(source.get("samples") or len(X)),
+                "split_strategy": "stratified_even",
+                "split_seed": split_seed,
                 "submission_ids": (user_meta or {}).get("submission_ids") or source.get("submission_ids") or [],
             }
-            with open(PROCESSED_META_PATH, "w", encoding="utf-8") as f:
-                json.dump(metadata, f, ensure_ascii=False, indent=2)
+            metadata["nodes"] = [{"name": n[0], "samples": int(n[1]), "ready": True} for n in nodes]
+            processing_seconds = max(time.perf_counter() - started_at, 0.000001)
+            metadata["processing_time_ms"] = round(processing_seconds * 1000, 3)
+            metadata["processing_rows_per_second"] = round(len(X) / processing_seconds, 2)
+            atomic_write_json(PROCESSED_META_PATH, metadata)
 
             _clear_dataset_sources_cache()
             return jsonify(api_response(msg="success", data={
                 **metadata,
-                "nodes": [{"name": n[0], "samples": int(n[1]), "ready": True} for n in nodes],
+                "reused": False,
+                "changed": True,
             }))
 
         filepath = source.get("path")
         if not filepath or not os.path.exists(filepath):
             return jsonify(api_response(code=400, msg="Dataset source file does not exist."))
 
-        logger.info("Preparing federated nodes from dataset source: %s", filepath)
+        logger.info("Preparing federated nodes from dataset source: {}", filepath)
         X, y, _ = load_security_csv(filepath, limit=limit)
         if len(X) == 0:
             return jsonify(api_response(code=400, msg="Dataset source is empty or features cannot be extracted."))
 
-        X = minmax_normalize(X)
+        X = normalize_security_features(X)
         os.makedirs(PROCESSED_DATA_DIR, exist_ok=True)
-        np.save(PROCESSED_X_PATH, X)
-        np.save(PROCESSED_Y_PATH, y)
-        nodes = save_federated_data(X, y)
+        atomic_save_npy(PROCESSED_X_PATH, X)
+        atomic_save_npy(PROCESSED_Y_PATH, y)
+        nodes = save_federated_data(X, y, seed=split_seed)
 
-        try:
-            info = inspect_csv(filepath)
-        except Exception as inspect_error:
-            logger.warning("Dataset inspect failed during node preparation: %s", inspect_error)
-            info = {}
+        info = source
 
         label_counts = {str(k): int(v) for k, v in zip(*np.unique(y, return_counts=True))}
         metadata = {
-            "dataset_source_id": source_id or source.get("id") or _dataset_source_id(source),
+            "dataset_source_id": effective_source_id,
+            "dataset_revision": dataset_revision,
+            "preparation_id": preparation_id,
+            "preprocessing_version": FEATURE_NORMALIZATION_VERSION,
             "source": source.get("source") or os.path.basename(filepath),
             "source_type": source.get("source_type") or "dataset",
             "source_path": filepath,
@@ -1891,14 +2240,25 @@ def _prepare_dataset_source_for_federated(source, source_id=None, limit=50000):
             "label_counts": label_counts,
             "processed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "prepared_only": True,
+            "process_mode": "full_rebuild",
+            "process_scope": "all_rows" if int(source.get("samples") or len(X)) <= limit else "first_limit_rows",
+            "process_limit": limit,
+            "incremental": False,
+            "raw_samples": int(source.get("samples") or info.get("samples") or len(X)),
+            "split_strategy": "stratified_even",
+            "split_seed": split_seed,
         }
-        with open(PROCESSED_META_PATH, "w", encoding="utf-8") as f:
-            json.dump(metadata, f, ensure_ascii=False, indent=2)
+        metadata["nodes"] = [{"name": n[0], "samples": int(n[1]), "ready": True} for n in nodes]
+        processing_seconds = max(time.perf_counter() - started_at, 0.000001)
+        metadata["processing_time_ms"] = round(processing_seconds * 1000, 3)
+        metadata["processing_rows_per_second"] = round(len(X) / processing_seconds, 2)
+        atomic_write_json(PROCESSED_META_PATH, metadata)
 
         _clear_dataset_sources_cache()
         return jsonify(api_response(msg="success", data={
             **metadata,
-            "nodes": [{"name": n[0], "samples": int(n[1]), "ready": True} for n in nodes],
+            "reused": False,
+            "changed": True,
         }))
     except Exception as e:
         logger.exception("Dataset node preparation failed")
@@ -1916,7 +2276,12 @@ def admin_dataset_prepare(source_id):
     if selected is None:
         return jsonify(api_response(code=404, msg="数据源不存在"))
     req = request.get_json(silent=True) or {}
-    return _prepare_dataset_source_for_federated(selected, source_id, limit=req.get("limit", 50000))
+    return _prepare_dataset_source_for_federated(
+        selected,
+        source_id,
+        limit=req.get("limit", 50000),
+        force_rebuild=bool(req.get("force_rebuild", False)),
+    )
 
 
 @app.route("/api/admin/datasets/<source_id>/split-federated", methods=["POST"])
@@ -1941,7 +2306,7 @@ def admin_submission_archive(submission_id):
     try:
         db.upsert_user_submission(item)
     except Exception as persist_error:
-        logger.warning("Persist archive status failed: %s", persist_error)
+        logger.warning("Persist archive status failed: {}", persist_error)
     _clear_submission_related_caches()
     return jsonify(api_response(msg="已归档", data=item))
 
@@ -1955,7 +2320,7 @@ def admin_submission_mark_trainable(submission_id):
         try:
             db.upsert_user_submission(item)
         except Exception as persist_error:
-            logger.warning("Persist trainable status failed: %s", persist_error)
+            logger.warning("Persist trainable status failed: {}", persist_error)
         _clear_submission_related_caches()
         return jsonify(api_response(msg="已标记为可训练", data=item))
     except SubmissionStatusError as e:
@@ -1979,7 +2344,7 @@ def admin_submission_reject(submission_id):
     try:
         db.upsert_user_submission(item)
     except Exception as persist_error:
-        logger.warning("Persist rejected status failed: %s", persist_error)
+        logger.warning("Persist rejected status failed: {}", persist_error)
     _clear_submission_related_caches()
     return jsonify(api_response(msg="已拒绝进入训练池", data=item))
 
@@ -2000,13 +2365,22 @@ def admin_submission_review_status(submission_id):
     try:
         db.upsert_user_submission(item)
     except Exception as persist_error:
-        logger.warning("Persist review status failed: %s", persist_error)
+        logger.warning("Persist review status failed: {}", persist_error)
     _clear_submission_related_caches()
     return jsonify(api_response(msg="审核状态已更新", data=item))
 
 
 @app.route("/api/admin/training/local", methods=["POST"])
 def admin_training_local():
+    if not _training_operation_lock.acquire(blocking=False):
+        return jsonify(api_response(code=409, msg="已有训练任务正在执行，请等待当前任务完成后再试。")), 409
+    try:
+        return _admin_training_local_locked()
+    finally:
+        _training_operation_lock.release()
+
+
+def _admin_training_local_locked():
     """Train the ensemble detector with admin-approved encrypted submissions."""
     try:
         from src.detection.ensemble_detector import ensemble_detector
@@ -2016,28 +2390,50 @@ def admin_training_local():
         limit = max(10, min(int(req.get("limit") or 10000), 50000))
         if dataset_source_id:
             X, y, meta = _load_training_dataset_source(dataset_source_id, limit=limit)
-            if len(X) < 10:
-                X, y, meta = user_submission_manager.load_trainable_features(ids=ids, limit=limit)
+            if meta.get("source_not_found"):
+                return jsonify(api_response(code=404, msg="请求的数据源不存在，请刷新数据源列表后重试。")), 404
         else:
             X, y, meta = user_submission_manager.load_trainable_features(ids=ids, limit=limit)
             if len(X) < 10:
                 X, y, meta = _load_training_dataset_source(dataset_source_id, limit=limit)
         if len(X) < 10:
-            return jsonify(api_response(code=400, msg="没有足够的可训练数据，请先标记用户提交为可训练，或在数据管理页确认系统内置训练数据源"))
+            return jsonify(api_response(code=400, msg="当前数据源没有足够的可训练数据，请确认标签与样本数量后重试。")), 400
+        if len(np.unique((y > 0).astype(int))) < 2:
+            return jsonify(api_response(code=400, msg="当前数据源只包含一个标签类别，运行时检测模型需要同时包含正常和攻击样本。")), 400
 
-        seq_count = max(0, min(len(X) - 10, 1000))
-        X_seq = np.array([X[i:i + 10] for i in range(seq_count)]) if seq_count else None
-        fit_x = X[:min(len(X), 5000)]
-        fit_y = y[:min(len(y), 5000)]
-        result = ensemble_detector.fit(fit_x, fit_y, X_seq[:500] if X_seq is not None else None)
+        seed = int(str(meta.get("dataset_revision") or "2a")[:8], 16) if meta.get("dataset_revision") else 42
+        # The request limit is the single source-of-truth for training scope.
+        # Do not apply a second hidden 5,000-row cap after loading the source.
+        fit_x, fit_y = _stratified_training_sample(X, y, max_samples=limit, seed=seed)
+        version = datetime.now().strftime("v%Y%m%d%H%M%S%f")[:-3]
+        result = ensemble_detector.fit(
+            fit_x,
+            fit_y,
+            version=version,
+            metadata={
+                "dataset_source_id": meta.get("dataset_source_id"),
+                "dataset_revision": meta.get("dataset_revision"),
+                "preparation_id": meta.get("preparation_id"),
+                "source_type": meta.get("source_type"),
+                "samples": int(len(fit_x)),
+                "source_samples": int(len(X)),
+            },
+        )
         train_preds, _, _ = ensemble_detector.predict(fit_x)
         metrics = binary_classification_metrics((fit_y > 0).astype(int), train_preds)
         record = {
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "task_type": "local",
             "source": meta.get("training_source", "encrypted_user_submissions"),
-            "model_type": "admin_local_ensemble",
+            "model_type": "runtime_ensemble",
             "dataset_name": meta.get("dataset_name", "encrypted_user_submissions"),
+            "dataset_source_id": meta.get("dataset_source_id"),
+            "dataset_revision": meta.get("dataset_revision"),
+            "preparation_id": meta.get("preparation_id"),
+            "preprocessing_version": FEATURE_NORMALIZATION_VERSION,
+            "source_type": meta.get("source_type"),
+            "uses_prepared_data": bool(meta.get("uses_prepared_data")),
+            "uses_prepared_nodes": False,
             "accuracy": metrics["accuracy"],
             "precision": metrics["precision"],
             "recall": metrics["recall"],
@@ -2046,17 +2442,18 @@ def admin_training_local():
             "metric_name": "accuracy",
             "metric_scope": "train",
             "metric_label": "训练集指标",
-            "metric_note": "当前本地训练接口使用管理员确认的数据完成拟合，并在同一批训练样本上计算指标；该数值用于观察训练流程，不等同于独立验证集效果。",
+            "metric_note": "当前本地训练接口使用请求上限范围内的数据完成拟合，并在同一批训练样本上计算指标；该数值用于观察训练流程，不等同于独立验证集效果。",
             "validation_available": False,
-            "samples": int(len(X)),
+            "samples": int(len(fit_x)),
+            "source_samples": int(len(X)),
             "source_count": int(meta.get("source_count", 0)),
             "label_distribution": meta.get("label_distribution", {}),
             "node_count": 1,
             "rounds": 0,
             "epochs": 1,
             "status": "completed",
-            "model_version": datetime.now().strftime("v%Y%m%d%H%M%S"),
-            "note": "Local training version. Metrics are calculated on the current training batch unless a separate validation set is configured.",
+            "model_version": version,
+            "note": "Local training updates the runtime ensemble detector directly from the current source; it does not train through the four federated nodes.",
         }
         source_ids = [s.get("id") for s in meta.get("sources", []) if s.get("id") and not str(s.get("id")).startswith("dataset:")]
         record["source_submission_ids"] = source_ids
@@ -2078,8 +2475,8 @@ def admin_training_local():
                 "metadata": record,
             })
         except Exception as persist_error:
-            logger.warning("Persist local training task failed: %s", persist_error)
-        return jsonify(api_response(msg="本地训练完成", data={**record, **meta, "fit_result": result, "updated_submissions": updated_submissions}))
+            logger.warning("Persist local training task failed: {}", persist_error)
+        return jsonify(api_response(msg="本地训练完成", data={**meta, **record, "fit_result": result, "updated_submissions": updated_submissions}))
     except Exception as e:
         logger.exception("Admin local training failed")
         return jsonify(api_response(code=500, msg="训练失败: %s" % e))
@@ -2087,36 +2484,83 @@ def admin_training_local():
 
 @app.route("/api/admin/training/federated", methods=["POST"])
 def admin_training_federated():
-    """Split approved encrypted submissions into four nodes and run one FedAvg round."""
+    if not _training_operation_lock.acquire(blocking=False):
+        return jsonify(api_response(code=409, msg="已有训练任务正在执行，请等待当前任务完成后再试。")), 409
     try:
-        from src.preprocess.federated_splitter import save_federated_data, NODE_NAMES, FEDERATED_DIR
+        return _admin_training_federated_locked()
+    finally:
+        _training_operation_lock.release()
+
+
+def _admin_training_federated_locked():
+    """Train one FedAvg round from the current persisted four-node revision."""
+    try:
+        from src.preprocess.federated_splitter import NODE_NAMES, FEDERATED_DIR
         from src.federated.client import FederatedClient
         from src.federated.aggregator import fedavg_server
 
         req = request.get_json(silent=True) or {}
-        ids = req.get("submission_ids") or None
         dataset_source_id = req.get("dataset_source_id")
-        limit = max(10, min(int(req.get("limit") or 10000), 50000))
+        requested_limit = max(10, min(int(req.get("limit") or 10000), 50000))
         epochs = max(1, min(int(req.get("epochs") or 3), 20))
         aggregation_method = str(req.get("aggregation_method") or "plain").lower()
         secure_aggregation = bool(req.get("secure_aggregation") or aggregation_method == "paillier")
-        if dataset_source_id:
-            X, y, meta = _load_training_dataset_source(dataset_source_id, limit=limit)
-            if len(X) < 20:
-                X, y, meta = user_submission_manager.load_trainable_features(ids=ids, limit=limit)
-        else:
-            X, y, meta = user_submission_manager.load_trainable_features(ids=ids, limit=limit)
-            if len(X) < 20:
-                X, y, meta = _load_training_dataset_source(dataset_source_id, limit=limit)
-        if len(X) < 20:
-            return jsonify(api_response(code=400, msg="没有足够的可训练数据，至少需要 20 条样本；请先标记用户提交为可训练，或在数据管理页确认系统内置训练数据源"))
 
-        saved = save_federated_data(X, y)
-        results = []
-        for name in NODE_NAMES:
-            client = FederatedClient(name, os.path.join(FEDERATED_DIR, name))
-            if client.load_data():
-                results.append(client.train_local(global_weights=fedavg_server.global_weights, epochs=epochs))
+        with _dataset_prepare_lock:
+            # Federated training always consumes the complete persisted
+            # preparation revision.  A request-level row limit must not make
+            # X/y disagree with the four node files.
+            X, y, meta = _load_training_dataset_source(dataset_source_id, limit=50000)
+            if meta.get("source_not_found"):
+                return jsonify(api_response(code=404, msg="请求的数据源不存在，请刷新数据源列表后重试。")), 404
+            if len(X) < 20:
+                return jsonify(api_response(
+                    code=400,
+                    msg="没有足够的已准备数据，至少需要 20 条样本；请先准备当前数据源并生成四节点数据。",
+                )), 400
+            if len(np.unique((y > 0).astype(int))) < 2:
+                return jsonify(api_response(code=400, msg="当前数据源只包含一个标签类别，联邦二分类训练需要同时包含正常和攻击样本。")), 400
+
+            current_preparation = _load_processed_metadata()
+            prepared_nodes = meta.get("nodes") or []
+            reuse_prepared_nodes = bool(
+                meta.get("uses_prepared_data")
+                and meta.get("preparation_id")
+                and int(meta.get("prepared_samples") or len(X)) == int(len(X))
+                and _federated_files_ready()
+                and current_preparation.get("preparation_id") == meta.get("preparation_id")
+                and current_preparation.get("dataset_revision") == meta.get("dataset_revision")
+                and current_preparation.get("preprocessing_version") == FEATURE_NORMALIZATION_VERSION
+            )
+            if not reuse_prepared_nodes:
+                return jsonify(api_response(
+                    code=409,
+                    msg="当前数据源与四节点准备版本不一致，请先执行数据处理后再启动联邦训练。",
+                )), 409
+
+            saved = [
+                (str(node.get("name")), int(node.get("samples") or 0))
+                for node in prepared_nodes
+                if node.get("name")
+            ]
+            if len(saved) != len(NODE_NAMES) or sum(count for _, count in saved) != len(X):
+                return jsonify(api_response(
+                    code=409,
+                    msg="四节点样本清单不完整，请重新执行数据处理后再启动联邦训练。",
+                )), 409
+
+            context_id = str(meta.get("preparation_id"))
+            context_reset = fedavg_server.ensure_context(context_id)
+            results = []
+            for name in NODE_NAMES:
+                client = FederatedClient(name, os.path.join(FEDERATED_DIR, name))
+                if client.load_data():
+                    results.append(client.train_local(global_weights=fedavg_server.global_weights, epochs=epochs))
+            if len(results) != len(NODE_NAMES):
+                return jsonify(api_response(
+                    code=500,
+                    msg="部分联邦节点未能加载当前准备版本，训练已中止。",
+                )), 500
         global_weights = fedavg_server.aggregate(results)
         paillier_metrics = (
             _paillier_aggregation_metrics(results, global_weights)
@@ -2129,9 +2573,11 @@ def admin_training_federated():
             }
         )
 
-        version = datetime.now().strftime("fed%Y%m%d%H%M%S")
+        latest_round = fedavg_server.get_history()[-1] if fedavg_server.get_history() else {}
+        version = datetime.now().strftime("fed%Y%m%d%H%M%S%f")[:-3]
         source_ids = [s.get("id") for s in meta.get("sources", []) if s.get("id") and not str(s.get("id")).startswith("dataset:")]
         data = {
+            **meta,
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "task_type": "federated",
             "source": meta.get("training_source", "encrypted_user_submissions"),
@@ -2139,6 +2585,11 @@ def admin_training_federated():
             "model_version": version,
             "source_submission_ids": source_ids,
             "samples": int(len(X)),
+            "requested_limit": requested_limit,
+            "preprocessing_version": FEATURE_NORMALIZATION_VERSION,
+            "uses_prepared_nodes": reuse_prepared_nodes,
+            "federated_context_id": context_id,
+            "federated_context_reset": context_reset,
             "nodes": [{"name": n, "samples": int(c), "ready": True} for n, c in saved],
             "round": fedavg_server.round,
             "clients": [{
@@ -2149,7 +2600,7 @@ def admin_training_federated():
                 "metric_scope": "node_validation",
                 "metric_label": "节点本地验证指标",
             } for r in results],
-            "avg_accuracy": round(float(np.mean([r.get("accuracy", 0) for r in results])), 4) if results else 0,
+            "avg_accuracy": float(latest_round.get("accuracy") or 0),
             "precision": None,
             "recall": None,
             "f1": None,
@@ -2158,17 +2609,16 @@ def admin_training_federated():
             "secure_aggregation": bool(paillier_metrics.get("secure_aggregation", False)),
             "paillier": paillier_metrics,
             "metric_name": "avg_accuracy",
-            "metric_scope": "node_validation_mean",
-            "metric_label": "四节点本地验证均值",
-            "metric_note": "每个节点在本地训练后使用节点内留出数据计算指标，页面展示的是四个节点验证指标的平均值；它不是独立外部测试集结果。",
+            "metric_scope": "node_validation_weighted",
+            "metric_label": "四节点样本加权验证指标",
+            "metric_note": "每个节点在本地训练后使用节点内留出数据计算指标，页面按节点样本数加权汇总；它不是独立外部测试集结果。",
             "validation_available": True,
             "source_count": int(meta.get("source_count", 0)),
             "label_distribution": meta.get("label_distribution", {}),
             "node_count": len(NODE_NAMES),
             "rounds": fedavg_server.round,
             "history": fedavg_server.get_history(),
-            "note": "Federated version. Current client outputs include node accuracy and loss; precision/recall/F1 are not available for this training path.",
-            **meta,
+            "note": "Federated training uses the prepared four-node data revision when available. Its FedAvg weights are tracked separately and do not automatically replace the runtime ensemble detector.",
         }
         data["updated_submissions"] = user_submission_manager.mark_used_for_training(
             source_ids,
@@ -2202,7 +2652,7 @@ def admin_training_federated():
                 "metadata": data,
             })
         except Exception as persist_error:
-            logger.warning("Persist federated training task failed: %s", persist_error)
+            logger.warning("Persist federated training task failed: {}", persist_error)
         return jsonify(api_response(msg="联邦训练完成", data=data))
     except Exception as e:
         logger.exception("Admin federated training failed")
@@ -2217,7 +2667,7 @@ def admin_training_tasks():
     try:
         legacy_tasks = [_normalize_legacy_training_record(r) for r in get_training_records(limit=200)]
     except Exception as legacy_error:
-        logger.warning("Load legacy training records failed: %s", legacy_error)
+        logger.warning("Load legacy training records failed: {}", legacy_error)
     tasks = _merge_training_tasks(sqlite_tasks, legacy_tasks, limit)
     return jsonify(api_response(msg="success", data={
         "tasks": tasks,
@@ -2354,28 +2804,26 @@ def _parse_meta(value):
         return {}
 
 
-def _runtime_version_numbers():
+def _runtime_ensemble_artifacts():
     try:
-        return {int(v.get("version")) for v in model_manager.get_version_list() if str(v.get("version", "")).isdigit()}
+        from src.detection.ensemble_detector import ensemble_detector
+        versions = ensemble_detector.list_versions()
+        return {str(item.get("version")) for item in versions if item.get("version")}, ensemble_detector.status(), versions
     except Exception:
-        return set()
+        return set(), {}, []
 
 
-def _enrich_model_version(item, runtime_numbers=None):
-    runtime_numbers = runtime_numbers if runtime_numbers is not None else _runtime_version_numbers()
+def _enrich_model_version(item, runtime_versions=None, runtime_status=None):
+    if runtime_versions is None or runtime_status is None:
+        runtime_versions, runtime_status, _ = _runtime_ensemble_artifacts()
     enriched = dict(item)
     meta = _parse_meta(enriched.get("metadata"))
     nested = _parse_meta(meta.get("metadata"))
     merged = {**meta, **nested}
     model_type = str(enriched.get("model_type") or merged.get("model_type") or "")
-    runtime_version = merged.get("runtime_version") or merged.get("model_manager_version")
-    runtime_int = None
-    if runtime_version is not None and str(runtime_version).isdigit():
-        runtime_int = int(runtime_version)
-    elif model_type == "runtime_detector" and str(enriched.get("version", "")).isdigit():
-        runtime_int = int(enriched.get("version"))
-
-    can_activate = runtime_int is not None and runtime_int in runtime_numbers
+    runtime_version = str(enriched.get("version") or merged.get("model_version") or "")
+    is_runtime_type = model_type in {"runtime_ensemble", "admin_local_ensemble", "runtime_detector"}
+    can_activate = bool(is_runtime_type and runtime_version in runtime_versions)
     if can_activate:
         version_role = "runtime_detector"
         artifact_status = "available"
@@ -2396,8 +2844,8 @@ def _enrich_model_version(item, runtime_numbers=None):
         "can_select": True,
         "select_action": "activate_runtime" if can_activate else "select_tracking",
         "activation_reason": activation_reason,
-        "runtime_version": runtime_int,
-        "current_runtime": bool(can_activate and runtime_int == getattr(model_manager, "_version_counter", None)),
+        "runtime_version": runtime_version if can_activate else None,
+        "current_runtime": bool(can_activate and runtime_version == str((runtime_status or {}).get("version") or "")),
         "current_display": bool(int(enriched.get("is_current", 0) or 0) == 1),
         "metadata": enriched.get("metadata", "{}"),
     })
@@ -2411,40 +2859,35 @@ def admin_model_versions():
     try:
         backfilled = db.backfill_model_versions_from_training_tasks()
     except Exception as backfill_error:
-        logger.warning("Backfill model versions failed: %s", backfill_error)
-    runtime_numbers = _runtime_version_numbers()
+        logger.warning("Backfill model versions failed: {}", backfill_error)
+    runtime_versions, runtime_status, runtime_artifacts = _runtime_ensemble_artifacts()
     sqlite_tasks = db.get_training_tasks(limit)
     legacy_tasks = []
     try:
         legacy_tasks = [_normalize_legacy_training_record(r) for r in get_training_records(limit=200)]
     except Exception as legacy_error:
-        logger.warning("Load model version legacy records failed: %s", legacy_error)
+        logger.warning("Load model version legacy records failed: {}", legacy_error)
     tasks = _merge_training_tasks(sqlite_tasks, legacy_tasks, limit)
-    versions = [_enrich_model_version(v, runtime_numbers) for v in db.get_model_versions(limit)]
+    versions = [_enrich_model_version(v, runtime_versions, runtime_status) for v in db.get_model_versions(limit)]
     versions = _merge_model_versions_with_tasks(versions, tasks, limit)
-    runtime_status = {}
-    runtime_versions = []
-    try:
-        runtime_status = model_manager.get_status()
-        runtime_versions = model_manager.get_version_list()
-    except Exception as status_error:
-        runtime_status = {"error": str(status_error)}
+    baseline_status = model_manager.get_status()
     return jsonify(api_response(msg="success", data={
         "versions": versions,
         "training_task_count": len(tasks),
-        "runtime_versions": runtime_versions,
+        "runtime_versions": runtime_artifacts,
         "runtime_model": {
-            "available": bool(runtime_status),
+            "available": bool(runtime_status.get("ready")),
             "is_ready": bool(runtime_status.get("is_ready") or runtime_status.get("ready")),
             "model_version": runtime_status.get("model_version") or runtime_status.get("version") or "",
             "model_count": runtime_status.get("model_count") or runtime_status.get("models") or "",
             "accuracy": runtime_status.get("accuracy") or runtime_status.get("last_accuracy"),
-            "source": "runtime_model_manager",
-            "note": "当前运行中的检测模型状态；若尚未产生训练版本记录，可先通过训练中心执行本地训练或联邦训练生成可追溯版本。",
+            "source": "runtime_ensemble",
+            "note": "当前用户风险检测实际使用的融合模型；本地训练会生成可切换的完整模型快照，联邦训练只生成追踪记录。",
             "raw_status": runtime_status,
             "current_runtime": True,
-            "artifact_status": "available" if runtime_status else "unknown",
+            "artifact_status": "available" if runtime_status.get("ready") else "unavailable",
         },
+        "platform_baseline": baseline_status,
         "backfilled": backfilled,
         "limit": limit,
     }))
@@ -2465,7 +2908,13 @@ def admin_activate_model_version(version_id):
         return jsonify(api_response(code=404, msg="模型版本不存在"))
     enriched = _enrich_model_version(item)
     if enriched.get("can_activate"):
-        ok = model_manager.rollback(int(enriched.get("runtime_version")))
+        if not _training_operation_lock.acquire(blocking=False):
+            return jsonify(api_response(code=409, msg="训练任务正在执行，暂时不能切换运行时模型。")), 409
+        try:
+            from src.detection.ensemble_detector import ensemble_detector
+            ok = ensemble_detector.activate_version(str(enriched.get("runtime_version")))
+        finally:
+            _training_operation_lock.release()
         if not ok:
             return jsonify(api_response(code=500, msg="运行时模型切换失败，请确认模型文件仍存在", data=enriched))
         item = db.set_current_model_version(version_id)
@@ -2515,7 +2964,7 @@ def admin_audit_events():
             "has_more": offset + len(events) < total,
         }))
     except Exception as e:
-        logger.warning("Admin audit query failed: %s", e)
+        logger.warning("Admin audit query failed: {}", e)
         return jsonify(api_response(data={"events": [], "total": 0, "warning": "audit log unavailable"}))
 
 
@@ -2725,7 +3174,7 @@ def dataset_add():
         )
 
         # 触发重训练
-        logger.info("新数据集已添加: %s (%d条)，建议重训练", file.filename, rows)
+        logger.info("新数据集已添加: {} ({}条)，建议重训练", file.filename, rows)
         return jsonify(api_response(data={
             "rows": rows,
             "message": "数据集已添加，请调用 /api/model/retrain 触发重训练",
@@ -2933,8 +3382,8 @@ def detection_compare():
 
     # IF检测
     if model_manager.is_ready and model_manager.if_model is not None:
-        if_raw = model_manager.if_model.decision_function(X)
-        if_s = 1.0 - (if_raw - if_raw.min()) / (if_raw.max() - if_raw.min() + 1e-10)
+        from src.detection.scoring import isolation_forest_risk_score
+        if_s = isolation_forest_risk_score(model_manager.if_model, X)
         if_preds = (if_s > 0.5).astype(int)
     else:
         if_preds = np.zeros(len(X))
@@ -3067,7 +3516,7 @@ def dataset_unsw_status():
     try:
         info = inspect_csv(source["path"])
     except Exception as e:
-        logger.warning("Dataset inspect failed: %s", e)
+        logger.warning("Dataset inspect failed: {}", e)
         info = {
             "samples": _csv_row_count(source["path"], max_rows=1000000),
             "features": 0,
@@ -3089,76 +3538,31 @@ def dataset_unsw_status():
 
 @app.route("/api/dataset/unsw/process", methods=["POST"])
 def dataset_unsw_process():
-    """Process the best available security dataset and split it into 4 nodes."""
-    try:
-        from src.preprocess.feature_engineering import inspect_csv, load_security_csv, minmax_normalize
-        from src.preprocess.federated_splitter import save_federated_data
-        from src.detection.ensemble_detector import ensemble_detector
+    """Compatibility alias for the canonical prepare-only workflow.
 
-        req = request.get_json(silent=True) or {}
-        limit = int(req.get("limit") or 50000)
+    Processing creates normalized arrays and four node partitions.  It no
+    longer trains a detector as a hidden side effect; training remains an
+    explicit management action.
+    """
+    req = request.get_json(silent=True) or {}
+    source_id = req.get("source_id")
+    source = None
+    if source_id:
+        source = next(
+            (item for item in _list_dataset_sources_cached(force=True) if item.get("id") == source_id),
+            None,
+        )
+    if source is None:
         source = _find_dataset_source()
-        source_id = req.get("source_id")
-        if source_id:
-            selected = next((s for s in _list_dataset_sources_cached(force=True) if s.get("id") == source_id), None)
-            if selected:
-                source = {
-                    "id": selected.get("id"),
-                    "path": selected.get("path"),
-                    "source": selected.get("source"),
-                    "source_type": selected.get("source_type"),
-                }
-        if source is None:
-            return jsonify(api_response(code=400, msg="No usable dataset file found. Download a public dataset or generate local CSV data first."))
-
-        filepath = source["path"]
-        logger.info("Loading dataset source: %s", filepath)
-        X, y, _ = load_security_csv(filepath, limit=limit)
-        if len(X) == 0:
-            return jsonify(api_response(code=400, msg="Dataset file is empty or features cannot be extracted."))
-        X = minmax_normalize(X)
-
-        os.makedirs(PROCESSED_DATA_DIR, exist_ok=True)
-        np.save(PROCESSED_X_PATH, X)
-        np.save(PROCESSED_Y_PATH, y)
-
-        nodes = save_federated_data(X, y)
-
-        seq_count = max(0, min(len(X) - 10, 2000))
-        X_seq = np.array([X[i:i + 10] for i in range(seq_count)]) if seq_count else None
-        fit_x = X[:min(len(X), 5000)]
-        fit_y = y[:min(len(y), 5000)]
-        fit_seq = X_seq[:min(len(X_seq), 500)] if X_seq is not None else None
-        result = ensemble_detector.fit(fit_x, fit_y, fit_seq)
-
-        try:
-            info = inspect_csv(filepath)
-        except Exception:
-            info = {}
-        label_counts = {str(k): int(v) for k, v in zip(*np.unique(y, return_counts=True))}
-        metadata = {
-            "dataset_source_id": source_id or source.get("id") or _dataset_source_id(source),
-            "source": source["source"],
-            "source_type": source["source_type"],
-            "source_path": filepath,
-            "samples": int(len(X)),
-            "features": int(X.shape[1]),
-            "label_column": info.get("label_column"),
-            "label_counts": label_counts,
-            "processed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        }
-        with open(PROCESSED_META_PATH, "w", encoding="utf-8") as f:
-            json.dump(metadata, f, ensure_ascii=False, indent=2)
-
-        _clear_dataset_sources_cache()
-        return jsonify(api_response(data={
-            **metadata,
-            "nodes": [{"name": n[0], "samples": int(n[1]), "ready": True} for n in nodes],
-            "ensemble_accuracy": result.get("accuracy", 0),
-        }))
-    except Exception as e:
-        logger.exception("Dataset processing failed")
-        return jsonify(api_response(code=500, msg="Processing failed: %s" % e))
+    if source is None:
+        return jsonify(api_response(code=400, msg="未找到可处理的数据源，请先生成或导入安全数据集。"))
+    effective_id = source_id or source.get("id") or _dataset_source_id(source)
+    return _prepare_dataset_source_for_federated(
+        source,
+        source_id=effective_id,
+        limit=req.get("limit", 50000),
+        force_rebuild=bool(req.get("force_rebuild", False)),
+    )
 
 
 @app.route("/api/federated/nodes", methods=["GET"])
@@ -3168,7 +3572,8 @@ def federated_nodes():
     return jsonify(api_response(data={
         "nodes": nodes,
         "total": len(nodes),
-        "explanation": "四节点数据由训练数据池按标签分层划分得到，用于模拟高隐私数据不能集中时的联邦训练流程；样本数来自实际切分结果，不代表真实机构数据规模。",
+        "preparation": _load_processed_metadata(),
+        "explanation": "四节点数据由当前训练源按标签分层均分得到。节点只保存数据；只有执行联邦训练时，各节点才训练本地线性模型并参与 FedAvg。",
     }))
 
 
@@ -3189,20 +3594,37 @@ def admin_federated_nodes_detail():
 @app.route("/api/federated/round", methods=["POST"])
 def federated_round():
     """执行一轮联邦训练"""
+    if not _training_operation_lock.acquire(blocking=False):
+        return jsonify(api_response(code=409, msg="已有训练任务正在执行，请稍后再试。")), 409
+    try:
+        return _federated_round_locked()
+    finally:
+        _training_operation_lock.release()
+
+
+def _federated_round_locked():
     req = request.get_json() or {}
-    epochs = req.get("epochs", 5)
+    epochs = max(1, min(int(req.get("epochs") or 5), 20))
     from src.preprocess.federated_splitter import NODE_NAMES, FEDERATED_DIR
     from src.federated.client import FederatedClient
     from src.federated.aggregator import fedavg_server
 
-    results = []
-    for name in NODE_NAMES:
-        client = FederatedClient(name, os.path.join(FEDERATED_DIR, name))
-        if client.load_data():
-            result = client.train_local(global_weights=fedavg_server.global_weights, epochs=epochs)
-            results.append(result)
+    with _dataset_prepare_lock:
+        preparation = _load_processed_metadata()
+        context_id = preparation.get("preparation_id")
+        if not context_id or not _federated_files_ready():
+            return jsonify(api_response(code=400, msg="请先准备当前数据源并生成四节点数据。"))
+        fedavg_server.ensure_context(context_id)
 
-    global_weights = fedavg_server.aggregate(results)
+        results = []
+        for name in NODE_NAMES:
+            client = FederatedClient(name, os.path.join(FEDERATED_DIR, name))
+            if client.load_data():
+                result = client.train_local(global_weights=fedavg_server.global_weights, epochs=epochs)
+                results.append(result)
+
+    fedavg_server.aggregate(results)
+    latest = fedavg_server.get_history()[-1] if fedavg_server.get_history() else {}
 
     return jsonify(api_response(data={
         "round": fedavg_server.round,
@@ -3212,8 +3634,9 @@ def federated_round():
             "loss": r.get("loss", 0),
             "samples": r["samples"],
         } for r in results],
-        "avg_accuracy": round(np.mean([r["accuracy"] for r in results]), 4) if results else 0,
-        "avg_loss": round(np.mean([r.get("loss", 0) for r in results]), 4) if results else 0,
+        "avg_accuracy": float(latest.get("accuracy") or 0),
+        "avg_loss": float(latest.get("loss") or 0),
+        "federated_context_id": context_id,
         "history": fedavg_server.get_history(),
     }))
 
@@ -3231,8 +3654,8 @@ def federated_history():
 def ensemble_detect():
     """三模型融合检测"""
     from src.detection.ensemble_detector import ensemble_detector
-    if not ensemble_detector.is_ready():
-        ensemble_detector.load_or_init()
+    if not _ensure_runtime_ensemble_ready():
+        return jsonify(api_response(code=503, msg="运行时检测模型尚未就绪，请稍后重试。")), 503
 
     req = request.get_json() or {}
     records = req.get("data", [])
@@ -3240,11 +3663,11 @@ def ensemble_detect():
         return jsonify(api_response(code=400, msg="请提供检测数据"))
 
     import numpy as np
-    from src.preprocess.feature_engineering import extract_features_structured
+    from src.preprocess.feature_engineering import extract_features_structured, normalize_security_features
     X_list = []
     for rec in records:
         X_list.append(extract_features_structured(rec))
-    X = np.array(X_list, dtype=np.float64)
+    X = normalize_security_features(np.array(X_list, dtype=np.float64))
 
     preds, scores, risk_levels = ensemble_detector.predict(X)
     risk_names = {0: "低", 1: "中", 2: "高", 3: "危险"}
@@ -3259,11 +3682,12 @@ def ensemble_detect():
             "attack_type": ensemble_detector.ATTACK_TYPES[int(preds[i] * 6) % 7] if preds[i] else "正常",
         })
 
+    model_status = ensemble_detector.status()
     return jsonify(api_response(data={
         "total": len(results),
         "anomalies": int(np.sum(preds)),
         "detections": results,
-        "model": "IF+XGBoost+LSTM融合(0.3/0.3/0.4)",
+        "model": model_status,
     }))
 
 @app.route("/api/ensemble/detect_from_dataset", methods=["POST"])
@@ -3280,8 +3704,10 @@ def ensemble_detect_from_dataset():
     offset = max(0, int(req.get("offset") or 0))
     seed = req.get("seed")
 
-    X = np.load(PROCESSED_X_PATH)
-    y = np.load(PROCESSED_Y_PATH)
+    try:
+        X, y, metadata = _load_prepared_arrays()
+    except (OSError, ValueError) as error:
+        return jsonify(api_response(code=409, msg="已处理数据正在更新或不完整：%s" % error)), 409
     if len(X) == 0:
         return jsonify(api_response(code=400, msg="已处理数据集为空"))
 
@@ -3298,10 +3724,14 @@ def ensemble_detect_from_dataset():
     sample_x = X[indices]
     sample_y = y[indices]
 
-    if not ensemble_detector.is_ready():
-        ensemble_detector.load_or_init()
+    if not _ensure_runtime_ensemble_ready():
+        return jsonify(api_response(code=503, msg="运行时检测模型尚未就绪，请稍后重试。")), 503
 
+    detection_started = time.perf_counter()
     preds, scores, risk_levels = ensemble_detector.predict(sample_x)
+    total_detection_ms = (time.perf_counter() - detection_started) * 1000.0
+    per_sample_detection_ms = round(total_detection_ms / max(1, len(sample_x)), 4)
+    model_status = ensemble_detector.status()
     risk_names = {0: "low", 1: "medium", 2: "high", 3: "critical"}
     action_suggestions = {
         "low": "观察",
@@ -3309,8 +3739,6 @@ def ensemble_detect_from_dataset():
         "high": "强制改密并开启二次验证",
         "critical": "临时冻结账号并人工复核",
     }
-    metadata = _load_processed_metadata()
-
     results = []
     for i in range(len(sample_x)):
         pred = int(preds[i])
@@ -3339,7 +3767,7 @@ def ensemble_detect_from_dataset():
             "attack_type": attack_type,
             "confidence": round(min(0.99, 0.5 + abs(score - 0.5)), 4),
             "action_suggestion": action_suggestions.get(level, "观察"),
-            "detection_time_ms": 0,
+            "detection_time_ms": per_sample_detection_ms,
             "trigger_features": trigger_features,
             "score_breakdown": {
                 "failed_attempts_score": 0,
@@ -3352,7 +3780,7 @@ def ensemble_detect_from_dataset():
             "reason": reason,
             "suggestion": action_suggestions.get(level, "观察"),
             "source_dataset": metadata.get("source_type") or metadata.get("source") or "processed_dataset",
-            "model_version": "runtime",
+            "model_version": model_status.get("version") or "unavailable",
         })
 
     return jsonify(api_response(data={
@@ -3362,7 +3790,12 @@ def ensemble_detect_from_dataset():
         "risk_ranking": sorted(results, key=lambda x: float(x.get("risk_score", 0)), reverse=True)[:100],
         "source": metadata.get("source", "processed dataset"),
         "source_type": metadata.get("source_type", "processed"),
-        "model_version": "runtime",
+        "model_version": model_status.get("version") or "unavailable",
+        "runtime_model": model_status,
+        "preparation_id": metadata.get("preparation_id"),
+        "dataset_revision": metadata.get("dataset_revision"),
+        "preprocessing_version": metadata.get("preprocessing_version"),
+        "detection_time_ms": round(total_detection_ms, 3),
         "offset": offset,
         "limit": limit,
         "sample_mode": "offset" if has_offset else "random",
@@ -3373,7 +3806,7 @@ def ensemble_detect_from_dataset():
 def ensemble_status():
     """融合检测器状态"""
     from src.detection.ensemble_detector import ensemble_detector
-    return jsonify(api_response(data={"ready": ensemble_detector.is_ready()}))
+    return jsonify(api_response(data=ensemble_detector.status()))
 
 
 # ─── API: 实验管理 ───
@@ -3387,56 +3820,63 @@ def experiment_list():
 
 # ─── 启动 ───
 
-def _pretrain_on_startup():
-    """启动时预训练模型（后台线程）"""
-    logger.info("=== 启动预训练 ===")
+def _ensure_runtime_ensemble_ready():
+    """Load or deterministically bootstrap the real user-facing detector.
 
-    # 1. 生成训练数据 + 自动训练模型
+    This is safe for both ``python app.py`` and WSGI imports. Only the first
+    caller performs initialization; later requests reuse the persisted model.
+    """
+    from src.detection.ensemble_detector import ensemble_detector
+    from src.preprocess.feature_engineering import normalize_security_features
+
+    if ensemble_detector.is_ready():
+        return True
+    with _runtime_model_init_lock:
+        if ensemble_detector.is_ready() or ensemble_detector.load_or_init():
+            return True
+        try:
+            X_train, y_train, _, _ = ensure_data_generated()
+            fit_x, fit_y = _stratified_training_sample(X_train, y_train, max_samples=3000, seed=42)
+            fit_x = normalize_security_features(fit_x)
+            ensemble_detector.fit(
+                fit_x,
+                fit_y,
+                version="bootstrap-%s" % FEATURE_NORMALIZATION_VERSION,
+                metadata={"source": "built_in_generated", "samples": int(len(fit_x))},
+                snapshot=False,
+            )
+            return ensemble_detector.is_ready()
+        except Exception as error:
+            logger.exception("Runtime ensemble initialization failed: {}", error)
+            return False
+
+
+def _pretrain_on_startup():
+    """Load runtime artifacts and bootstrap only the user detector if needed."""
+    logger.info("=== 启动模型初始化 ===")
+
+    # 1. 确保基准数据存在，并加载已有兼容模型。
     try:
         X_train, y_train, X_test, y_test = ensure_data_generated()
-        logger.info("训练数据就绪: 训练集%d条, 测试集%d条", len(X_train), len(X_test))
-        model_manager.auto_load_or_train(X_train, y_train)
+        logger.info("训练数据就绪: 训练集{}条, 测试集{}条", len(X_train), len(X_test))
+        # The IF/logistic/Q-learning manager is a compatibility baseline, not
+        # the user-facing detector.  Load existing files but do not launch a
+        # second expensive training job during every fresh startup.
+        model_manager.auto_load_or_train(X_train, y_train, train_if_missing=False)
     except Exception as e:
-        logger.warning("模型初始化失败: %s", e)
+        logger.warning("模型初始化失败: {}", e)
 
-    # 2. 尝试处理UNSW-NB15数据集并训练三模型融合检测器
-    try:
-        path = "data/datasets/UNSW-NB15"
-        csv_files = [f for f in os.listdir(path) if f.endswith('.csv')] if os.path.exists(path) else []
-        if csv_files:
-            logger.info("检测到UNSW-NB15数据集，开始处理...")
-            from src.preprocess.feature_engineering import load_unsw_nb15, minmax_normalize
-            from src.preprocess.federated_splitter import save_federated_data
-            from src.detection.ensemble_detector import ensemble_detector
+    # 2. Load the dedicated runtime ensemble.  A clean installation gets one
+    # deterministic bootstrap model from the built-in dataset; preparing node
+    # data remains an explicit admin action and has no hidden training effect.
+    if _ensure_runtime_ensemble_ready():
+        from src.detection.ensemble_detector import ensemble_detector
+        logger.info("运行时融合模型已就绪: version={}", ensemble_detector.status().get("version"))
+    else:
+        logger.warning("运行时融合模型初始化失败，检测接口会返回 503 而不会伪造模型分数。")
 
-            filepath = os.path.join(path, csv_files[0])
-            X, y = load_unsw_nb15(filepath)
-            X = minmax_normalize(X)
-            np.save(os.path.join(path, "X_processed.npy"), X)
-            np.save(os.path.join(path, "y_processed.npy"), y)
-            nodes = save_federated_data(X, y)
-
-            X_seq = np.array([X[i:i+10] for i in range(min(len(X)-10, 2000))])
-            result = ensemble_detector.fit(X[:min(len(X), 5000)], y[:min(len(y), 5000)], X_seq[:min(len(X_seq), 500)])
-            logger.info("三模型融合训练完成: accuracy=%.4f", result.get("accuracy", 0))
-        else:
-            logger.info("UNSW-NB15数据集不存在，跳过 (可下载: kaggle datasets download -d mrwellsdavid/unsw-nb15)")
-            from src.detection.ensemble_detector import ensemble_detector
-            ensemble_detector.load_or_init()
-    except Exception as e:
-        logger.warning("UNSW数据处理失败: %s", e)
-
-    # 3. 训练优化智能体
-    try:
-        if model_manager.is_ready and model_manager.q_agent and model_manager.q_agent.is_trained:
-            logger.info("复用ModelManager的Q-learning智能体")
-        else:
-            get_optimizer().train(episodes=500)
-            logger.info("优化智能体预训练完成")
-    except Exception as e:
-        logger.warning("优化智能体预训练失败: %s", e)
-
-    # 3. 启动数据采集器（每10秒）
+    # 3. 启动数据采集器（每10秒）. The optimizer itself trains lazily when
+    # explicitly requested; its rule fallback is immediately available.
     try:
         def _status_callback():
             opt_st = get_optimizer().get_status()
@@ -3452,18 +3892,18 @@ def _pretrain_on_startup():
         db.start_collector(_status_callback, interval=10.0)
         logger.info("数据采集器已启动(10秒间隔)")
     except Exception as e:
-        logger.warning("数据采集器启动失败: %s", e)
+        logger.warning("数据采集器启动失败: {}", e)
 
-    logger.info("=== 预训练完成 ===")
+    logger.info("=== 模型初始化完成 ===")
 
 
 if __name__ == "__main__":
     host = os.environ.get("HOST", "0.0.0.0")
 
-    # 启动后台预训练线程
+    # 后台加载模型；仅在运行时检测模型缺失时执行一次 bootstrap。
     t = threading.Thread(target=_pretrain_on_startup, daemon=True)
     t.start()
-    logger.info("后台预训练已启动")
+    logger.info("后台模型初始化线程已启动")
 
     logger.info("系统功能: 看板 | 数据加密 | 联邦训练 | 加密对比 | 攻击检测 | 自适应优化 | IP访客 | 数据集管理")
     if os.environ.get("PORT"):

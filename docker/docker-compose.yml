@@ -1,132 +1,19 @@
-version: '3.8'
-
 services:
-  # ============ PrimiHub 节点 ============
-  primihub_node0:
-    image: primihub/primihub-node:latest
-    container_name: primihub_node0
-    ports:
-      - "50050:50050"
-    environment:
-      - NODE_ID=node0
-      - NODE_ADDRESS=0.0.0.0:50050
-      - PEER_NODES=primihub_node1:50051
-      - WORK_MODE=fl
-      - DATA_PATH=/app/data
-    volumes:
-      - primihub_data0:/app/data
-      - ./data:/app/shared_data
-    networks:
-      - crypto_network
-    healthcheck:
-      test: ["CMD", "grpc_health_probe", "-addr=:50050"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    restart: unless-stopped
-
-  primihub_node1:
-    image: primihub/primihub-node:latest
-    container_name: primihub_node1
-    ports:
-      - "50051:50051"
-    environment:
-      - NODE_ID=node1
-      - NODE_ADDRESS=0.0.0.0:50051
-      - PEER_NODES=primihub_node0:50050
-      - WORK_MODE=fl
-      - DATA_PATH=/app/data
-    volumes:
-      - primihub_data1:/app/data
-      - ./data:/app/shared_data
-    networks:
-      - crypto_network
-    depends_on:
-      - primihub_node0
-    healthcheck:
-      test: ["CMD", "grpc_health_probe", "-addr=:50051"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    restart: unless-stopped
-
-  # ============ 核心服务 ============
-  crypto-detection:
+  app:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    container_name: crypto_detection_service
     ports:
       - "5000:5000"
+      - "5001:5001"
     environment:
-      - FLASK_ENV=production
-      - PRIMIHUB_NODE0=primihub_node0:50050
-      - PRIMIHUB_NODE1=primihub_node1:50051
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - MYSQL_HOST=mysql
-      - MYSQL_PORT=3306
-      - MYSQL_DATABASE=crypto_detection
-      - MYSQL_USER=admin
-      - MYSQL_PASSWORD=password
-      - LOG_LEVEL=INFO
+      HOST: "0.0.0.0"
+      FLASK_SECRET_KEY: "${FLASK_SECRET_KEY:?Set FLASK_SECRET_KEY}"
+      ADMIN_USERNAME: "${ADMIN_USERNAME:-admin}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:?Set ADMIN_PASSWORD}"
+      SESSION_COOKIE_SECURE: "${SESSION_COOKIE_SECURE:-false}"
+      CORS_ALLOWED_ORIGINS: "${CORS_ALLOWED_ORIGINS:-}"
     volumes:
-      - ./data:/app/data
-      - ./logs:/app/logs
-    networks:
-      - crypto_network
-    depends_on:
-      - primihub_node0
-      - primihub_node1
-      - mysql
-      - redis
+      - ../data:/app/data
+      - ../logs:/app/logs
     restart: unless-stopped
-
-  # ============ 基础设施 ============
-  redis:
-    image: redis:7.0
-    container_name: crypto_redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    networks:
-      - crypto_network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    restart: unless-stopped
-
-  mysql:
-    image: mysql:8.0
-    container_name: crypto_mysql
-    ports:
-      - "3306:3306"
-    environment:
-      MYSQL_ROOT_PASSWORD: root_password
-      MYSQL_DATABASE: crypto_detection
-      MYSQL_USER: admin
-      MYSQL_PASSWORD: password
-    volumes:
-      - mysql_data:/var/lib/mysql
-      - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql
-    networks:
-      - crypto_network
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    restart: unless-stopped
-
-volumes:
-  redis_data:
-  mysql_data:
-  primihub_data0:
-  primihub_data1:
-
-networks:
-  crypto_network:
-    driver: bridge

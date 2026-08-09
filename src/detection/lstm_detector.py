@@ -101,7 +101,7 @@ class NumPyLSTM:
             lr: 学习率
         """
         n, seq_len, d = X_seq.shape
-        logger.info("训练NumPy LSTM: %d样本, %d步, %d维, %d轮", n, seq_len, d, epochs)
+        logger.info("训练NumPy LSTM: {}样本, {}步, {}维, {}轮", n, seq_len, d, epochs)
         losses = []
 
         for epoch in range(epochs):
@@ -144,10 +144,10 @@ class NumPyLSTM:
 
             losses.append(float(epoch_loss / max(1, n // batch_size)))
             if (epoch + 1) % 5 == 0:
-                logger.info("  LSTM Epoch %d/%d: loss=%.4f", epoch+1, epochs, losses[-1])
+                logger.info("  LSTM Epoch {}/{}: loss={:.4f}", epoch+1, epochs, losses[-1])
 
         self._is_fitted = True
-        logger.info("NumPy LSTM训练完成: final_loss=%.4f", losses[-1] if losses else 0)
+        logger.info("NumPy LSTM训练完成: final_loss={:.4f}", losses[-1] if losses else 0)
         return {"loss": losses, "epochs": epochs}
 
     def save(self, path: str):
@@ -158,7 +158,7 @@ class NumPyLSTM:
             W_xo=self.W_xo, W_ho=self.W_ho, b_o=self.b_o,
             W_hq=self.W_hq, b_q=self.b_q,
             fitted=self._is_fitted)
-        logger.info("NumPy LSTM已保存: %s", path)
+        logger.info("NumPy LSTM已保存: {}", path)
 
     def load(self, path: str) -> bool:
         try:
@@ -169,10 +169,10 @@ class NumPyLSTM:
             self.W_xo = d['W_xo']; self.W_ho = d['W_ho']; self.b_o = d['b_o']
             self.W_hq = d['W_hq']; self.b_q = d['b_q']
             self._is_fitted = True if 'fitted' in d else bool(d.get('fitted', True))
-            logger.info("NumPy LSTM已加载: %s", path)
+            logger.info("NumPy LSTM已加载: {}", path)
             return True
         except Exception as e:
-            logger.warning("LSTM加载失败: %s", e)
+            logger.warning("LSTM加载失败: {}", e)
             return False
 
     def is_fitted(self):

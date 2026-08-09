@@ -35,7 +35,7 @@ class RateLimitLogger:
                 with open(self.log_path, "a", encoding="utf-8") as f:
                     f.write(line + "\n")
         except Exception as e:
-            logger.warning("Failed to write rate_limit log: %s", e)
+            logger.warning("Failed to write rate_limit log: {}", e)
 
 
 class RateLimiter:

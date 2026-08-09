@@ -1,228 +1,177 @@
 # 密码攻击检测与隐私训练平台
 
-本项目是一个基于 Flask + SQLite 的双端口安全分析平台，面向账号登录安全和高隐私数据训练场景，提供用户端密码攻击风险检测、原因解释、分析报告，以及管理端用户提交审核、数据处理、模型版本追踪和系统审计能力。
+这是一个 Flask 原型平台，包含用户数据上传与风险分析、训练数据源准备、本地融合模型训练、四节点 FedAvg 联邦训练、加密归档和安全审计页面。
 
-核心技术主线：
+当前唯一正式 Web 入口是 `app.py`。根目录中的 `final_server.py`、`integrated_server.py`、`simple_server.py` 等文件是历史原型，不应作为启动或部署入口；仓库中的启动脚本均已统一到 `app.py`。
 
-- AES 加密归档：保护用户上传文件的存储安全。
-- Paillier 密态保护：展示敏感数值字段的密态能力，并作为安全聚合方向。
-- FedAvg 四节点联邦训练：用于展示数据分散场景下的训练与聚合流程。
-- 统一风险检测：融合规则评分、行为特征评分和轻量模型评分。
-- 模型版本追踪：记录训练来源、指标、运行状态和可启用状态。
-- 系统审计：记录平台访问、安全事件、TraceId 和访问环境信息。
-
-## 端口与角色
-
-| 端口 | 角色 | 页面 |
-| --- | --- | --- |
-| `5000` | 用户端 | 上传数据、风险检测、分析报告 |
-| `5001` | 管理端 | 用户提交、数据处理、模型版本、系统审计 |
-
-用户端负责数据接入、风险检测和报告生成。管理端负责用户提交审核、训练数据处理、模型版本管理和平台审计。训练能力服务于检测模型更新，不作为独立产品主线。
-
-## 当前能力
-
-### 用户端
-
-- 上传 CSV / JSON 登录安全数据。
-- 生成登录安全样本和隐私加密样本。
-- 自动识别样本数、字段数、缺失率和安全字段。
-- 对用户名、手机号、邮箱、密码、token、收入、证件号等敏感字段进行脱敏或派生处理。
-- 执行密码攻击风险检测，输出风险等级、风险分数、攻击类型、触发因素和处置建议。
-- 按风险分数展示风险排名，不单独设置风险详情页面。
-- 生成可下载 Markdown 分析报告。
-
-### 管理端
-
-- 查看用户提交、加密归档状态、审核状态和训练状态。
-- 查看当前训练数据源、公开数据集状态和四节点准备状态。
-- 执行本地训练与四节点联邦训练。
-- 查看当前检测模型、训练任务记录和模型版本列表。
-- 查看系统审计、安全事件和最近访问记录。
-
-### 数据集
-
-系统支持三类数据来源：
-
-1. 内置密码攻击训练集：`data/generated/train.csv` 和 `data/generated/test.csv`。
-2. 用户上传数据：用户端上传后进入加密归档和风险检测流程。
-3. 公开安全数据集：通过轻量导入脚本接入 UNSW-NB15、CIC-IDS2017、CSE-CIC-IDS2018、CIC-DDoS2019。
-
-公开数据集不会提交到 Git。原始数据建议放在 `data/datasets/raw/`，处理后的训练样本放在 `data/datasets/processed/`。
-
-## 统一风险结果
-
-风险检测结果统一使用以下核心字段：
-
-```json
-{
-  "is_risk": true,
-  "risk_score": 0.82,
-  "risk_level": "high",
-  "attack_type": "疑似暴力破解",
-  "confidence": 0.91,
-  "action_suggestion": "强制改密并开启二次验证",
-  "detection_time_ms": 12.3,
-  "trigger_features": ["failed_attempts", "request_frequency"],
-  "score_breakdown": {
-    "failed_attempts_score": 0.25,
-    "request_frequency_score": 0.20,
-    "unusual_time_score": 0.10,
-    "response_time_score": 0.05,
-    "device_ip_score": 0.12,
-    "model_score": 0.10
-  },
-  "reason": "登录失败次数和请求频率偏高。",
-  "suggestion": "建议提醒用户改密并开启二次验证。",
-  "source_dataset": "user_submission",
-  "model_version": "v20260622"
-}
-```
-
-风险等级为 `low`、`medium`、`high`、`critical`。检测动作建议聚焦账号安全处置，例如观察、提醒改密、强制改密、开启二次验证、人工复核。
-
-## 数据集导入
-
-数据源配置位于：
+## 系统实际结构
 
 ```text
-config/dataset_sources.json
+CSV / JSON / 内置数据源
+          │
+          ▼
+固定 18 维字段提取与归一化
+(security-fixed-ranges-v1)
+          │
+          ├──────────────► 本地训练 ─► 运行时融合模型 ─► 用户风险检测
+          │                              IF + 分类器 + NumPy LSTM
+          │
+          ▼
+准备版本 preparation_id
+          │
+          ▼
+按标签分层、确定性切分
+          │
+          ├─ hospital
+          ├─ bank
+          ├─ insurance
+          └─ government
+                 │
+                 ▼
+           四节点本地训练
+                 │
+                 ▼
+              FedAvg
+        （独立联邦训练追踪）
 ```
 
-导入脚本位于：
+四个节点是同一份准备数据的模拟分片，不是四家真实机构，也不是四套独立原始数据。联邦聚合权重与用户端运行时融合模型分开保存；联邦训练不会自动替换用户端检测模型。
 
-```text
-scripts/import_security_datasets.py
-```
+## 数据处理到底处理什么
 
-示例：
+数据处理遵循以下固定规则：
 
-```bash
-python scripts/import_security_datasets.py --dataset local_generated_train
-python scripts/import_security_datasets.py --dataset unsw_nb15 --per-class-limit 20000
-python scripts/import_security_datasets.py --dataset cic_ids2017 --per-class-limit 20000
-```
+- 选择一个当前数据源，计算 `dataset_revision` 和 `preparation_id`。
+- 数据源、处理上限和预处理版本都未变化时，直接复用已处理数组与四节点文件。
+- 检测到变化时，对当前数据源进行全量重建，不做逐条增量追加。
+- 单次最多处理 50,000 行；源数据超过上限时只处理前 50,000 行，并在元数据中标记 `first_limit_rows`。
+- 处理只负责特征转换和节点切分，不会暗中启动模型训练。
+- 准备结果、训练记录和模型版本均携带数据修订或准备版本，避免不同数据源的节点和权重串线。
 
-导入脚本会将不同来源转换为统一训练字段：
+因此，“同步当前源到四节点”不是每次都重复处理全部文件：未变化时复用；发生变化时按上限重建当前源，而不是只追加新增行。
 
-```text
-sample_id, source_dataset, attack_type, label, src_ip, dst_ip, protocol,
-flow_duration, total_fwd_packets, total_bwd_packets, flow_bytes_s,
-flow_packets_s, request_frequency, response_time, failed_attempts,
-unusual_hour, payload_size, device_type, browser, os, username_masked
-```
+## 系统有哪些模型
 
-服务器资源有限时，脚本采用分块读取和按类别采样，避免一次性加载全量大文件。
+### 1. 运行时融合模型
 
-## 快速启动
+用户风险检测实际调用 `src/detection/ensemble_detector.py`：
+
+- Isolation Forest：无监督异常分量；风险分数使用持久化标尺，不随一次请求中的其他样本变化。
+- XGBoost 或逻辑回归：有监督分类分量；未安装 XGBoost 时明确回退到逻辑回归。
+- NumPy LSTM：轻量时序分量。
+
+干净环境会用内置数据生成一个可追溯的 bootstrap 模型。管理端本地训练会生成可切换的运行时模型快照。模型未就绪时接口返回 503，不使用伪造分数冒充模型结果。
+
+### 2. 四节点 FedAvg 模型
+
+每个节点在自己的准备分片上训练线性二分类权重，服务端按节点样本数加权聚合。数据准备版本变化时，联邦轮次、历史和全局权重会重置。页面上的准确率是各节点留出验证指标的样本加权值，不是独立外部测试集指标。
+
+### 3. 兼容性与研究模块
+
+`ModelManager`、PrimiHub/FATE、ABY3 和旧检测器仍保留给历史 API、实验或论文演示，但不等同于当前用户端运行时模型。Paillier 页面展示参数加密与聚合方向；当前 FedAvg 权重链路仍是明文数值聚合，API 会明确返回 `secure_aggregation: false`，不会宣称已经实现完整密文训练。
+
+## 用户上传数据
+
+- 仅支持 CSV / JSON，并限制文件大小、行数和列数。
+- password、token 等敏感字段先转成长度、强度、是否存在等派生特征，再进入归档。
+- 新提交的持久副本使用 AES-256-GCM 加密；明文临时文件在索引提交前删除。
+- 分析或训练时临时解密，读取完成后立即删除临时文件。
+- 管理员审核并标记“可训练”后，提交才会进入训练池。
+
+## 启动
 
 安装依赖：
 
 ```bash
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 
-配置管理端账号：
-
-```bash
-export ADMIN_USERNAME=root
-export ADMIN_PASSWORD=root
-```
-
-Windows PowerShell：
-
-```powershell
-$env:ADMIN_USERNAME="root"
-$env:ADMIN_PASSWORD="root"
-```
-
-启动服务：
+启动唯一正式入口：
 
 ```bash
 python app.py
 ```
 
-访问地址：
+默认地址：
 
-```text
-用户端：http://127.0.0.1:5000/
-管理端：http://127.0.0.1:5001/
-```
+- 用户端：`http://127.0.0.1:5000/`
+- 管理端：`http://127.0.0.1:5001/`
 
-公网部署时建议将 `ADMIN_PASSWORD` 改为强密码，并配置 HTTPS、反向代理和访问控制。
+设置 `PORT` 时只启动该单端口；否则同一 Flask 应用同时监听 5000 和 5001。
 
-## 常用接口
+## 管理端与安全配置
 
-用户端：
+本机开发时，默认 `root / root` 仅允许通过 `localhost`、`127.0.0.1` 或 `::1` 登录。公网环境没有配置强密码时，默认账号会被禁用。
 
-```text
-POST /api/user/datasets/upload
-POST /api/user/datasets/<submission_id>/analyze
-GET  /api/user/reports/<submission_id>
-POST /api/generate_login_security_dataset
-POST /api/generate_privacy_dataset
-```
-
-管理端：
-
-```text
-GET  /api/admin/submissions
-POST /api/admin/submissions/<submission_id>/archive
-POST /api/admin/submissions/<submission_id>/reject
-POST /api/admin/submissions/<submission_id>/mark-trainable
-GET  /api/admin/datasets/sources
-POST /api/admin/datasets/<source_id>/prepare
-POST /api/admin/datasets/<source_id>/split-federated
-GET  /api/admin/federated/nodes/detail
-POST /api/admin/training/local
-POST /api/admin/training/federated
-GET  /api/admin/training/tasks
-GET  /api/admin/model-versions
-POST /api/admin/model-versions/<id>/activate
-GET  /api/admin/audit/events
-```
-
-系统：
-
-```text
-GET  /api/system/health
-POST /api/ensemble/detect_from_dataset
-```
-
-## 验证命令
+生产环境必须通过进程环境、systemd、Docker Compose 或密钥管理服务设置：
 
 ```bash
-python -m py_compile app.py src/**/*.py
+export FLASK_SECRET_KEY='随机强密钥'
+export ADMIN_USERNAME='admin'
+export ADMIN_PASSWORD='强密码'
+export SESSION_COOKIE_SECURE='true'
+python3 app.py
+```
+
+项目不会自动读取 `.env` 文件。`CORS_ALLOWED_ORIGINS` 仅接受逗号分隔的精确可信源；未配置时使用同源策略，不返回通配符 CORS。
+
+Flask 会在未提供 `FLASK_SECRET_KEY` 时生成并持久化本机随机会话密钥。仓库根目录、源码、数据库、密钥和配置文件不会作为 Flask 静态资源暴露。
+
+## Docker
+
+Compose 只启动当前实际需要的 Flask 应用，不再默认启动未被主链路使用的 MySQL、Redis 或 PrimiHub 容器。
+
+```bash
+cd docker
+FLASK_SECRET_KEY='随机强密钥' \
+ADMIN_USERNAME='admin' \
+ADMIN_PASSWORD='强密码' \
+docker compose up --build
+```
+
+数据和日志分别挂载到项目的 `data/`、`logs/`。Docker 构建上下文通过 `.dockerignore` 排除数据库、上传归档、密钥、模型和日志。
+
+## 验证
+
+结构与语法检查：
+
+```bash
+python validate_project.py
+```
+
+完整测试：
+
+```bash
 python -m unittest discover tests -v
 ```
 
-如需做双端口烟测：
+启用额外 Flask 集成测试：
 
 ```bash
-python scripts/smoke_check.py --user-base http://127.0.0.1:5000 --admin-base http://127.0.0.1:5001 --check-admin-login
+FLASK_TEST=1 python -m unittest discover tests -v
 ```
 
-## Git 忽略策略
+服务启动后的只读冒烟检查：
 
-以下内容不应提交到 Git：
+```bash
+python scripts/smoke_check.py \
+  --user-base http://127.0.0.1:5000 \
+  --admin-base http://127.0.0.1:5001
+```
+
+## 主要目录
 
 ```text
-data/system.db
-data/datasets/raw/
-data/datasets/processed/*.csv
-data/models/
-data/user_submissions/
-logs/
-uploads/
-*.pkl
-*.npy
-*.npz
+app.py                              正式 Flask 入口与 API 编排
+index.html                          当前用户端/管理端单页界面
+src/preprocess/                     18 维特征、固定归一化、四节点切分
+src/detection/ensemble_detector.py  用户端运行时融合模型与版本快照
+src/federated/                      四节点客户端、FedAvg 与可选研究适配器
+src/user_submission_manager.py      上传校验、脱敏、加密归档、分析与训练池
+src/security/                       Trace ID、限流、慢接口和安全事件
+src/utils/data_storage.py           SQLite 业务记录
+tests/                              单元测试与 Flask 集成测试
+data/                               运行数据、模型、节点文件和加密归档（不入库）
 ```
 
-仓库只保留代码、配置、导入脚本、小型说明文件和文档。
-
-## 平台边界
-
-当前系统已经具备用户端风险检测、管理端训练管理、统一风险结果、轻量数据集导入和系统审计的核心闭环。真实生产部署仍需要进一步补充 HTTPS、完整账号权限、独立节点部署、外部评估集、密钥托管、审计留存策略和安全运维配置。
-
-本项目不定位为 WAF、防火墙、漏洞扫描器或大而全网络安全平台。DDoS 和流量型攻击数据集作为可扩展方向，当前核心能力聚焦账号登录安全和密码攻击风险识别。
+线上部署前请先阅读 `DEPLOYMENT_RUNBOOK.md` 和 `DEPLOYMENT_SECURITY_CHECKLIST.md`。旧自动上传/远程重启脚本已停用，因为它们曾包含明文凭据并使用宽泛进程操作。
