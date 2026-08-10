@@ -171,6 +171,93 @@ def binary_classification_metrics(y_true, y_pred):
     }
 
 
+def binary_log_loss(y_true, scores):
+    """Return a bounded binary log loss for persisted training records."""
+    y_true = (np.asarray(y_true).reshape(-1) > 0).astype(int)
+    scores = np.asarray(scores, dtype=np.float64).reshape(-1)
+    if len(y_true) == 0 or len(y_true) != len(scores):
+        return None
+    scores = np.clip(scores, 1e-6, 1.0 - 1e-6)
+    loss = -np.mean(y_true * np.log(scores) + (1 - y_true) * np.log(1 - scores))
+    return round(float(loss), 4)
+
+
+def evaluate_linear_binary_weights(X, y, weights):
+    """Evaluate FedAvg logistic weights on an untouched feature partition."""
+    X = np.asarray(X, dtype=np.float64)
+    y = np.asarray(y).reshape(-1)
+    weights = np.asarray(weights, dtype=np.float64).reshape(-1)
+    if X.ndim != 2 or len(X) != len(y) or len(X) == 0 or len(weights) != X.shape[1] + 1:
+        return None
+    logits = np.clip(np.c_[X, np.ones(len(X))] @ weights, -50.0, 50.0)
+    scores = 1.0 / (1.0 + np.exp(-logits))
+    predictions = (scores >= 0.5).astype(int)
+    metrics = binary_classification_metrics((y > 0).astype(int), predictions)
+    metrics["loss"] = binary_log_loss(y, scores)
+    return metrics
+
+
+SHARED_VALIDATION_SPLIT_VERSION = "shared-stratified-holdout-v1"
+SHARED_VALIDATION_FRACTION = 0.2
+FEDERATED_DEFAULT_LOCAL_EPOCHS = 20
+
+
+def _stable_seed(value, default=42):
+    """Derive a deterministic NumPy seed from current or legacy revision IDs."""
+    text = str(value or "").strip()
+    if not text:
+        return int(default)
+    try:
+        return int(text[:8], 16)
+    except (TypeError, ValueError):
+        return int(hashlib.sha256(text.encode("utf-8")).hexdigest()[:8], 16)
+
+
+def _stratified_holdout_split(X, y, seed=42, validation_fraction=SHARED_VALIDATION_FRACTION):
+    """Split one deterministic binary holdout shared by local and FedAvg paths.
+
+    Small or severely imbalanced sources fall back to using all rows for
+    training.  This is safer than claiming an independent validation metric
+    when both labels cannot be represented in both partitions.
+    """
+    X = np.asarray(X)
+    y = np.asarray(y).reshape(-1)
+    empty_x = np.empty((0, X.shape[1] if X.ndim == 2 else 0), dtype=X.dtype if X.size else np.float64)
+    empty_y = np.empty(0, dtype=y.dtype if y.size else np.int32)
+    if X.ndim != 2 or len(X) != len(y) or len(X) < 20:
+        return X, y, empty_x, empty_y
+
+    binary_y = (y > 0).astype(int)
+    labels, counts = np.unique(binary_y, return_counts=True)
+    if len(labels) < 2 or int(np.min(counts)) < 2:
+        return X, y, empty_x, empty_y
+
+    rng = np.random.default_rng(int(seed))
+    train_indices = []
+    validation_indices = []
+    fraction = max(0.05, min(float(validation_fraction), 0.4))
+    for label in labels:
+        indices = np.where(binary_y == label)[0]
+        rng.shuffle(indices)
+        validation_count = max(1, int(round(len(indices) * fraction)))
+        validation_count = min(validation_count, len(indices) - 1)
+        validation_indices.extend(indices[:validation_count].tolist())
+        train_indices.extend(indices[validation_count:].tolist())
+
+    train_indices = np.asarray(sorted(train_indices), dtype=np.int64)
+    validation_indices = np.asarray(sorted(validation_indices), dtype=np.int64)
+    train_labels = binary_y[train_indices] if len(train_indices) else np.empty(0, dtype=int)
+    validation_labels = binary_y[validation_indices] if len(validation_indices) else np.empty(0, dtype=int)
+    if (
+        len(train_indices) < 10
+        or len(validation_indices) < 2
+        or len(np.unique(train_labels)) < 2
+        or len(np.unique(validation_labels)) < 2
+    ):
+        return X, y, empty_x, empty_y
+    return X[train_indices], y[train_indices], X[validation_indices], y[validation_indices]
+
+
 def _stratified_training_sample(X, y, max_samples=5000, seed=42):
     """Return a deterministic class-preserving training subset."""
     X = np.asarray(X)
@@ -208,6 +295,8 @@ def before_request():
 _paillier = None
 _paillier_ready = False
 _paillier_lock = threading.Lock()
+_secure_aggregation_paillier = None
+_secure_aggregation_paillier_lock = threading.Lock()
 _fe = None
 _detector = None
 _detector_trained = False
@@ -236,17 +325,17 @@ _external_ai_settings_store = ExternalAdvisorSettingsStore()
 
 
 def _ensure_paillier():
-    """后台线程预生成Paillier密钥"""
+    """后台线程预生成用于字段展示的轻量 Paillier 密钥。"""
     global _paillier, _paillier_ready
     with _paillier_lock:
         if not _paillier_ready:
             try:
-                logger.info("正在生成Paillier密钥（2048位）...")
+                logger.info("正在生成Paillier字段展示密钥（1024位）...")
                 from src.encryption.paillier import Paillier
                 _paillier = Paillier(key_size=1024)  # 用1024位加速
                 _paillier.generate_keys()
                 _paillier_ready = True
-                logger.info("Paillier密钥生成完成")
+                logger.info("Paillier字段展示密钥生成完成")
             except Exception as e:
                 logger.warning("Paillier密钥生成失败: %s" % e)
 
@@ -256,6 +345,26 @@ def get_paillier():
     if not _paillier_ready:
         _ensure_paillier()
     return _paillier if _paillier_ready else None
+
+
+def get_secure_aggregation_paillier():
+    """Lazily create the stronger key used only for real weight aggregation."""
+    global _secure_aggregation_paillier
+    with _secure_aggregation_paillier_lock:
+        if _secure_aggregation_paillier is None:
+            try:
+                raw_bits = int(os.environ.get("DACHUANG_SECURE_AGGREGATION_KEY_BITS", "2048"))
+                key_bits = max(2048, min(raw_bits, 4096))
+                logger.info("正在生成Paillier安全聚合密钥（{}位）...", key_bits)
+                from src.encryption.paillier import Paillier
+                candidate = Paillier(key_size=key_bits)
+                candidate.generate_keys()
+                _secure_aggregation_paillier = candidate
+                logger.info("Paillier安全聚合密钥生成完成")
+            except Exception as error:
+                logger.exception("Paillier安全聚合密钥生成失败: {}", error)
+                return None
+    return _secure_aggregation_paillier
 
 
 def get_fe():
@@ -440,6 +549,10 @@ UNSW_DIR = os.path.join(DATASET_DIR, "UNSW-NB15")
 PROCESSED_DATA_DIR = os.path.join(DATASET_DIR, "processed")
 PROCESSED_X_PATH = os.path.join(PROCESSED_DATA_DIR, "X_processed.npy")
 PROCESSED_Y_PATH = os.path.join(PROCESSED_DATA_DIR, "y_processed.npy")
+PROCESSED_TRAIN_X_PATH = os.path.join(PROCESSED_DATA_DIR, "X_train.npy")
+PROCESSED_TRAIN_Y_PATH = os.path.join(PROCESSED_DATA_DIR, "y_train.npy")
+PROCESSED_VALIDATION_X_PATH = os.path.join(PROCESSED_DATA_DIR, "X_validation.npy")
+PROCESSED_VALIDATION_Y_PATH = os.path.join(PROCESSED_DATA_DIR, "y_validation.npy")
 PROCESSED_META_PATH = os.path.join(PROCESSED_DATA_DIR, "metadata.json")
 
 
@@ -507,10 +620,21 @@ def _find_dataset_source():
 
 
 def _processed_dataset_ready():
-    if not (os.path.exists(PROCESSED_X_PATH) and os.path.exists(PROCESSED_Y_PATH)):
+    required_paths = (
+        PROCESSED_X_PATH,
+        PROCESSED_Y_PATH,
+        PROCESSED_TRAIN_X_PATH,
+        PROCESSED_TRAIN_Y_PATH,
+        PROCESSED_VALIDATION_X_PATH,
+        PROCESSED_VALIDATION_Y_PATH,
+    )
+    if not all(os.path.exists(path) for path in required_paths):
         return False
     metadata = _load_processed_metadata()
-    return metadata.get("preprocessing_version") == FEATURE_NORMALIZATION_VERSION
+    return (
+        metadata.get("preprocessing_version") == FEATURE_NORMALIZATION_VERSION
+        and metadata.get("validation_split_version") == SHARED_VALIDATION_SPLIT_VERSION
+    )
 
 
 def _load_processed_metadata():
@@ -536,6 +660,80 @@ def _load_prepared_arrays(limit=None):
         return X, y, _load_processed_metadata()
 
 
+def _load_prepared_partition(X_path, y_path, limit=None):
+    """Load one coherent prepared train/validation partition."""
+    with _dataset_prepare_lock:
+        X = np.load(X_path)
+        y = np.load(y_path)
+        if len(X) != len(y):
+            raise ValueError("prepared partition feature and label counts do not match")
+        if limit and len(X) > int(limit):
+            X = X[:int(limit)]
+            y = y[:int(limit)]
+        return X, y, _load_processed_metadata()
+
+
+def _load_prepared_training_arrays(limit=None):
+    return _load_prepared_partition(PROCESSED_TRAIN_X_PATH, PROCESSED_TRAIN_Y_PATH, limit=limit)
+
+
+def _load_prepared_validation_arrays(limit=None):
+    return _load_prepared_partition(
+        PROCESSED_VALIDATION_X_PATH,
+        PROCESSED_VALIDATION_Y_PATH,
+        limit=limit,
+    )
+
+
+def _save_shared_training_partitions(X, y, split_seed, preparation_id):
+    """Persist full data plus a shared holdout and train-only node shards."""
+    from src.preprocess.federated_splitter import save_federated_data
+
+    X = np.asarray(X, dtype=np.float64)
+    y = np.asarray(y, dtype=np.int32).reshape(-1)
+    X_train, y_train, X_validation, y_validation = _stratified_holdout_split(
+        X,
+        y,
+        seed=split_seed,
+    )
+    validation_available = bool(len(X_validation))
+    validation_id = None
+    if validation_available:
+        validation_raw = "%s:%s:%s" % (
+            preparation_id,
+            SHARED_VALIDATION_SPLIT_VERSION,
+            len(X_validation),
+        )
+        validation_id = "val-" + hashlib.sha256(validation_raw.encode("utf-8")).hexdigest()[:12]
+
+    os.makedirs(PROCESSED_DATA_DIR, exist_ok=True)
+    atomic_save_npy(PROCESSED_X_PATH, X)
+    atomic_save_npy(PROCESSED_Y_PATH, y)
+    atomic_save_npy(PROCESSED_TRAIN_X_PATH, X_train)
+    atomic_save_npy(PROCESSED_TRAIN_Y_PATH, y_train)
+    atomic_save_npy(PROCESSED_VALIDATION_X_PATH, X_validation)
+    atomic_save_npy(PROCESSED_VALIDATION_Y_PATH, y_validation)
+    nodes = save_federated_data(X_train, y_train, seed=split_seed)
+
+    def label_counts(values):
+        return {
+            str(key): int(value)
+            for key, value in zip(*np.unique(values, return_counts=True))
+        } if len(values) else {}
+
+    return {
+        "nodes": nodes,
+        "training_samples": int(len(X_train)),
+        "validation_samples": int(len(X_validation)),
+        "validation_available": validation_available,
+        "validation_id": validation_id,
+        "validation_split_version": SHARED_VALIDATION_SPLIT_VERSION,
+        "validation_fraction": SHARED_VALIDATION_FRACTION if validation_available else 0.0,
+        "training_label_counts": label_counts(y_train),
+        "validation_label_counts": label_counts(y_validation),
+    }
+
+
 def _dataset_source_revision(source, limit=50000):
     """Return a stable revision for the data that would be prepared."""
     source = source or {}
@@ -545,6 +743,8 @@ def _dataset_source_revision(source, limit=50000):
         "samples": int(source.get("samples") or 0),
         "features": int(source.get("features") or 0),
         "preprocessing_version": FEATURE_NORMALIZATION_VERSION,
+        "validation_split_version": SHARED_VALIDATION_SPLIT_VERSION,
+        "validation_fraction": SHARED_VALIDATION_FRACTION,
         "limit": max(1, min(int(limit or 50000), 50000)),
         "submission_ids": sorted(str(v) for v in (source.get("submission_ids") or []) if v),
     }
@@ -629,16 +829,20 @@ def _model_inventory():
             "used_by": "兼容检测、算法对比和自适应参数优化接口",
         },
         "local_training": {
-            "name": "集中式融合模型训练",
-            "relation": "直接使用当前训练源，不经过四节点；完成后更新运行时融合模型文件。",
+            "name": "运行时融合检测模型训练",
+            "relation": "直接使用当前训练分区，不经过四节点；完成后更新用户端实际使用的融合模型文件，不参与普通/FedAvg 同构对比。",
+        },
+        "centralized_comparison": {
+            "name": "普通集中式线性基线",
+            "relation": "与四节点使用相同线性模型、优化参数、训练分区和共享留出集，仅训练方式不同。",
         },
         "federated_training": {
             "name": "四节点线性二分类模型 + FedAvg",
-            "relation": "使用当前准备版本的四节点数据；聚合权重保存在当前进程，不会自动替换用户端融合检测模型。",
+            "relation": "使用与普通集中式基线相同的线性模型和训练预算，四节点分别训练后执行 FedAvg；不会自动替换用户端融合检测模型。",
         },
         "paillier": {
-            "ready": bool(_paillier_ready),
-            "relation": "当前展示参数加密与聚合开销；实际模型权重仍由 FedAvg 聚合。",
+            "ready": bool(_secure_aggregation_paillier is not None),
+            "relation": "管理员可按需对联邦模型权重执行 Paillier 安全聚合。",
         },
     }
 
@@ -649,6 +853,8 @@ def _source_prepared_for_federated(source):
         return False
     meta = _load_processed_metadata()
     if meta.get("preprocessing_version") != FEATURE_NORMALIZATION_VERSION:
+        return False
+    if meta.get("validation_split_version") != SHARED_VALIDATION_SPLIT_VERSION:
         return False
     source_id = source.get("id") or _dataset_source_id(source)
     if source_id and meta.get("dataset_source_id") == source_id:
@@ -1021,7 +1227,7 @@ def _load_training_dataset_source(source_id=None, limit=50000):
     selected_id = selected.get("id") or _dataset_source_id(selected)
     if _source_prepared_for_federated(selected):
         try:
-            X, y, processed_meta = _load_prepared_arrays(limit=limit)
+            X, y, processed_meta = _load_prepared_training_arrays(limit=limit)
             labels = {str(k): int(v) for k, v in zip(*np.unique(y, return_counts=True))} if len(y) else {}
             return X, y, {
                 "source_count": 1,
@@ -1044,7 +1250,16 @@ def _load_training_dataset_source(source_id=None, limit=50000):
                 "dataset_revision": processed_meta.get("dataset_revision"),
                 "process_mode": processed_meta.get("process_mode", "full_rebuild"),
                 "uses_prepared_data": True,
-                "prepared_samples": int(processed_meta.get("samples") or len(X)),
+                "uses_shared_validation": bool(processed_meta.get("validation_available")),
+                "prepared_samples": int(len(X)),
+                "available_training_samples": int(processed_meta.get("training_samples") or len(X)),
+                "source_samples": int(processed_meta.get("samples") or len(X)),
+                "validation_available": bool(processed_meta.get("validation_available")),
+                "validation_samples": int(processed_meta.get("validation_samples") or 0),
+                "validation_id": processed_meta.get("validation_id"),
+                "validation_split_version": processed_meta.get("validation_split_version"),
+                "validation_label_distribution": processed_meta.get("validation_label_counts") or {},
+                "preprocessing_version": processed_meta.get("preprocessing_version"),
                 "nodes": processed_meta.get("nodes") or _prepared_node_counts(),
             }
         except Exception as prepared_error:
@@ -1068,6 +1283,8 @@ def _load_training_dataset_source(source_id=None, limit=50000):
             "source_type": source_type,
             "label_distribution": labels,
             "preprocessing_version": FEATURE_NORMALIZATION_VERSION,
+            "source_samples": int(len(X)),
+            "validation_available": False,
         })
         return X, y, meta
 
@@ -1101,6 +1318,8 @@ def _load_training_dataset_source(source_id=None, limit=50000):
         "source_type": selected.get("source_type"),
         "label_distribution": labels,
         "preprocessing_version": FEATURE_NORMALIZATION_VERSION,
+        "source_samples": int(len(X)),
+        "validation_available": False,
     }
     return X, y, meta
 
@@ -1125,11 +1344,12 @@ def _federated_node_details_unlocked():
             "dataset_source_id": meta.get("dataset_source_id"),
             "dataset_revision": meta.get("dataset_revision"),
             "preparation_id": meta.get("preparation_id"),
+            "validation_id": meta.get("validation_id"),
             "processed_at": meta.get("processed_at"),
             "label_distribution": {},
             "normal_samples": 0,
             "attack_samples": 0,
-            "description": "节点数据由训练数据池按标签分层划分得到，不代表真实机构数据规模。",
+            "description": "节点只接收训练分区；共享留出集不会写入任何节点，用于普通模型与联邦模型的同口径评估。",
         }
         if os.path.exists(X_path) and os.path.exists(y_path):
             try:
@@ -1155,52 +1375,6 @@ def _federated_node_details():
     """Read one coherent node-data revision while preparation may be running."""
     with _dataset_prepare_lock:
         return _federated_node_details_unlocked()
-
-
-def _paillier_aggregation_metrics(results, global_weights):
-    """Estimate the bounded cost of adding Paillier to the weight path.
-
-    The current serving path performs plain FedAvg. These values are an
-    explicit parameter-count estimate, not measured cryptographic timings and
-    not evidence that encrypted weights participated in model aggregation.
-    """
-    started = time.time()
-    key_ready = bool(_paillier_ready)
-    parameter_count = 0
-    if global_weights is not None:
-        try:
-            parameter_count = int(np.asarray(global_weights).size)
-        except Exception:
-            parameter_count = 0
-    client_count = len([r for r in results if r.get("weights") is not None])
-    # This path records the secure aggregation display layer. The current
-    # training still uses FedAvg weights; Paillier metrics explain the expected
-    # protection and overhead instead of claiming full ciphertext ML training.
-    encryption_time_ms = round(max(1, parameter_count) * max(1, client_count) * 0.18, 2)
-    aggregation_time_ms = round(max(1, parameter_count) * max(1, client_count) * 0.05, 2)
-    decryption_time_ms = round(max(1, parameter_count) * 0.12, 2)
-    return {
-        "paillier_enabled": key_ready,
-        "secure_aggregation": False,
-        "secure_aggregation_requested": True,
-        "display_only": True,
-        "timing_method": "parameter_count_estimate",
-        "actual_crypto_operations_performed": False,
-        "aggregation_method": "fedavg_plain_with_paillier_demo",
-        "key_status": "ready" if key_ready else "not_ready",
-        "encrypted_parameter_count": parameter_count,
-        "encryption_time_ms": encryption_time_ms,
-        "aggregation_time_ms": aggregation_time_ms,
-        "decryption_time_ms": decryption_time_ms,
-        "accuracy_delta": 0.0,
-        "status": "display_ready" if key_ready else "key_not_ready",
-        "note": (
-            "Paillier 模式用于展示参数/梯度量化、加密、密态聚合和解密流程；当前模型训练仍以 FedAvg 权重聚合为主。"
-            if key_ready else
-            "Paillier 密钥当前未就绪，页面仅展示安全聚合流程和耗时估算；请检查密钥初始化日志。"
-        ),
-        "elapsed_ms": round((time.time() - started) * 1000, 2),
-    }
 
 
 def generate_sensitive_dataset(n_records=100):
@@ -2443,9 +2617,11 @@ def admin_dataset_sources():
             "incremental": False,
             "max_rows": 50000,
             "unchanged_action": "reuse",
+            "validation_split": SHARED_VALIDATION_SPLIT_VERSION,
+            "validation_fraction": SHARED_VALIDATION_FRACTION,
             "note": "数据源未变化时直接复用当前准备结果；检测到变化时按当前源全量重建，超过 5 万条时处理前 5 万条。",
         },
-        "note": "数据源用于密码攻击检测、本地训练和四节点联邦切分；公开流量型数据集未配置时不会伪装为已加载。",
+        "note": "数据准备会先保留同源共享留出集，再将训练分区写入四节点；公开流量型数据集未配置时不会伪装为已加载。",
     }))
 
 
@@ -2466,7 +2642,6 @@ def _prepare_dataset_source_for_federated_locked(source, source_id=None, limit=5
     started_at = time.perf_counter()
     try:
         from src.preprocess.feature_engineering import load_security_csv, normalize_security_features
-        from src.preprocess.federated_splitter import save_federated_data
 
         try:
             limit = int(limit or 50000)
@@ -2477,7 +2652,7 @@ def _prepare_dataset_source_for_federated_locked(source, source_id=None, limit=5
         effective_source_id = source_id or source.get("id") or _dataset_source_id(source)
         dataset_revision = _dataset_source_revision(source, limit=limit)
         preparation_id = _dataset_preparation_id(effective_source_id, dataset_revision)
-        split_seed = int(dataset_revision[:8], 16)
+        split_seed = _stable_seed(dataset_revision)
         if not force_rebuild and _preparation_matches(source, effective_source_id, limit=limit):
             metadata = _load_processed_metadata()
             request_time_ms = round((time.perf_counter() - started_at) * 1000, 3)
@@ -2500,10 +2675,8 @@ def _prepare_dataset_source_for_federated_locked(source, source_id=None, limit=5
             if len(X) == 0:
                 return jsonify(api_response(code=400, msg="没有可用于训练的用户提交数据，请先在用户提交页归档并标记可训练。"))
 
-            os.makedirs(PROCESSED_DATA_DIR, exist_ok=True)
-            atomic_save_npy(PROCESSED_X_PATH, X)
-            atomic_save_npy(PROCESSED_Y_PATH, y)
-            nodes = save_federated_data(X, y, seed=split_seed)
+            partition_meta = _save_shared_training_partitions(X, y, split_seed, preparation_id)
+            nodes = partition_meta["nodes"]
 
             label_counts = {str(k): int(v) for k, v in zip(*np.unique(y, return_counts=True))}
             metadata = {
@@ -2515,6 +2688,8 @@ def _prepare_dataset_source_for_federated_locked(source, source_id=None, limit=5
                 "source_type": source_type,
                 "source_path": source.get("id") or source_type,
                 "samples": int(len(X)),
+                "training_samples": partition_meta["training_samples"],
+                "validation_samples": partition_meta["validation_samples"],
                 "features": int(X.shape[1]),
                 "label_column": "label",
                 "label_counts": label_counts,
@@ -2525,8 +2700,17 @@ def _prepare_dataset_source_for_federated_locked(source, source_id=None, limit=5
                 "process_limit": limit,
                 "incremental": False,
                 "raw_samples": int(source.get("samples") or len(X)),
-                "split_strategy": "stratified_even",
+                "split_strategy": (
+                    "shared_stratified_holdout_then_stratified_even"
+                    if partition_meta["validation_available"] else "stratified_even_no_holdout"
+                ),
                 "split_seed": split_seed,
+                "validation_available": partition_meta["validation_available"],
+                "validation_id": partition_meta["validation_id"],
+                "validation_split_version": partition_meta["validation_split_version"],
+                "validation_fraction": partition_meta["validation_fraction"],
+                "training_label_counts": partition_meta["training_label_counts"],
+                "validation_label_counts": partition_meta["validation_label_counts"],
                 "submission_ids": (user_meta or {}).get("submission_ids") or source.get("submission_ids") or [],
             }
             metadata["nodes"] = [{"name": n[0], "samples": int(n[1]), "ready": True} for n in nodes]
@@ -2552,10 +2736,8 @@ def _prepare_dataset_source_for_federated_locked(source, source_id=None, limit=5
             return jsonify(api_response(code=400, msg="Dataset source is empty or features cannot be extracted."))
 
         X = normalize_security_features(X)
-        os.makedirs(PROCESSED_DATA_DIR, exist_ok=True)
-        atomic_save_npy(PROCESSED_X_PATH, X)
-        atomic_save_npy(PROCESSED_Y_PATH, y)
-        nodes = save_federated_data(X, y, seed=split_seed)
+        partition_meta = _save_shared_training_partitions(X, y, split_seed, preparation_id)
+        nodes = partition_meta["nodes"]
 
         info = source
 
@@ -2569,6 +2751,8 @@ def _prepare_dataset_source_for_federated_locked(source, source_id=None, limit=5
             "source_type": source.get("source_type") or "dataset",
             "source_path": filepath,
             "samples": int(len(X)),
+            "training_samples": partition_meta["training_samples"],
+            "validation_samples": partition_meta["validation_samples"],
             "features": int(X.shape[1]),
             "label_column": info.get("label_column"),
             "label_counts": label_counts,
@@ -2579,8 +2763,17 @@ def _prepare_dataset_source_for_federated_locked(source, source_id=None, limit=5
             "process_limit": limit,
             "incremental": False,
             "raw_samples": int(source.get("samples") or info.get("samples") or len(X)),
-            "split_strategy": "stratified_even",
+            "split_strategy": (
+                "shared_stratified_holdout_then_stratified_even"
+                if partition_meta["validation_available"] else "stratified_even_no_holdout"
+            ),
             "split_seed": split_seed,
+            "validation_available": partition_meta["validation_available"],
+            "validation_id": partition_meta["validation_id"],
+            "validation_split_version": partition_meta["validation_split_version"],
+            "validation_fraction": partition_meta["validation_fraction"],
+            "training_label_counts": partition_meta["training_label_counts"],
+            "validation_label_counts": partition_meta["validation_label_counts"],
         }
         metadata["nodes"] = [{"name": n[0], "samples": int(n[1]), "ready": True} for n in nodes]
         processing_seconds = max(time.perf_counter() - started_at, 0.000001)
@@ -2726,6 +2919,154 @@ def admin_training_local():
         _training_operation_lock.release()
 
 
+@app.route("/api/admin/training/centralized", methods=["POST"])
+def admin_training_centralized():
+    """Train the ordinary centralized baseline used for a fair FedAvg comparison."""
+    if not _training_operation_lock.acquire(blocking=False):
+        return jsonify(api_response(code=409, msg="已有训练任务正在执行，请等待当前任务完成后再试。")), 409
+    try:
+        return _admin_training_centralized_locked()
+    finally:
+        _training_operation_lock.release()
+
+
+def _admin_training_centralized_locked():
+    """Train the same linear model as each federated client on all train rows."""
+    try:
+        from src.federated.client import FederatedClient
+
+        req = request.get_json(silent=True) or {}
+        dataset_source_id = req.get("dataset_source_id")
+        requested_limit = max(10, min(int(req.get("limit") or 10000), 50000))
+        epochs = max(1, min(int(req.get("epochs") or FEDERATED_DEFAULT_LOCAL_EPOCHS), 20))
+
+        with _dataset_prepare_lock:
+            X, y, meta = _load_training_dataset_source(dataset_source_id, limit=50000)
+            if meta.get("source_not_found"):
+                return jsonify(api_response(code=404, msg="请求的数据源不存在，请刷新数据源列表后重试。")), 404
+            if len(X) < 20 or len(np.unique((y > 0).astype(int))) < 2:
+                return jsonify(api_response(
+                    code=400,
+                    msg="普通/联邦对比至少需要 20 条训练样本，并同时包含正常和攻击标签。",
+                )), 400
+            if not (
+                meta.get("uses_prepared_data")
+                and meta.get("uses_shared_validation")
+                and meta.get("validation_id")
+                and meta.get("validation_split_version") == SHARED_VALIDATION_SPLIT_VERSION
+            ):
+                return jsonify(api_response(
+                    code=409,
+                    msg="当前数据源尚未生成共享留出集，请先重新执行数据处理后再开始普通/联邦对比。",
+                )), 409
+            validation_x, validation_y, validation_meta = _load_prepared_validation_arrays()
+            if (
+                validation_meta.get("preparation_id") != meta.get("preparation_id")
+                or validation_meta.get("validation_id") != meta.get("validation_id")
+                or len(validation_x) < 2
+                or len(np.unique((validation_y > 0).astype(int))) < 2
+            ):
+                return jsonify(api_response(
+                    code=409,
+                    msg="共享留出集与当前准备版本不一致，请重新执行数据处理。",
+                )), 409
+
+        baseline = FederatedClient("centralized-baseline", "")
+        baseline.X = np.asarray(X, dtype=np.float64)
+        baseline.y = np.asarray(y, dtype=np.int32)
+        baseline._loaded = True
+        fit_result = baseline.train_local(
+            global_weights=None,
+            epochs=epochs,
+            use_internal_validation=False,
+        )
+        metrics = evaluate_linear_binary_weights(
+            validation_x,
+            validation_y,
+            fit_result.get("weights"),
+        )
+        if metrics is None:
+            return jsonify(api_response(code=500, msg="普通集中式基线未能生成可评估权重。")), 500
+
+        version = datetime.now().strftime("central%Y%m%d%H%M%S%f")[:-3]
+        source_ids = [
+            item.get("id") for item in meta.get("sources", [])
+            if item.get("id") and not str(item.get("id")).startswith("dataset:")
+        ]
+        record = {
+            **meta,
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "task_type": "centralized",
+            "comparison_role": "ordinary_centralized_baseline",
+            "source": meta.get("training_source", "managed_dataset_source"),
+            "model_type": "centralized_linear_baseline",
+            "status": "completed",
+            "model_version": version,
+            "source_submission_ids": source_ids,
+            "samples": int(len(X)),
+            "training_samples": int(len(X)),
+            "source_samples": int(meta.get("source_samples") or (len(X) + len(validation_x))),
+            "requested_limit": requested_limit,
+            "accuracy": metrics["accuracy"],
+            "precision": metrics["precision"],
+            "recall": metrics["recall"],
+            "f1": metrics["f1"],
+            "loss": metrics["loss"],
+            "train_accuracy": fit_result.get("accuracy"),
+            "train_loss": fit_result.get("loss"),
+            "algorithm": "linear_logistic_gradient_descent",
+            "base_model_algorithm": "linear_logistic_binary_classifier",
+            "optimizer": "batch_gradient_descent_l2",
+            "epochs": epochs,
+            "effective_epochs": epochs,
+            "rounds": 0,
+            "node_count": 1,
+            "aggregation_method": "centralized",
+            "uses_prepared_nodes": False,
+            "uses_shared_validation": True,
+            "metric_name": "accuracy",
+            "metric_scope": "shared_holdout_validation",
+            "metric_label": "同源共享留出集指标",
+            "metric_note": (
+                "普通集中式基线与四节点联邦路径使用相同线性模型、优化参数、训练分区和共享留出集；"
+                "差异主要来自集中训练与节点本地训练后 FedAvg 聚合。"
+            ),
+            "validation_available": True,
+            "validation_samples": int(len(validation_x)),
+            "validation_id": meta.get("validation_id"),
+            "validation_split_version": meta.get("validation_split_version"),
+            "validation_label_distribution": meta.get("validation_label_distribution") or {},
+            "runtime_model_updated": False,
+            "note": (
+                "This centralized linear baseline is used only for a like-for-like FedAvg comparison; "
+                "it does not replace the user-facing runtime ensemble detector."
+            ),
+        }
+        record["updated_submissions"] = user_submission_manager.mark_used_for_training(
+            source_ids,
+            task_type="centralized",
+            model_version=version,
+            samples=int(len(X)),
+        )
+        save_training_record(record)
+        try:
+            db.save_training_task_record(record)
+            db.save_model_version_record({
+                "version": version,
+                "model_type": record["model_type"],
+                "source": record["source"],
+                "samples": record["samples"],
+                "accuracy": record["accuracy"],
+                "metadata": record,
+            })
+        except Exception as persist_error:
+            logger.warning("Persist centralized baseline task failed: {}", persist_error)
+        return jsonify(api_response(msg="普通集中式基线训练完成", data=record))
+    except Exception as e:
+        logger.exception("Admin centralized baseline training failed")
+        return jsonify(api_response(code=500, msg="普通集中式训练失败: %s" % e)), 500
+
+
 def _admin_training_local_locked():
     """Train the ensemble detector with admin-approved encrypted submissions."""
     try:
@@ -2734,23 +3075,62 @@ def _admin_training_local_locked():
         ids = req.get("submission_ids") or None
         dataset_source_id = req.get("dataset_source_id")
         limit = max(10, min(int(req.get("limit") or 10000), 50000))
-        if dataset_source_id:
-            X, y, meta = _load_training_dataset_source(dataset_source_id, limit=limit)
-            if meta.get("source_not_found"):
-                return jsonify(api_response(code=404, msg="请求的数据源不存在，请刷新数据源列表后重试。")), 404
-        else:
-            X, y, meta = user_submission_manager.load_trainable_features(ids=ids, limit=limit)
-            if len(X) < 10:
+        validation_x = np.empty((0, 18), dtype=np.float64)
+        validation_y = np.empty(0, dtype=np.int32)
+        with _dataset_prepare_lock:
+            if dataset_source_id:
                 X, y, meta = _load_training_dataset_source(dataset_source_id, limit=limit)
+                if meta.get("source_not_found"):
+                    return jsonify(api_response(code=404, msg="请求的数据源不存在，请刷新数据源列表后重试。")), 404
+            else:
+                X, y, meta = user_submission_manager.load_trainable_features(ids=ids, limit=limit)
+                if len(X) < 10:
+                    X, y, meta = _load_training_dataset_source(dataset_source_id, limit=limit)
+            if meta.get("uses_shared_validation") and meta.get("validation_available"):
+                candidate_x, candidate_y, validation_meta = _load_prepared_validation_arrays()
+                if (
+                    validation_meta.get("preparation_id") == meta.get("preparation_id")
+                    and validation_meta.get("validation_id") == meta.get("validation_id")
+                ):
+                    validation_x, validation_y = candidate_x, candidate_y
         if len(X) < 10:
             return jsonify(api_response(code=400, msg="当前数据源没有足够的可训练数据，请确认标签与样本数量后重试。")), 400
         if len(np.unique((y > 0).astype(int))) < 2:
             return jsonify(api_response(code=400, msg="当前数据源只包含一个标签类别，运行时检测模型需要同时包含正常和攻击样本。")), 400
 
-        seed = int(str(meta.get("dataset_revision") or "2a")[:8], 16) if meta.get("dataset_revision") else 42
+        seed = _stable_seed(meta.get("dataset_revision"))
+        uses_shared_validation = bool(len(validation_x))
+        if not uses_shared_validation:
+            split_x, split_y, candidate_x, candidate_y = _stratified_holdout_split(X, y, seed=seed)
+            if len(candidate_x):
+                X, y = split_x, split_y
+                validation_x, validation_y = candidate_x, candidate_y
+                meta = dict(meta or {})
+                local_validation_raw = "%s:%s:%s" % (
+                    meta.get("dataset_source_id") or "local-source",
+                    seed,
+                    len(validation_x),
+                )
+                meta.update({
+                    "validation_available": True,
+                    "validation_samples": int(len(validation_x)),
+                    "validation_id": "local-val-" + hashlib.sha256(
+                        local_validation_raw.encode("utf-8")
+                    ).hexdigest()[:12],
+                    "validation_split_version": SHARED_VALIDATION_SPLIT_VERSION,
+                    "uses_shared_validation": False,
+                })
         # The request limit is the single source-of-truth for training scope.
         # Do not apply a second hidden 5,000-row cap after loading the source.
         fit_x, fit_y = _stratified_training_sample(X, y, max_samples=limit, seed=seed)
+        validation_available = bool(
+            len(validation_x)
+            and len(np.unique((validation_y > 0).astype(int))) >= 2
+        )
+        validation_label_distribution = {
+            str(key): int(value)
+            for key, value in zip(*np.unique(validation_y, return_counts=True))
+        } if validation_available else {}
         version = datetime.now().strftime("v%Y%m%d%H%M%S%f")[:-3]
         result = ensemble_detector.fit(
             fit_x,
@@ -2762,14 +3142,39 @@ def _admin_training_local_locked():
                 "preparation_id": meta.get("preparation_id"),
                 "source_type": meta.get("source_type"),
                 "samples": int(len(fit_x)),
-                "source_samples": int(len(X)),
+                "source_samples": int(meta.get("source_samples") or (len(X) + len(validation_x))),
+                "validation_available": validation_available,
+                "validation_samples": int(len(validation_x)) if validation_available else 0,
+                "validation_id": meta.get("validation_id") if validation_available else None,
+                "validation_split_version": meta.get("validation_split_version") if validation_available else None,
             },
         )
-        train_preds, _, _ = ensemble_detector.predict(fit_x)
-        metrics = binary_classification_metrics((fit_y > 0).astype(int), train_preds)
+        train_preds, train_scores, _ = ensemble_detector.predict(fit_x)
+        train_metrics = binary_classification_metrics((fit_y > 0).astype(int), train_preds)
+        train_loss = binary_log_loss(fit_y, train_scores)
+        if validation_available:
+            evaluation_preds, evaluation_scores, _ = ensemble_detector.predict(validation_x)
+            metrics = binary_classification_metrics((validation_y > 0).astype(int), evaluation_preds)
+            evaluation_loss = binary_log_loss(validation_y, evaluation_scores)
+            metric_scope = "shared_holdout_validation" if uses_shared_validation else "local_holdout_validation"
+            metric_label = "同源共享留出集指标" if uses_shared_validation else "本地分层留出集指标"
+            metric_note = (
+                "运行时融合模型仅使用训练分区拟合，并在未参与训练的共享留出集上评估；"
+                "该模型独立服务于用户风险检测，不作为普通集中式/FedAvg 同构对照。"
+                if uses_shared_validation else
+                "当前数据源尚未生成四节点共享留出集；运行时融合模型使用确定性分层留出数据评估，"
+                "该指标只用于判断当前检测模型，不参与训练方式排名。"
+            )
+        else:
+            metrics = train_metrics
+            evaluation_loss = train_loss
+            metric_scope = "train"
+            metric_label = "训练集指标"
+            metric_note = "当前数据量或类别分布不足以同时建立含两类标签的训练集和留出集，因此仅显示训练集指标，不允许据此比较模型优劣。"
         record = {
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "task_type": "local",
+            "task_type": "runtime",
+            "comparison_role": "user_facing_runtime_detector",
             "source": meta.get("training_source", "encrypted_user_submissions"),
             "model_type": "runtime_ensemble",
             "dataset_name": meta.get("dataset_name", "encrypted_user_submissions"),
@@ -2784,14 +3189,23 @@ def _admin_training_local_locked():
             "precision": metrics["precision"],
             "recall": metrics["recall"],
             "f1": metrics["f1"],
+            "loss": evaluation_loss,
+            "train_accuracy": train_metrics["accuracy"],
+            "train_loss": train_loss,
             "algorithm": "ensemble_detector",
             "metric_name": "accuracy",
-            "metric_scope": "train",
-            "metric_label": "训练集指标",
-            "metric_note": "当前本地训练接口使用请求上限范围内的数据完成拟合，并在同一批训练样本上计算指标；该数值用于观察训练流程，不等同于独立验证集效果。",
-            "validation_available": False,
+            "metric_scope": metric_scope,
+            "metric_label": metric_label,
+            "metric_note": metric_note,
+            "validation_available": validation_available,
+            "validation_samples": int(len(validation_x)) if validation_available else 0,
+            "validation_id": meta.get("validation_id") if validation_available else None,
+            "validation_split_version": meta.get("validation_split_version") if validation_available else None,
+            "validation_label_distribution": validation_label_distribution,
+            "uses_shared_validation": uses_shared_validation,
             "samples": int(len(fit_x)),
-            "source_samples": int(len(X)),
+            "training_samples": int(len(fit_x)),
+            "source_samples": int(meta.get("source_samples") or (len(X) + len(validation_x))),
             "source_count": int(meta.get("source_count", 0)),
             "label_distribution": meta.get("label_distribution", {}),
             "node_count": 1,
@@ -2799,16 +3213,17 @@ def _admin_training_local_locked():
             "epochs": 1,
             "status": "completed",
             "model_version": version,
-            "note": "Local training updates the runtime ensemble detector directly from the current source; it does not train through the four federated nodes.",
+            "runtime_model_updated": True,
+            "note": "Runtime training updates the user-facing ensemble detector directly; it is tracked separately and is not used as the ordinary baseline in the FedAvg comparison.",
         }
         source_ids = [s.get("id") for s in meta.get("sources", []) if s.get("id") and not str(s.get("id")).startswith("dataset:")]
         record["source_submission_ids"] = source_ids
         save_training_record(record)
         updated_submissions = user_submission_manager.mark_used_for_training(
             source_ids,
-            task_type="local",
+            task_type="runtime",
             model_version=record["model_version"],
-            samples=int(len(X)),
+            samples=int(len(fit_x)),
         )
         try:
             db.save_training_task_record(record)
@@ -2822,7 +3237,7 @@ def _admin_training_local_locked():
             })
         except Exception as persist_error:
             logger.warning("Persist local training task failed: {}", persist_error)
-        return jsonify(api_response(msg="本地训练完成", data={**meta, **record, "fit_result": result, "updated_submissions": updated_submissions}))
+        return jsonify(api_response(msg="运行时检测模型训练完成", data={**meta, **record, "fit_result": result, "updated_submissions": updated_submissions}))
     except Exception as e:
         logger.exception("Admin local training failed")
         return jsonify(api_response(code=500, msg="训练失败: %s" % e))
@@ -2848,9 +3263,26 @@ def _admin_training_federated_locked():
         req = request.get_json(silent=True) or {}
         dataset_source_id = req.get("dataset_source_id")
         requested_limit = max(10, min(int(req.get("limit") or 10000), 50000))
-        epochs = max(1, min(int(req.get("epochs") or 3), 20))
-        aggregation_method = str(req.get("aggregation_method") or "plain").lower()
-        secure_aggregation = bool(req.get("secure_aggregation") or aggregation_method == "paillier")
+        epochs = max(1, min(int(req.get("epochs") or FEDERATED_DEFAULT_LOCAL_EPOCHS), 20))
+        aggregation_method = str(req.get("aggregation_method") or "plain").strip().lower()
+        secure_value = req.get("secure_aggregation", False)
+        secure_aggregation = (
+            aggregation_method == "paillier"
+            or secure_value is True
+            or str(secure_value).strip().lower() in {"1", "true", "yes"}
+        )
+        if aggregation_method not in {"plain", "paillier"}:
+            return jsonify(api_response(
+                code=400,
+                msg="聚合方式仅支持 plain 或 paillier。",
+            )), 400
+        if secure_aggregation:
+            aggregation_method = "paillier"
+        secure_aggregation_key = None
+        continue_value = req.get("continue_training", False)
+        continue_training = continue_value is True or str(continue_value).lower() in {"1", "true", "yes"}
+        validation_x = np.empty((0, 18), dtype=np.float64)
+        validation_y = np.empty(0, dtype=np.int32)
 
         with _dataset_prepare_lock:
             # Federated training always consumes the complete persisted
@@ -2877,6 +3309,7 @@ def _admin_training_federated_locked():
                 and current_preparation.get("preparation_id") == meta.get("preparation_id")
                 and current_preparation.get("dataset_revision") == meta.get("dataset_revision")
                 and current_preparation.get("preprocessing_version") == FEATURE_NORMALIZATION_VERSION
+                and current_preparation.get("validation_split_version") == SHARED_VALIDATION_SPLIT_VERSION
             )
             if not reuse_prepared_nodes:
                 return jsonify(api_response(
@@ -2895,34 +3328,92 @@ def _admin_training_federated_locked():
                     msg="四节点样本清单不完整，请重新执行数据处理后再启动联邦训练。",
                 )), 409
 
+            if meta.get("validation_available") and meta.get("validation_id"):
+                candidate_x, candidate_y, validation_meta = _load_prepared_validation_arrays()
+                if (
+                    validation_meta.get("preparation_id") == meta.get("preparation_id")
+                    and validation_meta.get("validation_id") == meta.get("validation_id")
+                ):
+                    validation_x, validation_y = candidate_x, candidate_y
+
             context_id = str(meta.get("preparation_id"))
-            context_reset = fedavg_server.ensure_context(context_id)
+            context_reset = fedavg_server.ensure_context(context_id, force_reset=not continue_training)
             results = []
             for name in NODE_NAMES:
                 client = FederatedClient(name, os.path.join(FEDERATED_DIR, name))
                 if client.load_data():
-                    results.append(client.train_local(global_weights=fedavg_server.global_weights, epochs=epochs))
+                    results.append(client.train_local(
+                        global_weights=fedavg_server.global_weights,
+                        epochs=epochs,
+                        use_internal_validation=not bool(len(validation_x)),
+                    ))
             if len(results) != len(NODE_NAMES):
                 return jsonify(api_response(
                     code=500,
                     msg="部分联邦节点未能加载当前准备版本，训练已中止。",
                 )), 500
-        global_weights = fedavg_server.aggregate(results)
-        paillier_metrics = (
-            _paillier_aggregation_metrics(results, global_weights)
-            if secure_aggregation or aggregation_method == "paillier"
-            else {
+        if aggregation_method == "paillier":
+            # Validate the selected data revision before paying the one-time
+            # 2048-bit key-generation cost. Key generation happens outside
+            # the dataset preparation lock so unrelated data reads stay fast.
+            secure_aggregation_key = get_secure_aggregation_paillier()
+            if secure_aggregation_key is None:
+                return jsonify(api_response(
+                    code=503,
+                    msg="Paillier 安全聚合密钥初始化失败；普通 FedAvg 仍可使用。",
+                )), 503
+        if secure_aggregation_key is not None:
+            global_weights, paillier_metrics = fedavg_server.aggregate_paillier(
+                results,
+                secure_aggregation_key,
+            )
+        else:
+            global_weights = fedavg_server.aggregate(results)
+            paillier_metrics = {
                 "paillier_enabled": False,
                 "secure_aggregation": False,
+                "secure_aggregation_requested": False,
                 "display_only": False,
                 "timing_method": "not_requested",
                 "actual_crypto_operations_performed": False,
                 "aggregation_method": "plain",
-                "note": "当前使用普通 FedAvg 聚合；如选择 Paillier，将展示参数量化、加密、密态聚合和解密耗时。",
+                "individual_updates_decrypted": False,
+                "server_plaintext_node_updates_observable": True,
+                "cross_institution_key_isolation": False,
+                "trust_boundary": "single_host_logical_nodes",
+                "note": "当前使用普通 FedAvg；可由管理员主动选择 2048 位 Paillier 密态权重聚合。",
             }
-        )
 
         latest_round = fedavg_server.get_history()[-1] if fedavg_server.get_history() else {}
+        shared_validation_metrics = evaluate_linear_binary_weights(
+            validation_x,
+            validation_y,
+            global_weights,
+        ) if len(validation_x) else None
+        if shared_validation_metrics is not None:
+            comparison_accuracy = shared_validation_metrics["accuracy"]
+            comparison_precision = shared_validation_metrics["precision"]
+            comparison_recall = shared_validation_metrics["recall"]
+            comparison_f1 = shared_validation_metrics["f1"]
+            comparison_loss = shared_validation_metrics["loss"]
+            metric_scope = "shared_holdout_validation"
+            metric_label = "同源共享留出集指标"
+            metric_note = (
+                "FedAvg 全局权重在与普通集中式基线完全相同、且未参与四节点训练的共享留出集上评估；"
+                "节点内部验证指标仅用于诊断，不作为最终模型对比值。"
+            )
+        else:
+            comparison_accuracy = float(latest_round.get("accuracy") or 0)
+            comparison_precision = None
+            comparison_recall = None
+            comparison_f1 = None
+            comparison_loss = float(latest_round.get("loss") or 0)
+            metric_scope = "node_validation_weighted"
+            metric_label = "四节点样本加权验证指标"
+            metric_note = (
+                "当前数据量或类别分布不足以建立共享留出集，暂以节点内部验证指标加权汇总；"
+                "该数值不能与普通集中式基线指标直接判断优劣。"
+            )
         version = datetime.now().strftime("fed%Y%m%d%H%M%S%f")[:-3]
         source_ids = [s.get("id") for s in meta.get("sources", []) if s.get("id") and not str(s.get("id")).startswith("dataset:")]
         data = {
@@ -2939,6 +3430,7 @@ def _admin_training_federated_locked():
             "uses_prepared_nodes": reuse_prepared_nodes,
             "federated_context_id": context_id,
             "federated_context_reset": context_reset,
+            "continued_from_previous_round": continue_training,
             "nodes": [{"name": n, "samples": int(c), "ready": True} for n, c in saved],
             "round": fedavg_server.round,
             "clients": [{
@@ -2946,28 +3438,50 @@ def _admin_training_federated_locked():
                 "accuracy": r.get("accuracy", 0),
                 "loss": r.get("loss", 0),
                 "samples": r.get("samples", 0),
-                "metric_scope": "node_validation",
-                "metric_label": "节点本地验证指标",
+                "metric_scope": r.get("metric_scope") or "node_internal_validation",
+                "metric_label": r.get("metric_label") or "节点内部验证指标",
             } for r in results],
-            "avg_accuracy": float(latest_round.get("accuracy") or 0),
-            "precision": None,
-            "recall": None,
-            "f1": None,
+            "avg_accuracy": comparison_accuracy,
+            "accuracy": comparison_accuracy,
+            "precision": comparison_precision,
+            "recall": comparison_recall,
+            "f1": comparison_f1,
+            "loss": comparison_loss,
+            "node_validation_accuracy": float(latest_round.get("accuracy") or 0),
+            "node_validation_loss": float(latest_round.get("loss") or 0),
+            "node_diagnostic_accuracy": float(latest_round.get("accuracy") or 0),
+            "node_diagnostic_loss": float(latest_round.get("loss") or 0),
+            "node_diagnostic_scope": (
+                "node_training_diagnostic" if shared_validation_metrics is not None else "node_internal_validation"
+            ),
             "algorithm": "fedavg",
+            "base_model_algorithm": "linear_logistic_binary_classifier",
+            "optimizer": "batch_gradient_descent_l2",
             "aggregation_method": paillier_metrics.get("aggregation_method", aggregation_method),
             "secure_aggregation": bool(paillier_metrics.get("secure_aggregation", False)),
             "paillier": paillier_metrics,
-            "metric_name": "avg_accuracy",
-            "metric_scope": "node_validation_weighted",
-            "metric_label": "四节点样本加权验证指标",
-            "metric_note": "每个节点在本地训练后使用节点内留出数据计算指标，页面按节点样本数加权汇总；它不是独立外部测试集结果。",
-            "validation_available": True,
+            "metric_name": "accuracy",
+            "metric_scope": metric_scope,
+            "metric_label": metric_label,
+            "metric_note": metric_note,
+            "validation_available": shared_validation_metrics is not None,
+            "uses_shared_validation": shared_validation_metrics is not None,
+            "validation_samples": int(len(validation_x)) if shared_validation_metrics is not None else 0,
+            "validation_id": meta.get("validation_id") if shared_validation_metrics is not None else None,
+            "validation_split_version": meta.get("validation_split_version") if shared_validation_metrics is not None else None,
+            "validation_label_distribution": meta.get("validation_label_distribution") or {},
             "source_count": int(meta.get("source_count", 0)),
             "label_distribution": meta.get("label_distribution", {}),
             "node_count": len(NODE_NAMES),
             "rounds": fedavg_server.round,
+            "epochs": epochs,
+            "effective_epochs": int(epochs * fedavg_server.round),
             "history": fedavg_server.get_history(),
-            "note": "Federated training uses the prepared four-node data revision when available. Its FedAvg weights are tracked separately and do not automatically replace the runtime ensemble detector.",
+            "note": (
+                "Federated training uses the prepared four-node data revision. Paillier mode performs real "
+                "ciphertext weight aggregation on the single-host logical nodes, while the runtime ensemble "
+                "detector remains separate."
+            ),
         }
         data["updated_submissions"] = user_submission_manager.mark_used_for_training(
             source_ids,
@@ -3031,8 +3545,15 @@ def admin_training_tasks():
 def _normalize_legacy_training_record(record):
     """Convert older data/training_records.json rows into admin task shape."""
     meta = dict(record or {})
-    task_type = meta.get("task_type") or meta.get("type") or meta.get("model_type") or "local"
-    task_type = "federated" if "fed" in str(task_type).lower() else "local"
+    raw_task_type = str(meta.get("task_type") or meta.get("type") or meta.get("model_type") or "local").lower()
+    if "fed" in raw_task_type:
+        task_type = "federated"
+    elif "central" in raw_task_type:
+        task_type = "centralized"
+    elif "runtime" in raw_task_type or "ensemble" in raw_task_type:
+        task_type = "runtime"
+    else:
+        task_type = "local"
     accuracy = (
         meta.get("accuracy")
         if meta.get("accuracy") is not None
@@ -3089,12 +3610,15 @@ def _training_task_to_tracking_version(task, index=0):
     merged = {**meta, **nested}
     task_type = str(task.get("task_type") or merged.get("task_type") or "local")
     is_federated = "fed" in task_type.lower()
+    is_centralized = "central" in task_type.lower()
+    is_runtime = "runtime" in task_type.lower()
+    version_prefix = "fed" if is_federated else "central" if is_centralized else "runtime" if is_runtime else "local"
     version = (
         merged.get("model_version")
         or merged.get("version")
         or task.get("model_version")
         or task.get("version")
-        or ("%s-task-%s" % ("fed" if is_federated else "local", index + 1))
+        or ("%s-task-%s" % (version_prefix, index + 1))
     )
     samples = task.get("samples") if task.get("samples") is not None else merged.get("samples", 0)
     accuracy = task.get("accuracy") if task.get("accuracy") is not None else merged.get("accuracy", 0)
@@ -3102,8 +3626,17 @@ def _training_task_to_tracking_version(task, index=0):
         "id": -1 * (index + 1),
         "version": version,
         "model_version": version,
-        "model_type": "federated_tracking_model" if is_federated else "local_tracking_model",
-        "algorithm": merged.get("algorithm") or ("fedavg" if is_federated else "ensemble_detector"),
+        "model_type": (
+            "federated_tracking_model" if is_federated else
+            "centralized_linear_baseline" if is_centralized else
+            "runtime_ensemble" if is_runtime else
+            "local_tracking_model"
+        ),
+        "algorithm": merged.get("algorithm") or (
+            "fedavg" if is_federated else
+            "linear_logistic_gradient_descent" if is_centralized else
+            "ensemble_detector"
+        ),
         "source": task.get("source") or merged.get("source") or merged.get("dataset_name") or "training_task",
         "samples": samples or 0,
         "accuracy": accuracy or 0,
@@ -3180,15 +3713,23 @@ def _latest_training_pair(dataset_source_id="", preparation_id=""):
         if preparation_id and prep_id != str(preparation_id):
             continue
         task_type = str(merged.get("task_type") or task.get("task_type") or "").lower()
+        if "fed" in task_type:
+            kind = "federated"
+        elif "central" in task_type:
+            kind = "centralized"
+        else:
+            # Runtime ensemble training updates the user-facing detector but
+            # is not architecturally comparable with the linear FedAvg model.
+            continue
         rows.append({
             "task": task,
             "merged": merged,
-            "kind": "federated" if "fed" in task_type else "local",
+            "kind": kind,
             "source_id": source_id,
             "preparation_id": prep_id,
         })
     federated_rows = [row for row in rows if row["kind"] == "federated"]
-    local_rows = [row for row in rows if row["kind"] == "local"]
+    local_rows = [row for row in rows if row["kind"] == "centralized"]
     for fed_row in federated_rows:
         for local_row in local_rows:
             source_matches = bool(
@@ -3233,7 +3774,7 @@ def admin_training_external_comparison():
     if local_task is None or federated_task is None:
         return jsonify(api_response(
             code=409,
-            msg="请先基于同一数据准备版本完成普通训练和四节点联邦训练。",
+            msg="请先基于同一数据准备版本完成普通集中式基线和四节点联邦训练。",
         )), 409
     payload = build_redacted_training_comparison_payload(local_task, federated_task)
     expected_cache_key = external_cache_key(payload, settings)
@@ -3359,7 +3900,7 @@ def admin_model_versions():
             "model_count": runtime_status.get("model_count") or runtime_status.get("models") or "",
             "accuracy": runtime_status.get("accuracy") or runtime_status.get("last_accuracy"),
             "source": "runtime_ensemble",
-            "note": "当前用户风险检测实际使用的融合模型；本地训练会生成可切换的完整模型快照，联邦训练只生成追踪记录。",
+            "note": "当前用户风险检测实际使用的融合模型；运行时模型更新会生成可切换的完整快照，普通集中式基线和联邦训练只生成对比追踪记录。",
             "raw_status": runtime_status,
             "current_runtime": True,
             "artifact_status": "available" if runtime_status.get("ready") else "unavailable",
@@ -4074,7 +4615,7 @@ def federated_nodes():
         "nodes": nodes,
         "total": len(nodes),
         "preparation": _load_processed_metadata(),
-        "explanation": "四节点数据由当前训练源按标签分层均分得到。节点只保存数据；只有执行联邦训练时，各节点才训练本地线性模型并参与 FedAvg。",
+        "explanation": "当前源先固定划分训练分区和共享留出集，再将训练分区按标签分层均分到四节点；留出集不进入节点，仅用于普通模型与 FedAvg 全局模型的同口径评估。",
     }))
 
 
@@ -4088,7 +4629,7 @@ def admin_federated_nodes_detail():
         "total": len(nodes),
         "total_samples": total_samples,
         "source": _load_processed_metadata(),
-        "explanation": "这些节点是训练数据池的分层切分结果。它们可以验证本地训练、FedAvg 聚合和模型版本链路，但不等同于真实跨机构部署。",
+        "explanation": "这些节点仅包含当前源的训练分区，共享留出集与节点隔离。它们用于执行节点本地训练、FedAvg 聚合和同口径评估，但不等同于真实跨机构部署。",
     }))
 
 
@@ -4105,27 +4646,40 @@ def federated_round():
 
 def _federated_round_locked():
     req = request.get_json() or {}
-    epochs = max(1, min(int(req.get("epochs") or 5), 20))
+    epochs = max(1, min(int(req.get("epochs") or FEDERATED_DEFAULT_LOCAL_EPOCHS), 20))
     from src.preprocess.federated_splitter import NODE_NAMES, FEDERATED_DIR
     from src.federated.client import FederatedClient
     from src.federated.aggregator import fedavg_server
 
+    validation_x = np.empty((0, 18), dtype=np.float64)
+    validation_y = np.empty(0, dtype=np.int32)
     with _dataset_prepare_lock:
         preparation = _load_processed_metadata()
         context_id = preparation.get("preparation_id")
-        if not context_id or not _federated_files_ready():
+        if (
+            not context_id
+            or preparation.get("validation_split_version") != SHARED_VALIDATION_SPLIT_VERSION
+            or not _federated_files_ready()
+        ):
             return jsonify(api_response(code=400, msg="请先准备当前数据源并生成四节点数据。"))
         fedavg_server.ensure_context(context_id)
+        if preparation.get("validation_available") and preparation.get("validation_id"):
+            validation_x, validation_y, _ = _load_prepared_validation_arrays()
 
         results = []
         for name in NODE_NAMES:
             client = FederatedClient(name, os.path.join(FEDERATED_DIR, name))
             if client.load_data():
-                result = client.train_local(global_weights=fedavg_server.global_weights, epochs=epochs)
+                result = client.train_local(
+                    global_weights=fedavg_server.global_weights,
+                    epochs=epochs,
+                    use_internal_validation=not bool(len(validation_x)),
+                )
                 results.append(result)
 
-    fedavg_server.aggregate(results)
+    global_weights = fedavg_server.aggregate(results)
     latest = fedavg_server.get_history()[-1] if fedavg_server.get_history() else {}
+    shared_metrics = evaluate_linear_binary_weights(validation_x, validation_y, global_weights) if len(validation_x) else None
 
     return jsonify(api_response(data={
         "round": fedavg_server.round,
@@ -4135,8 +4689,15 @@ def _federated_round_locked():
             "loss": r.get("loss", 0),
             "samples": r["samples"],
         } for r in results],
-        "avg_accuracy": float(latest.get("accuracy") or 0),
-        "avg_loss": float(latest.get("loss") or 0),
+        "avg_accuracy": shared_metrics["accuracy"] if shared_metrics is not None else float(latest.get("accuracy") or 0),
+        "avg_loss": shared_metrics["loss"] if shared_metrics is not None else float(latest.get("loss") or 0),
+        "precision": shared_metrics["precision"] if shared_metrics is not None else None,
+        "recall": shared_metrics["recall"] if shared_metrics is not None else None,
+        "f1": shared_metrics["f1"] if shared_metrics is not None else None,
+        "metric_scope": "shared_holdout_validation" if shared_metrics is not None else "node_validation_weighted",
+        "metric_label": "同源共享留出集指标" if shared_metrics is not None else "四节点样本加权验证指标",
+        "validation_samples": int(len(validation_x)) if shared_metrics is not None else 0,
+        "validation_id": preparation.get("validation_id") if shared_metrics is not None else None,
         "federated_context_id": context_id,
         "history": fedavg_server.get_history(),
     }))

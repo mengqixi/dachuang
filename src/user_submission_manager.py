@@ -151,7 +151,7 @@ REVIEW_STATUS = {
 REVIEW_STATUS_NOTE = {
     REVIEW_STATUS["pending"]: "已加密归档，等待管理员确认是否进入训练池。",
     REVIEW_STATUS["archived"]: "已确认归档，可继续审核是否允许用于训练。",
-    REVIEW_STATUS["trainable"]: "管理员已确认该数据可进入本地训练和联邦训练流程。",
+    REVIEW_STATUS["trainable"]: "管理员已确认该数据可进入运行时检测模型更新、普通集中式基线和联邦训练流程。",
     REVIEW_STATUS["rejected"]: "管理员已拒绝该数据进入训练池，仅保留加密归档和风险报告。",
 }
 
@@ -1293,7 +1293,7 @@ class UserSubmissionManager:
                 "label_distribution": {},
                 "attack_type_distribution": {},
                 "scanned_rows": row_count,
-                "description": "用户上传数据，需在用户提交页归档并标记可训练后进入训练数据池。" if not trainable else "已审核进入训练池，可用于本地训练和四节点联邦切分。",
+                "description": "用户上传数据，需在用户提交页归档并标记可训练后进入训练数据池。" if not trainable else "已审核进入训练池，可用于运行时检测模型更新、普通集中式基线和四节点联邦切分。",
                 "review_status": item.get("review_status"),
                 "training_status": "已进入训练池" if trainable else "未进入训练池",
                 "risk_summary": risk_desc,

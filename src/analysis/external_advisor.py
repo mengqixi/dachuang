@@ -28,7 +28,7 @@ from src.utils.atomic_files import atomic_write_bytes, atomic_write_json
 
 EXTERNAL_ADVISOR_INPUT_VERSION = "external-advisor-input-v1"
 EXTERNAL_ADVISOR_RESULT_VERSION = "external-advisor-result-v1"
-EXTERNAL_ADVISOR_PROMPT_VERSION = "privacy-advisor-zh-v1"
+EXTERNAL_ADVISOR_PROMPT_VERSION = "privacy-advisor-zh-v3"
 EXTERNAL_PAYLOAD_POLICY = "redacted_aggregates_only"
 MAX_RESPONSE_BYTES = 1024 * 1024
 DEFAULT_MODEL = "gpt-5.6-sol"
@@ -40,7 +40,7 @@ _DEFAULT_SETTINGS_PATH = os.path.join(_PROJECT_ROOT, "data", "keys", "external_a
 _DEFAULT_KEY_PATH = os.path.join(_PROJECT_ROOT, "data", "keys", "external_ai_settings.key")
 _SETTINGS_AAD = b"dachuang-external-ai-settings-v1"
 
-_SYSTEM_INSTRUCTIONS = """你是隐私数据安全双模型辅助判定与训练方案选择助手。你只能依据收到的脱敏聚合统计和归一化风险信号工作，不能猜测、还原或索取原始数据、个人身份、IP、账号、字段值或样本明细。必须尊重 payload 中的 evidence_boundaries 和 comparison_fairness：指标口径不同时不得直接宣称某算法更准确；模拟四节点不得表述为真实跨机构联邦；Paillier 展示层未替代实际 FedAvg 权重链路时不得宣称完整密态训练。区分本地确定性事实与 AI 二次判定，不得擅自改写本地风险分数或模型权重。对于样本复核，可以确认、建议升级或要求人工复核，但不能建议降低本地 high/critical 风险。输出一个 JSON 对象，且只能包含 summary、privacy_findings、attack_findings、security_findings、metric_findings、data_quality_findings、federated_tradeoffs、recommended_actions、training_readiness、comparison_verdict、training_advice、comparison_advice、sample_reviews、confidence_note 十四个字段。training_readiness 只能是 ready、review_first、not_recommended、insufficient_information 之一；comparison_verdict 只能是 local_preferred、federated_preferred、tradeoff、not_comparable 之一。sample_reviews 的每项只能包含 rank、assessment、ai_risk_level、ai_confidence、ai_attack_type、reason、recommended_action，其中 assessment 只能是 agree、escalate、review、insufficient。"""
+_SYSTEM_INSTRUCTIONS = """你是隐私数据安全双模型辅助判定与训练方案选择助手。你只能依据收到的脱敏聚合统计和归一化风险信号工作，不能猜测、还原或索取原始数据、个人身份、IP、账号、字段值或样本明细。必须尊重 payload 中的 evidence_boundaries 和 comparison_fairness：模型架构、优化轮数、数据修订、指标口径或共享留出集任一不一致时，不得直接宣称某种训练方式更准确；四个单机逻辑节点不得表述为真实跨机构联邦；只有 actual_crypto_operations_performed 和 secure_aggregation 同时为真时，才可表述为实际 Paillier 密态权重聚合，但只要 cross_institution_key_isolation 为假，就不得称为跨机构端到端安全聚合或完整密文训练。区分本地确定性事实与 AI 二次判定，不得擅自改写本地风险分数或模型权重。对于样本复核，可以确认、建议升级或要求人工复核，但不能建议降低本地 high/critical 风险。输出一个 JSON 对象，且只能包含 summary、privacy_findings、attack_findings、security_findings、metric_findings、data_quality_findings、federated_tradeoffs、recommended_actions、training_readiness、comparison_verdict、training_advice、comparison_advice、sample_reviews、confidence_note 十四个字段。training_readiness 只能是 ready、review_first、not_recommended、insufficient_information 之一；comparison_verdict 只能是 local_preferred、federated_preferred、tradeoff、not_comparable 之一。sample_reviews 的每项只能包含 rank、assessment、ai_risk_level、ai_confidence、ai_attack_type、reason、recommended_action，其中 assessment 只能是 agree、escalate、review、insufficient。"""
 
 
 class ExternalAdvisorError(Exception):
@@ -602,8 +602,11 @@ def _training_task_payload(task: Dict, task_kind: str) -> Dict:
         if merged.get("accuracy") is not None
         else merged.get("avg_accuracy")
     )
-    if task_kind == "federated" and clients.get("weighted_accuracy") is not None:
-        accuracy = _optional_number(merged.get("avg_accuracy")) or clients.get("weighted_accuracy")
+    if accuracy is None and task_kind == "federated":
+        accuracy = clients.get("weighted_accuracy")
+    loss = _optional_number(merged.get("loss"))
+    if loss is None and task_kind == "federated":
+        loss = clients.get("weighted_loss")
     paillier = merged.get("paillier") if isinstance(merged.get("paillier"), dict) else {}
     return {
         "training_type": task_kind,
@@ -616,7 +619,7 @@ def _training_task_payload(task: Dict, task_kind: str) -> Dict:
             "precision": _optional_number(merged.get("precision")),
             "recall": _optional_number(merged.get("recall")),
             "f1": _optional_number(merged.get("f1", merged.get("f1_score"))),
-            "loss": clients.get("weighted_loss") if task_kind == "federated" else _optional_number(merged.get("loss")),
+            "loss": loss,
             "metric_scope": _clean_text(merged.get("metric_scope"), 80),
             "metric_label": _clean_text(merged.get("metric_label"), 100),
             "validation_available": bool(merged.get("validation_available")),
@@ -624,30 +627,49 @@ def _training_task_payload(task: Dict, task_kind: str) -> Dict:
         "data_summary": {
             "samples": _count(merged.get("samples")),
             "source_samples": _count(merged.get("source_samples")),
+            "validation_samples": _count(merged.get("validation_samples")),
             "label_distribution": _bounded_count_map(merged.get("label_distribution"), limit=10),
             "node_count": _count(merged.get("node_count")) or (clients.get("node_count") if task_kind == "federated" else 1),
         },
         "training_process": {
-            "epochs": _count(merged.get("epochs")),
+            "epochs": _count(merged.get("effective_epochs", merged.get("epochs"))),
+            "local_epochs_per_round": _count(merged.get("epochs")),
             "rounds": _count(merged.get("rounds", merged.get("round"))),
+            "model_architecture": _clean_text(
+                merged.get("base_model_algorithm") or merged.get("algorithm"),
+                100,
+            ),
+            "optimizer": _clean_text(merged.get("optimizer"), 100),
             "uses_prepared_nodes": bool(merged.get("uses_prepared_nodes")),
+            "continued_from_previous_round": bool(merged.get("continued_from_previous_round")),
             "node_metric_summary": clients if task_kind == "federated" else {},
+            "node_metric_scope": _clean_text(merged.get("node_diagnostic_scope"), 80) if task_kind == "federated" else "",
         },
         "aggregation": {
             "method": _clean_text(merged.get("aggregation_method"), 60) if task_kind == "federated" else "centralized",
-            "paillier_demo_enabled": bool(paillier.get("paillier_enabled")),
+            "paillier_demo_enabled": bool(paillier.get("paillier_enabled") and paillier.get("display_only")),
+            "secure_aggregation": bool(paillier.get("secure_aggregation") or merged.get("secure_aggregation")),
+            "display_only": bool(paillier.get("display_only")),
             "timing_method": _clean_text(paillier.get("timing_method"), 60),
             "actual_crypto_operations_performed": bool(paillier.get("actual_crypto_operations_performed")),
+            "key_size_bits": _count(paillier.get("key_size_bits")),
             "encryption_time_ms": _optional_number(paillier.get("encryption_time_ms")),
             "aggregation_time_ms": _optional_number(paillier.get("aggregation_time_ms")),
             "decryption_time_ms": _optional_number(paillier.get("decryption_time_ms")),
             "encrypted_parameter_count": _count(paillier.get("encrypted_parameter_count")),
+            "max_abs_weight_delta": _optional_number(paillier.get("max_abs_weight_delta")),
+            "server_plaintext_node_updates_observable": bool(
+                paillier.get("server_plaintext_node_updates_observable", True)
+            ),
+            "cross_institution_key_isolation": bool(paillier.get("cross_institution_key_isolation")),
+            "trust_boundary": _clean_text(paillier.get("trust_boundary"), 80),
         },
         # These values are used only for same-revision checks below and are
         # removed from the outbound object before it is returned.
         "_dataset_revision": str(merged.get("dataset_revision") or ""),
         "_preparation_id": str(merged.get("preparation_id") or ""),
         "_dataset_source_id": str(merged.get("dataset_source_id") or ""),
+        "_validation_id": str(merged.get("validation_id") or ""),
     }
 
 
@@ -657,6 +679,11 @@ def build_redacted_training_comparison_payload(local_task: Dict, federated_task:
     federated = _training_task_payload(federated_task, "federated")
     local_metrics = local["metrics"]
     federated_metrics = federated["metrics"]
+    actual_secure_aggregation = bool(
+        federated["aggregation"].get("secure_aggregation")
+        and federated["aggregation"].get("actual_crypto_operations_performed")
+        and not federated["aggregation"].get("display_only")
+    )
 
     same_revision = bool(
         local.get("_dataset_revision")
@@ -674,10 +701,30 @@ def build_redacted_training_comparison_payload(local_task: Dict, federated_task:
         local_metrics.get("metric_scope")
         and local_metrics.get("metric_scope") == federated_metrics.get("metric_scope")
     )
+    same_validation_set = bool(
+        local.get("_validation_id")
+        and local.get("_validation_id") == federated.get("_validation_id")
+    )
+    same_model_architecture = bool(
+        local["training_process"].get("model_architecture")
+        and local["training_process"].get("model_architecture")
+        == federated["training_process"].get("model_architecture")
+        and local["training_process"].get("optimizer")
+        == federated["training_process"].get("optimizer")
+    )
+    same_epoch_budget = bool(
+        local["training_process"].get("epochs")
+        and local["training_process"].get("epochs")
+        == federated["training_process"].get("epochs")
+    )
     direct_ranking_allowed = bool(
         same_revision
         and same_source
+        and same_preparation
         and same_metric_scope
+        and same_validation_set
+        and same_model_architecture
+        and same_epoch_budget
         and local_metrics.get("validation_available")
         and federated_metrics.get("validation_available")
     )
@@ -689,7 +736,7 @@ def build_redacted_training_comparison_payload(local_task: Dict, federated_task:
             return None
         return round((right - left) * multiplier, 6)
 
-    for private_key in ("_dataset_revision", "_preparation_id", "_dataset_source_id"):
+    for private_key in ("_dataset_revision", "_preparation_id", "_dataset_source_id", "_validation_id"):
         local.pop(private_key, None)
         federated.pop(private_key, None)
 
@@ -715,10 +762,13 @@ def build_redacted_training_comparison_payload(local_task: Dict, federated_task:
             "same_preparation_revision": same_preparation,
             "same_sample_count": local["data_summary"]["samples"] == federated["data_summary"]["samples"],
             "same_metric_scope": same_metric_scope,
+            "same_validation_set": same_validation_set,
+            "same_model_architecture": same_model_architecture,
+            "same_epoch_budget": same_epoch_budget,
             "direct_accuracy_ranking_allowed": direct_ranking_allowed,
             "reason_if_not_directly_comparable": (
-                "两种训练结果的指标范围或验证方式不同，只能描述数值差异，不能直接判定算法优劣。"
-                if not direct_ranking_allowed else "指标来源一致，可在该数据修订内进行有限对比。"
+                "两种训练结果没有同时使用同一模型架构、优化预算、数据修订、指标口径和共享留出集，只能描述数值差异，不能直接判定训练方式优劣。"
+                if not direct_ranking_allowed else "两条路径仅训练组织方式不同，可在同一共享留出集上进行有限对比。"
             ),
         },
         "security_architecture": {
@@ -727,15 +777,17 @@ def build_redacted_training_comparison_payload(local_task: Dict, federated_task:
                 "centralized_server_access": True,
                 "temporary_plaintext_in_server_memory": True,
                 "node_isolation": False,
-                "runtime_model_can_be_updated": True,
+                "comparison_baseline_only": True,
+                "runtime_model_can_be_updated": False,
+                "runtime_detector_is_separate": True,
             },
             "federated_training": {
                 "prepared_node_partitions": True,
                 "simulated_nodes_on_single_host": True,
                 "real_cross_institution_network": False,
                 "model_updates_aggregated": True,
-                "actual_weight_aggregation": "FedAvg",
-                "actual_weight_secure_aggregation": False,
+                "actual_weight_aggregation": federated["aggregation"].get("method") or "FedAvg",
+                "actual_weight_secure_aggregation": actual_secure_aggregation,
                 "paillier_is_measurement_demo_layer": bool(federated["aggregation"].get("paillier_demo_enabled")),
                 "paillier_timings_are_estimates": (
                     federated["aggregation"].get("timing_method") == "parameter_count_estimate"
@@ -743,7 +795,14 @@ def build_redacted_training_comparison_payload(local_task: Dict, federated_task:
                 "actual_paillier_crypto_operations_performed": bool(
                     federated["aggregation"].get("actual_crypto_operations_performed")
                 ),
-                "paillier_replaces_actual_weight_path": False,
+                "paillier_replaces_actual_weight_path": actual_secure_aggregation,
+                "server_plaintext_node_updates_observable": bool(
+                    federated["aggregation"].get("server_plaintext_node_updates_observable")
+                ),
+                "cross_institution_key_isolation": bool(
+                    federated["aggregation"].get("cross_institution_key_isolation")
+                ),
+                "trust_boundary": federated["aggregation"].get("trust_boundary"),
                 "automatically_replaces_runtime_detector": False,
             },
         },
@@ -1072,7 +1131,7 @@ class ExternalAdvisorClient:
     def _request_body(self, payload: Dict) -> Dict:
         analysis_kind = str(payload.get("analysis_kind") or "dataset_security")
         if analysis_kind == "training_security_comparison":
-            task = "依据实际训练记录，对普通训练与联邦训练的判定能力、安全边界和适用性进行对比，给出当前平台应采用的方案判断。"
+            task = "依据同构普通集中式基线与四节点 FedAvg 的实际训练记录，对判定能力、安全边界和适用性进行对比，给出当前平台应采用的方案判断。"
         else:
             task = "对本地检测模型的脱敏风险信号进行第二判定，帮助用户得到更可靠的综合风险结论，并解释隐私与攻击风险。"
         user_input = json.dumps({

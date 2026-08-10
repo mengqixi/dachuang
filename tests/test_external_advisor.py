@@ -59,11 +59,21 @@ class RedactedPayloadTests(unittest.TestCase):
         self.assertIn("AI 接口设置", html)
         self.assertIn("使用 AI 辅助判定", html)
         self.assertIn("AI 辅助选择模型", html)
+        self.assertIn("同一共享留出集", html)
+        self.assertIn("shared_holdout_validation", html)
+        self.assertIn("epochs:20", html)
         self.assertIn('id="externalAiSettingsModal"', html)
         self.assertNotIn('id="pg-externalAi"', html)
         self.assertNotIn("隐私保护 90%", html)
         self.assertNotIn("metric.aggregation_method||'paillier'", html)
         self.assertNotIn("实验", html)
+        self.assertIn("Paillier 安全聚合", html)
+        self.assertIn("{id:'training',text:'训练中心'}", html)
+        self.assertIn("requestedAppMode === 'admin'", html)
+        self.assertNotIn("单机真实密态聚合", html)
+        self.assertNotIn("单机无跨机构密钥隔离", html)
+        self.assertNotIn("聚合与安全边界", html)
+        self.assertNotIn("代码事实", html)
 
     def test_dataset_payload_excludes_identifiers_values_and_field_names(self):
         analysis = {
@@ -189,6 +199,145 @@ class RedactedPayloadTests(unittest.TestCase):
         )
         self.assertFalse(
             payload["security_architecture"]["federated_training"]["actual_paillier_crypto_operations_performed"]
+        )
+
+    def test_training_payload_reports_actual_paillier_path_without_overstating_boundary(self):
+        shared = {
+            "dataset_source_id": "source-private",
+            "dataset_revision": "revision-private",
+            "preparation_id": "prep-private",
+            "validation_id": "validation-private",
+            "metric_scope": "shared_holdout_validation",
+            "validation_available": True,
+            "base_model_algorithm": "linear_logistic_binary_classifier",
+            "optimizer": "batch_gradient_descent_l2",
+            "epochs": 20,
+        }
+        centralized = {
+            "task_type": "centralized",
+            "accuracy": 0.9,
+            "samples": 80,
+            "metadata": json.dumps(shared),
+        }
+        federated = {
+            "task_type": "federated",
+            "accuracy": 0.9,
+            "samples": 80,
+            "metadata": json.dumps({
+                **shared,
+                "aggregation_method": "fedavg_paillier_secure",
+                "secure_aggregation": True,
+                "paillier": {
+                    "paillier_enabled": True,
+                    "secure_aggregation": True,
+                    "display_only": False,
+                    "timing_method": "measured_wall_clock",
+                    "actual_crypto_operations_performed": True,
+                    "key_size_bits": 2048,
+                    "encrypted_parameter_count": 76,
+                    "max_abs_weight_delta": 0.0000002,
+                    "server_plaintext_node_updates_observable": True,
+                    "cross_institution_key_isolation": False,
+                    "trust_boundary": "single_host_logical_nodes",
+                },
+            }),
+        }
+
+        payload = build_redacted_training_comparison_payload(centralized, federated)
+        security = payload["security_architecture"]["federated_training"]
+
+        self.assertTrue(security["actual_weight_secure_aggregation"])
+        self.assertTrue(security["actual_paillier_crypto_operations_performed"])
+        self.assertTrue(security["paillier_replaces_actual_weight_path"])
+        self.assertFalse(security["paillier_is_measurement_demo_layer"])
+        self.assertFalse(security["cross_institution_key_isolation"])
+        self.assertEqual(security["trust_boundary"], "single_host_logical_nodes")
+
+    def test_training_payload_allows_limited_ranking_only_on_same_shared_holdout(self):
+        shared = {
+            "dataset_source_id": "source-private",
+            "dataset_revision": "revision-private",
+            "preparation_id": "prep-private",
+            "validation_id": "validation-private",
+            "metric_scope": "shared_holdout_validation",
+            "metric_label": "同源共享留出集指标",
+            "validation_available": True,
+            "validation_samples": 20,
+            "base_model_algorithm": "linear_logistic_binary_classifier",
+            "optimizer": "batch_gradient_descent_l2",
+            "epochs": 20,
+        }
+        local = {
+            "task_type": "local",
+            "accuracy": 0.9,
+            "samples": 80,
+            "metadata": json.dumps({**shared, "precision": 0.91, "recall": 0.89, "f1": 0.9}),
+        }
+        federated = {
+            "task_type": "federated",
+            "accuracy": 0.88,
+            "samples": 80,
+            "metadata": json.dumps({
+                **shared,
+                "avg_accuracy": 0.88,
+                "precision": 0.89,
+                "recall": 0.86,
+                "f1": 0.875,
+                "loss": 0.31,
+                "clients": [{"name": "private-node", "samples": 80, "accuracy": 0.87, "loss": 0.4}],
+            }),
+        }
+
+        payload = build_redacted_training_comparison_payload(local, federated)
+        raw = json.dumps(payload, ensure_ascii=False)
+
+        self.assertTrue(payload["comparison_fairness"]["same_validation_set"])
+        self.assertTrue(payload["comparison_fairness"]["same_metric_scope"])
+        self.assertTrue(payload["comparison_fairness"]["same_model_architecture"])
+        self.assertTrue(payload["comparison_fairness"]["same_epoch_budget"])
+        self.assertTrue(payload["comparison_fairness"]["direct_accuracy_ranking_allowed"])
+        self.assertEqual(payload["local_training"]["data_summary"]["validation_samples"], 20)
+        self.assertEqual(payload["federated_training"]["metrics"]["loss"], 0.31)
+        self.assertFalse(payload["security_architecture"]["local_training"]["runtime_model_can_be_updated"])
+        self.assertTrue(payload["security_architecture"]["local_training"]["runtime_detector_is_separate"])
+        self.assertNotIn("validation-private", raw)
+        self.assertNotIn("private-node", raw)
+
+    def test_training_payload_preserves_shared_holdout_zero_accuracy(self):
+        shared = {
+            "dataset_source_id": "source-private",
+            "dataset_revision": "revision-private",
+            "preparation_id": "prep-private",
+            "validation_id": "validation-private",
+            "metric_scope": "shared_holdout_validation",
+            "validation_available": True,
+            "base_model_algorithm": "linear_logistic_binary_classifier",
+            "optimizer": "batch_gradient_descent_l2",
+            "epochs": 20,
+        }
+        centralized = {
+            "task_type": "centralized",
+            "accuracy": 0.5,
+            "samples": 80,
+            "metadata": json.dumps(shared),
+        }
+        federated = {
+            "task_type": "federated",
+            "accuracy": 0.0,
+            "samples": 80,
+            "metadata": json.dumps({
+                **shared,
+                "avg_accuracy": 0.0,
+                "clients": [{"name": "private-node", "samples": 80, "accuracy": 0.9, "loss": 0.2}],
+            }),
+        }
+
+        payload = build_redacted_training_comparison_payload(centralized, federated)
+
+        self.assertEqual(payload["federated_training"]["metrics"]["accuracy"], 0.0)
+        self.assertEqual(
+            payload["deterministic_differences"]["federated_minus_local_accuracy_percentage_points"],
+            -50.0,
         )
 
 

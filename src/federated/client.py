@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""联邦学习客户端 - 4节点模拟"""
+"""平台四节点联邦训练客户端。"""
 
 import os
 import numpy as np
@@ -10,7 +10,7 @@ from src.preprocess.federated_splitter import NODE_NAMES
 
 
 class FederatedClient:
-    """联邦学习客户端 - 代表一个机构节点"""
+    """联邦学习客户端，代表一个逻辑数据节点。"""
 
     def __init__(self, name: str, data_dir: str):
         self.name = name
@@ -64,12 +64,18 @@ class FederatedClient:
         rng.shuffle(val_idx)
         return X[train_idx], y[train_idx], X[val_idx], y[val_idx]
 
-    def train_local(self, global_weights: Optional[np.ndarray] = None, epochs: int = 5) -> Dict:
+    def train_local(
+        self,
+        global_weights: Optional[np.ndarray] = None,
+        epochs: int = 5,
+        use_internal_validation: bool = True,
+    ) -> Dict:
         """本地训练
 
         Args:
             global_weights: 全局模型权重 (None=第一次训练)
             epochs: 本地训练轮数
+            use_internal_validation: 没有共享留出集时，是否保留节点内部验证数据
 
         Returns:
             梯度/权重字典
@@ -98,10 +104,22 @@ class FederatedClient:
                 "loss": round(float(-np.log(prior if y[0] else 1.0 - prior)), 4),
                 "name": self.name,
                 "validation_scope": "single_class_training_data",
+                "metric_scope": "node_training_diagnostic" if not use_internal_validation else "single_class_training_data",
+                "metric_label": "节点训练诊断指标" if not use_internal_validation else "单类别节点训练指标",
             }
 
         seed = sum(ord(ch) for ch in self.name) + n_samples
-        X_train, y_train, X_val, y_val = self._split_train_validation(X, y, seed)
+        if use_internal_validation:
+            X_train, y_train, X_val, y_val = self._split_train_validation(X, y, seed)
+            diagnostic_scope = "node_internal_validation"
+            diagnostic_label = "节点内部验证指标"
+        else:
+            # The preparation pipeline already owns an untouched shared
+            # holdout.  Training every node on its complete train partition
+            # gives the centralized and federated paths the same row budget.
+            X_train, y_train, X_val, y_val = X, y, X, y
+            diagnostic_scope = "node_training_diagnostic"
+            diagnostic_label = "节点训练诊断指标"
 
         if global_weights is not None and len(global_weights) == n_features + 1:
             weights = np.asarray(global_weights, dtype=np.float64).copy()
@@ -131,4 +149,6 @@ class FederatedClient:
             "accuracy": round(val_acc, 4),
             "loss": round(val_loss, 4),
             "name": self.name,
+            "metric_scope": diagnostic_scope,
+            "metric_label": diagnostic_label,
         }

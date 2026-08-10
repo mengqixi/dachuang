@@ -32,7 +32,7 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
 .btn-main{background:#2F5F93;color:#fff;border:0;border-radius:8px;padding:8px 14px;font-size:14px;font-weight:700}
 .btn-main:hover{background:#264E7A;color:#fff}.btn-main:disabled{opacity:.55;cursor:not-allowed}
 .btn-lightx{background:#EEF2F6;color:#263238;border:0;border-radius:8px;padding:8px 14px;font-size:14px}
-.status-pill{display:inline-block;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:700}
+.status-pill{display:inline-block;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:700;white-space:nowrap}
 .ok{background:#E8F5E9;color:#2E7D32}.warn{background:#FFF8E1;color:#8A6200}.bad{background:#FFEBEE;color:#B71C1C}.info{background:#E3F2FD;color:#1E5C9A}
 .risk-tags{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
 .risk-tag{display:inline-flex;align-items:center;border-radius:999px;padding:2px 7px;font-size:12px;font-weight:800;border:1px solid transparent}
@@ -56,8 +56,9 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
 .preview-card{border:1px solid #E6ECF2;border-radius:10px;padding:12px;background:#FAFBFC}
 .risk-low{color:#2E7D32;font-weight:800}.risk-medium{color:#8A6200;font-weight:800}.risk-high,.risk-critical{color:#B71C1C;font-weight:800}
 .node-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
-.node-card{border:1px solid #E6ECF2;border-radius:10px;padding:14px;text-align:center;background:#fff}
-.node-card i{font-size:22px;color:#2F5F93;margin-bottom:6px}
+.node-card{border:1px solid #E6ECF2;border-radius:12px;padding:12px;background:#fff;box-shadow:0 3px 12px rgba(47,95,147,.05)}
+.node-card i{font-size:15px;color:#2F5F93}.node-card-head{display:flex;align-items:center;gap:6px;min-width:0}.node-card-head b{flex:1;min-width:0;text-align:left;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.node-card-state{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:#FFF6DE}.node-card-state i{font-size:11px;color:#A87300}.node-card-state.ok{background:#EAF7ED}.node-card-state.ok i{color:#2E7D32}.node-card-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-top:10px}.node-card-stats span{background:#F6F9FC;border-radius:7px;padding:6px 3px;color:#607D8B;font-size:11px;text-align:center}.node-card-stats b{display:block;color:#2F5F93;font-size:14px}
+.training-action-card{display:flex;align-items:center;gap:12px;padding:11px 12px;border:1px solid #DCE8F3;border-radius:12px;background:linear-gradient(135deg,#F7FBFF,#EEF6FF)}.training-action-card .btn-main{white-space:nowrap;min-height:38px}.aggregation-picker{display:flex;align-items:center;gap:10px;flex:1;min-width:230px}.aggregation-picker label{margin:0;color:#456781;font-size:12px;font-weight:800;white-space:nowrap}.aggregation-picker .form-select{max-width:220px;border-color:#C9D9E8;background-color:#fff}.training-secondary{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:9px}.training-secondary .hint{margin-left:auto}.aggregation-status-strip{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid #DCE8F3;border-radius:12px;background:#F7FBFF;padding:10px 12px;margin-top:12px}.aggregation-status-main{display:flex;align-items:center;gap:10px;min-width:0}.aggregation-status-icon{width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;border-radius:10px;background:#E7F1FC;color:#2F5F93}.aggregation-status-main b{display:block;color:#244E7A;font-size:13px}.aggregation-status-main span{display:block;color:#708090;font-size:11px;margin-top:1px}.aggregation-timing{font-size:12px;color:#52687C;text-align:right;white-space:nowrap}.comparison-summary{display:flex;align-items:center;gap:8px;border-radius:9px;padding:9px 10px;margin-top:10px;background:#F5F9FD;color:#456781;font-size:12px}.comparison-summary.ok{background:#F1F8F3;color:#2E6B3A}.comparison-summary.warn{background:#FFF8E8;color:#7A5B10}.comparison-summary b{font-size:13px}.empty-comparison{display:flex;align-items:center;justify-content:center;min-height:92px;color:#748394;font-size:13px;text-align:center}
 .report-box{background:#fff;color:#263238;border:1px solid #DDE7F0;border-radius:10px;padding:18px;white-space:pre-wrap;min-height:260px;max-height:520px;overflow:auto;font-size:14px;line-height:1.85;box-shadow:inset 0 0 0 1px rgba(255,255,255,.65)}
 .report-box.empty{background:#F8FBFE;color:#66788A;border-style:dashed}
 .report-note{border:1px solid #DDE7F0;background:#F8FBFE;border-radius:10px;padding:10px 12px;color:#5D6F82;font-size:13px}
@@ -67,8 +68,81 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
 .chain{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.chain span{background:#EEF6FF;border:1px solid #CFE2F5;color:#1E5C9A;border-radius:999px;padding:6px 10px;font-size:13px;font-weight:700}
 .toastx{position:fixed;top:60px;right:18px;z-index:9999;color:#fff;border-radius:8px;padding:10px 15px;font-size:13px;box-shadow:0 6px 20px rgba(0,0,0,.15)}
 .mini-modal[hidden]{display:none!important}.mini-modal{position:fixed;inset:0;z-index:10020;background:rgba(20,32,46,.48);display:flex;align-items:center;justify-content:center;padding:18px}.mini-modal-card{width:min(760px,96vw);max-height:90vh;overflow:auto;background:#fff;border:1px solid #DDE7F0;border-radius:14px;box-shadow:0 22px 60px rgba(10,25,45,.28)}.mini-modal-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid #E6ECF2;font-weight:900;color:#1E5C9A}.mini-modal-body{padding:18px}.mini-modal-foot{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid #E6ECF2}.mini-close{border:0;background:#EEF2F6;border-radius:8px;width:34px;height:34px;color:#455A64}.ai-settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.ai-settings-grid .wide{grid-column:1/-1}.ai-assist-card{border:1px solid #BBD3EC;background:#F7FBFF;border-radius:10px;padding:13px;margin-top:12px}.ai-assist-card .ai-title{display:flex;justify-content:space-between;align-items:center;gap:10px;font-weight:900;color:#1E5C9A;margin-bottom:8px}.ai-decision-row{display:grid;grid-template-columns:70px 1fr 1fr;gap:8px;border-top:1px solid #E1EAF2;padding:8px 0;font-size:12px}.ai-decision-row:first-child{border-top:0}.ai-local-primary{background:#EEF6FF;border:1px solid #CFE2F5;border-radius:8px;padding:8px 10px;color:#315A7D;font-size:12px;line-height:1.6}.ai-list{margin:6px 0 0;padding-left:20px;font-size:13px;color:#455A64}.ai-status-line{font-size:12px;color:#607D8B;line-height:1.6}.ai-judgement{min-width:150px;white-space:normal;line-height:1.5}.ai-judgement .status-pill{margin-bottom:3px}.secret-note{font-size:12px;color:#8A6200;line-height:1.55}.config-status{border-radius:8px;padding:9px 11px;background:#F8FAFC;border:1px dashed #C7D2DE;font-size:12px;color:#455A64}
-@media(max-width:980px){.metric-grid,.two-col,.three-col,.node-grid{grid-template-columns:1fr}.navbar-nav{overflow-x:auto;max-width:100%}}
+@media(max-width:980px){.metric-grid,.two-col,.three-col,.node-grid{grid-template-columns:1fr}.navbar-nav{overflow-x:auto;max-width:100%}.training-action-card{align-items:stretch;flex-direction:column}.aggregation-picker{min-width:0}.aggregation-picker .form-select{max-width:none}.aggregation-status-strip{align-items:flex-start;flex-direction:column}.aggregation-timing{text-align:left;white-space:normal}}
 @media(max-width:720px){.ai-settings-grid{grid-template-columns:1fr}.ai-settings-grid .wide{grid-column:auto}.ai-decision-row{grid-template-columns:1fr}}
+
+/* 轻量科技感主题：保留原有结构，只增强层次、状态和交互反馈。 */
+body{
+  --app-accent:#1677d2;
+  --app-accent-2:#00a6c8;
+  --app-accent-rgb:22,119,210;
+  --app-ink:#17324d;
+  --app-line:#d9e6f1;
+  min-height:100vh;
+  background-color:#f3f7fb;
+  background-image:
+    radial-gradient(circle at 8% 0%,rgba(var(--app-accent-rgb),.09),transparent 26rem),
+    linear-gradient(rgba(59,104,145,.025) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(59,104,145,.025) 1px,transparent 1px);
+  background-size:auto,28px 28px,28px 28px;
+}
+body[data-app-mode="admin"]{--app-accent:#315fda;--app-accent-2:#6659df;--app-accent-rgb:49,95,218}
+.navbar{
+  background:rgba(255,255,255,.94);
+  border-bottom:1px solid rgba(var(--app-accent-rgb),.2);
+  box-shadow:0 7px 24px rgba(21,53,84,.08);
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+  position:sticky;
+}
+.navbar:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;background:linear-gradient(90deg,transparent,var(--app-accent),var(--app-accent-2),transparent);opacity:.7}
+.navbar-brand{color:var(--app-ink)!important;letter-spacing:.1px}.navbar-brand i{color:var(--app-accent);filter:drop-shadow(0 2px 5px rgba(var(--app-accent-rgb),.22))}
+.nav-link{color:#506579;border-color:transparent;transition:background-color .18s ease,border-color .18s ease,color .18s ease,box-shadow .18s ease}
+.nav-link:hover{background:rgba(var(--app-accent-rgb),.07);color:var(--app-accent);border-color:rgba(var(--app-accent-rgb),.12)}
+.navbar .nav-link.active{background:linear-gradient(135deg,rgba(var(--app-accent-rgb),.13),rgba(var(--app-accent-rgb),.06));color:var(--app-accent)!important;border-color:rgba(var(--app-accent-rgb),.28);box-shadow:0 4px 12px rgba(var(--app-accent-rgb),.12)}
+main.container-fluid{max-width:1600px;margin:0 auto}
+.panel{position:relative;background:rgba(255,255,255,.94);border-color:rgba(120,157,190,.25);border-radius:14px;box-shadow:0 8px 24px rgba(27,60,91,.07);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.panel:before{content:"";position:absolute;left:16px;right:16px;top:-1px;height:2px;border-radius:999px;background:linear-gradient(90deg,var(--app-accent),var(--app-accent-2),transparent 78%);opacity:.58;pointer-events:none}
+.panel-head{background:linear-gradient(90deg,rgba(var(--app-accent-rgb),.045),rgba(255,255,255,.35));border-bottom-color:#e6eef5;color:#20364b;letter-spacing:.05px}
+.panel-head>i{color:var(--app-accent)!important;filter:drop-shadow(0 2px 5px rgba(var(--app-accent-rgb),.18))}
+.btn-main{background:linear-gradient(135deg,var(--app-accent),var(--app-accent-2));box-shadow:0 6px 15px rgba(var(--app-accent-rgb),.2);transition:transform .16s ease,box-shadow .16s ease,filter .16s ease}
+.btn-main:hover{background:linear-gradient(135deg,var(--app-accent),var(--app-accent-2));transform:translateY(-1px);box-shadow:0 9px 20px rgba(var(--app-accent-rgb),.27);filter:saturate(1.08)}
+.btn-main:active{transform:translateY(0)}
+.btn-lightx{background:linear-gradient(180deg,#fff,#f5f8fb);color:#29445d;border:1px solid #dde8f1;box-shadow:0 2px 7px rgba(28,64,97,.05);transition:border-color .16s ease,color .16s ease,box-shadow .16s ease,transform .16s ease}
+.btn-lightx:hover{color:var(--app-accent);border-color:rgba(var(--app-accent-rgb),.35);box-shadow:0 5px 12px rgba(var(--app-accent-rgb),.1);transform:translateY(-1px)}
+.metric{position:relative;overflow:hidden;background:linear-gradient(145deg,#fff,#f7fbff);border-color:#dfeaf3;box-shadow:0 5px 14px rgba(32,67,99,.045);transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}
+.metric:before{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:linear-gradient(90deg,var(--app-accent),var(--app-accent-2));opacity:.48}
+.metric:hover{border-color:rgba(var(--app-accent-rgb),.3);box-shadow:0 8px 18px rgba(var(--app-accent-rgb),.09);transform:translateY(-1px)}
+.metric-value{color:var(--app-accent);background:linear-gradient(135deg,var(--app-accent),var(--app-accent-2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.metric-label{color:#708294;letter-spacing:.1px}
+.form-control,.form-select,.input-group-text{border-color:#d8e4ee;background-color:rgba(255,255,255,.94)}
+.form-control:focus,.form-select:focus{border-color:rgba(var(--app-accent-rgb),.58);box-shadow:0 0 0 .2rem rgba(var(--app-accent-rgb),.11)}
+.form-control[type="file"]::file-selector-button{border:0;border-right:1px solid #d8e4ee;background:#f2f7fb;color:#29445d;padding:.45rem .8rem;margin:-.375rem .75rem -.375rem -.75rem}
+.notice,.preview-card,.report-note{background:linear-gradient(135deg,#f9fbfd,#f4f8fc);border-color:#cfdeea;color:#506579}
+.info-icon{border-color:rgba(var(--app-accent-rgb),.28);background:rgba(var(--app-accent-rgb),.08);color:var(--app-accent);transition:box-shadow .16s ease,background-color .16s ease}
+.info-icon:hover,.info-icon:focus{background:rgba(var(--app-accent-rgb),.14);box-shadow:0 0 0 4px rgba(var(--app-accent-rgb),.07)}
+.mini-badge{background:rgba(var(--app-accent-rgb),.075);color:var(--app-accent);border-color:rgba(var(--app-accent-rgb),.2)}
+.chain span{background:linear-gradient(135deg,rgba(var(--app-accent-rgb),.09),rgba(var(--app-accent-rgb),.045));border-color:rgba(var(--app-accent-rgb),.2);color:var(--app-accent)}
+.scroll-box{border-color:#d9e5ef;background:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.8)}
+.scroll-box thead th{position:sticky;top:0;z-index:3;background:#f4f8fc;border-bottom:1px solid #d8e5ef;color:#425a70}
+.scroll-box tbody tr{transition:background-color .14s ease}.scroll-box tbody tr:hover{background:rgba(var(--app-accent-rgb),.035)}
+.table-sm>:not(caption)>*>*{border-bottom-color:#e7eef4}
+.chart-card,.training-compare,.compare-box,.result-card,.model-version-card,.node-card{border-color:#dce8f1;box-shadow:0 5px 16px rgba(28,64,97,.05)}
+.chart-card,.training-compare{background:linear-gradient(145deg,#fff,#f9fcff)}
+.compare-head b,.compare-box h6,.result-card .title,.model-version-card h6{color:var(--app-accent)}
+.bar-fill{background:linear-gradient(90deg,var(--app-accent-2),var(--app-accent))}
+.training-action-card,.aggregation-status-strip{border-color:rgba(var(--app-accent-rgb),.18);background:linear-gradient(135deg,rgba(var(--app-accent-rgb),.055),rgba(255,255,255,.9))}
+.aggregation-status-icon{background:rgba(var(--app-accent-rgb),.1);color:var(--app-accent)}
+.ai-assist-card{border-color:rgba(var(--app-accent-rgb),.25);background:linear-gradient(135deg,rgba(var(--app-accent-rgb),.065),rgba(255,255,255,.92))}
+.ai-assist-card .ai-title,.mini-modal-head{color:var(--app-accent)}
+.ai-local-primary{background:rgba(var(--app-accent-rgb),.055);border-color:rgba(var(--app-accent-rgb),.16);color:#385b78}
+.mini-modal-card{border-color:rgba(var(--app-accent-rgb),.2);box-shadow:0 24px 70px rgba(10,35,60,.3)}
+.loading-spinner{border-color:#d9e6f0;border-top-color:var(--app-accent)}.loading-box{color:var(--app-accent);border-color:rgba(var(--app-accent-rgb),.2)}
+#pg-upload>.panel:first-child .panel-body>.two-col>div{padding:14px;border:1px solid #e1ebf3;border-radius:12px;background:linear-gradient(145deg,#fff,#f8fbfe)}
+.toastx{backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+*{scrollbar-width:thin;scrollbar-color:rgba(var(--app-accent-rgb),.35) transparent}
+*::-webkit-scrollbar{width:8px;height:8px}*::-webkit-scrollbar-track{background:transparent}*::-webkit-scrollbar-thumb{background:rgba(var(--app-accent-rgb),.28);border-radius:999px}*::-webkit-scrollbar-thumb:hover{background:rgba(var(--app-accent-rgb),.42)}
+@media(prefers-reduced-motion:reduce){.btn-main,.btn-lightx,.metric,.nav-link,.scroll-box tbody tr{transition:none!important}}
 </style>
 </head>
 <body>
@@ -280,26 +354,9 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
       </div>
     </div>
     <div class="panel">
-      <div class="panel-head">本地训练 / 四节点联邦训练对比</div>
-      <div class="panel-body">
-        <div class="compact-actions mb-3">
-          <button class="btn-main" id="dataProcessTrainButton" onclick="runAdminFullTraining()"><i class="fas fa-play"></i> 运行本地基线 + 四节点联邦训练</button>
-          <button class="btn-lightx" onclick="loadTrainingRecords(true)"><i class="fas fa-rotate"></i> 刷新训练结果</button>
-          <button class="btn-lightx" onclick="runTrainingAiComparison(event)"><i class="fas fa-wand-magic-sparkles"></i> AI 辅助选择模型</button>
-          <span class="small-text text-muted" id="dataProcessTrainingStatus">完成训练后将显示本地基线、四节点结果和最新任务时间。</span>
-        </div>
-        <div class="chart-card mt-2">
-          <div class="compare-head"><b>训练结果对比</b><span class="mini-badge">来自训练任务记录</span></div>
-          <div class="chart-canvas-wrap"><canvas id="modelVersionCompareChart"></canvas></div>
-          <div class="chart-fallback" id="modelVersionCompareFallback"></div>
-        </div>
-        <div class="node-grid mt-3" id="federatedTrainingDetails">
-          <div class="notice mb-0">尚无四节点联邦训练结果。点击上方按钮后会显示各节点样本数、准确率和损失。</div>
-        </div>
-        <div class="ai-assist-card" id="trainingAiComparisonBox">
-          <div class="ai-title"><span><i class="fas fa-wand-magic-sparkles"></i> AI 训练方案辅助判定</span><span class="mini-badge">按需调用</span></div>
-          <div class="ai-local-primary">平台先显示确定性的普通训练/联邦训练指标。只有主动点击按钮时，AI 才结合指标口径和安全机制给出模型选择判断。</div>
-        </div>
+      <div class="panel-body compact-actions">
+        <div class="me-auto"><b>数据准备完成</b><div class="small-text text-muted">前往训练中心选择聚合方式并查看模型效果。</div></div>
+        <button class="btn-main" onclick="showPage('training')"><i class="fas fa-arrow-right"></i> 进入训练中心</button>
       </div>
     </div>
   </section>
@@ -308,53 +365,53 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
     <div class="two-col training-layout">
       <div class="panel">
         <div class="panel-head"><i class="fas fa-brain text-primary"></i> 训练中心
-          <span class="hint"><button class="info-icon" type="button"><i class="fas fa-info"></i></button><span class="hint-panel">本地训练作为集中式基线；四节点联邦训练用于展示数据分散训练与 FedAvg 聚合流程。Paillier 用于展示安全聚合方向，不表示完整密文训练。</span></span>
+          <span class="hint"><button class="info-icon" type="button" aria-label="查看训练说明"><i class="fas fa-info"></i></button><span class="hint-panel">普通集中式与联邦训练采用同一模型、数据和共享留出集。</span></span>
         </div>
         <div class="panel-body">
           <div class="preview-card mb-3" id="trainingSourceBox">当前训练数据源：请先在数据管理页刷新数据。</div>
           <div class="training-compact mb-3">
-            <div class="metric-card"><div class="metric-val" id="trainDataMetric">--</div><div class="metric-label">训练样本</div></div>
-            <div class="metric-card"><div class="metric-val" id="trainFeatureMetric">--</div><div class="metric-label">特征数</div></div>
-            <div class="metric-card"><div class="metric-val" id="trainNodeMetric">--</div><div class="metric-label">联邦节点</div></div>
+            <div class="metric metric-card"><div class="metric-value" id="trainDataMetric">--</div><div class="metric-label">数据样本</div></div>
+            <div class="metric metric-card"><div class="metric-value" id="trainFeatureMetric">--</div><div class="metric-label">模型特征</div></div>
+            <div class="metric metric-card"><div class="metric-value" id="trainNodeMetric">--</div><div class="metric-label">联邦节点</div></div>
           </div>
-          <div class="compact-actions mt-3">
-            <button class="btn-main" onclick="runAdminFullTraining()"><i class="fas fa-play"></i> 运行本地基线 + 四节点联邦训练</button>
-            <button class="btn-lightx" onclick="loadTrainingPage()">刷新训练数据源</button>
-            <span class="hint"><button class="info-icon" type="button"><i class="fas fa-info"></i></button><span class="hint-panel">点击后会先执行本地训练形成集中式基线，再执行四节点联邦训练，完成后右侧同步展示对比结果。</span></span>
+          <div class="training-action-card">
+            <div class="aggregation-picker">
+              <label for="federatedAggregationMode"><i class="fas fa-layer-group"></i> 聚合方式</label>
+              <select class="form-select form-select-sm" id="federatedAggregationMode" title="选择联邦权重聚合方式">
+                <option value="plain" selected>普通 FedAvg（快速）</option>
+                <option value="paillier">Paillier 安全聚合</option>
+              </select>
+            </div>
+            <button class="btn-main" id="trainingRunButton" onclick="runAdminFullTraining()"><i class="fas fa-play"></i> 开始对比训练</button>
+          </div>
+          <div class="training-secondary">
+            <button class="btn-lightx" onclick="runAdminLocalTrain()"><i class="fas fa-shield-halved"></i> 更新检测模型</button>
+            <button class="btn-lightx" onclick="loadTrainingPage()"><i class="fas fa-rotate"></i> 刷新数据</button>
+            <button class="btn-lightx" onclick="runTrainingAiComparison(event)"><i class="fas fa-wand-magic-sparkles"></i> AI 辅助选择模型</button>
+            <span class="hint"><button class="info-icon" type="button" aria-label="查看聚合方式说明"><i class="fas fa-info"></i></button><span class="hint-panel right">FedAvg 响应更快；Paillier 会增加计算时间并保护聚合过程。</span></span>
           </div>
           <div class="node-grid mt-3" id="fedNodes"></div>
-          <div class="subtle-note mt-2" id="fedNodeExplain">四节点数据由训练数据池按标签分层划分得到。</div>
+          <div class="subtle-note mt-2" id="fedNodeExplain">节点状态将在数据同步后显示。</div>
         </div>
       </div>
       <div class="panel">
-        <div class="panel-head">训练结果与聚合对比
-          <span class="hint"><button class="info-icon" type="button"><i class="fas fa-info"></i></button><span class="hint-panel right">AES 用于归档保护，Paillier 用于密态字段和安全聚合展示，FedAvg 用于四节点联邦聚合流程。</span></span>
-        </div>
+        <div class="panel-head">模型效果对比</div>
         <div class="panel-body">
           <div class="result-card" id="trainingResultSummary">
-            <div class="title">训练结果反馈</div>
-            <div class="text-muted small-text">尚未执行训练。点击左侧按钮后，这里会显示本地基线、四节点联邦训练和模型版本结果。</div>
+            <div class="title">最新训练结果</div>
+            <div class="text-muted small-text">完成训练后显示核心指标。</div>
           </div>
           <div class="chart-card">
-            <div class="compare-head"><b>本地训练 / 联邦训练图表</b><span class="mini-badge">准确率、损失、样本数</span></div>
+            <div class="compare-head"><b>准确率与损失</b><span class="mini-badge">统一评测</span></div>
             <div class="chart-canvas-wrap"><canvas id="trainingCompareChart"></canvas></div>
             <div class="chart-fallback" id="trainingCompareFallback"></div>
           </div>
-          <div class="training-compare" id="aggregationVisualBox"></div>
+          <div class="aggregation-status-strip" id="aggregationVisualBox">
+            <div class="aggregation-status-main"><span class="aggregation-status-icon"><i class="fas fa-layer-group"></i></span><div><b>聚合状态</b><span>等待训练</span></div></div>
+            <span class="mini-badge">暂无记录</span>
+          </div>
           <div class="training-compare" id="trainingCompareBox">
-            <div class="compare-head">
-              <b>本地训练 vs 四节点联邦训练</b>
-              <span class="mini-badge">等待训练结果</span>
-            </div>
-            <div class="compare-row"><span>本地训练</span><div class="bar-track"><div class="bar-fill" style="width:0%"></div></div><b>--</b></div>
-            <div class="compare-row"><span>联邦训练</span><div class="bar-track"><div class="bar-fill fed" style="width:0%"></div></div><b>--</b></div>
-            <div class="compare-cards">
-              <div class="compare-card"><strong>--</strong><span>本地样本</span></div>
-              <div class="compare-card"><strong>--</strong><span>联邦样本</span></div>
-              <div class="compare-card"><strong>--</strong><span>指标差异</span></div>
-              <div class="compare-card"><strong>--</strong><span>聚合方式</span></div>
-            </div>
-            <div class="subtle-note mt-2"><i class="fas fa-circle-info text-primary"></i> 完成训练后显示样本数、准确率、损失和两种聚合方案对比。</div>
+            <div class="empty-comparison"><span><i class="fas fa-chart-column me-1"></i> 暂无可对比结果</span></div>
           </div>
         </div>
       </div>
@@ -515,11 +572,14 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
 </div>
 
 <script>
-const APP_MODE = location.port === '5001' ? 'admin' : 'user';
+const requestedAppMode = new URLSearchParams(location.search).get('mode');
+const APP_MODE = location.port === '5001' || requestedAppMode === 'admin' ? 'admin' : 'user';
+document.body.dataset.appMode = APP_MODE;
 const USER_PAGES = [{id:'upload',text:'上传数据'},{id:'detect',text:'风险检测'},{id:'report',text:'分析报告'}];
 const ADMIN_PAGES = [
   {id:'submissions',text:'用户提交'},
   {id:'dataProcess',text:'数据处理'},
+  {id:'training',text:'训练中心'},
   {id:'modelVersions',text:'模型版本'},
   {id:'audit',text:'系统审计'}
 ];
@@ -766,7 +826,7 @@ function privacyRiskBadge(value){
 function closeMiniModal(id){const el=document.getElementById(id);if(el)el.hidden=true}
 function openMiniModal(id){const el=document.getElementById(id);if(el)el.hidden=false}
 function aiAssessmentText(value){return ({agree:'与本地一致',escalate:'建议提高关注',review:'判定冲突需复核',insufficient:'信息不足'})[value]||'辅助复核'}
-function aiVerdictText(value){return ({local_preferred:'当前优先使用普通训练模型',federated_preferred:'当前优先使用联邦训练模型',tradeoff:'按安全与性能需求权衡选择',not_comparable:'当前指标口径不足以直接判定'})[value]||'尚未形成模型选择判断'}
+function aiVerdictText(value){return ({local_preferred:'当前优先使用普通集中式模型',federated_preferred:'当前优先使用联邦训练模型',tradeoff:'按安全与性能需求权衡选择',not_comparable:'当前指标口径不足以直接判定'})[value]||'尚未形成模型选择判断'}
 function aiListHtml(title,values){
   const rows=arr(values).filter(Boolean).slice(0,6);
   return rows.length?`<div class="mt-2"><b>${esc(title)}</b><ul class="ai-list">${rows.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`:'';
@@ -800,14 +860,18 @@ function aiDatasetResultHtml(result){
 function aiTrainingResultHtml(result){
   const data=obj(result), advice=obj(data.advice), facts=obj(data.comparison_facts);
   const fairness=obj(facts.comparison_fairness), diffs=obj(facts.deterministic_differences);
+  const fedSecurity=obj(obj(facts.security_architecture).federated_training);
   const gap=diffs.federated_minus_local_accuracy_percentage_points;
   return `<div class="ai-local-primary"><b>平台边界：</b>训练指标由本地代码确定，AI 负责辅助解释和模型方案选择，不修改指标或模型权重。</div>
     <div class="mt-3"><b>AI 方案判断：</b><span class="status-pill info ms-1">${esc(aiVerdictText(advice.comparison_verdict))}</span></div>
-    <div class="mt-2">${esc(advice.summary||'AI 已完成普通训练与联邦训练辅助判断。')}</div>
+    <div class="mt-2">${esc(advice.summary||'AI 已完成普通集中式与联邦训练辅助判断。')}</div>
     <div class="tag-line mt-2">
       <span class="mini-badge">准确率数值差 ${gap===null||gap===undefined?'--':esc(Number(gap).toFixed(2))+' 个百分点'}</span>
       <span class="mini-badge">同一数据修订 ${fairness.same_dataset_revision?'是':'否'}</span>
+      <span class="mini-badge">同一共享留出集 ${fairness.same_validation_set?'是':'否'}</span>
+      <span class="mini-badge">同模型同轮数 ${fairness.same_model_architecture&&fairness.same_epoch_budget?'是':'否'}</span>
       <span class="mini-badge">指标可直接排名 ${fairness.direct_accuracy_ranking_allowed?'是':'否'}</span>
+      <span class="mini-badge">密态权重聚合 ${fedSecurity.actual_weight_secure_aggregation?'已执行':'未执行'}</span>
     </div>
     ${aiListHtml('指标判断',advice.metric_findings)}
     ${aiListHtml('安全性判断',advice.security_findings)}
@@ -858,7 +922,8 @@ function aggregationSummary(metric){
   const method=m.aggregation_method || p.aggregation_method || '';
   if(method==='paillier' || p.paillier_enabled){
     const estimate=p.timing_method==='parameter_count_estimate'||p.display_only;
-    return `模型聚合：普通 FedAvg；Paillier ${estimate?'接入开销估算':'测量'}：加密 ${p.encryption_time_ms??'-'}ms，聚合 ${p.aggregation_time_ms??'-'}ms，解密 ${p.decryption_time_ms??'-'}ms，参数 ${p.encrypted_parameter_count??'-'} 个。${p.note?' '+p.note:''}`;
+    const actual=p.secure_aggregation===true&&p.actual_crypto_operations_performed===true&&!p.display_only;
+    return `${actual?'Paillier 安全聚合':'普通 FedAvg'} · 加密 ${p.encryption_time_ms??'-'}ms · 聚合 ${p.aggregation_time_ms??'-'}ms · 解密 ${p.decryption_time_ms??'-'}ms`;
   }
   if(method==='plain')return '聚合方式：普通 FedAvg。';
   return '';
@@ -887,11 +952,13 @@ function trainingDataNote(metric){
   const parts=[];
   if(m.preparation_id)parts.push(`准备版本 ${m.preparation_id}`);
   if(m.source_count!=null)parts.push(`来源 ${m.source_count} 份`);
-  if(m.samples!=null)parts.push(`样本 ${m.samples}`);
+  if(m.samples!=null)parts.push(`训练样本 ${m.samples}`);
+  if(Number(m.validation_samples)>0)parts.push(`共享留出 ${m.validation_samples}`);
   if(m.label_distribution)parts.push(`标签 ${labelDistText(m.label_distribution)}`);
   if(m.node_count)parts.push(`节点 ${m.node_count}`);
   if(m.uses_prepared_nodes===true)parts.push('复用已准备节点');
-  if(m.uses_prepared_nodes===false && String(m.task_type||'').includes('local'))parts.push('本地训练不经过节点');
+  if(m.uses_prepared_nodes===false && String(m.task_type||'').includes('central'))parts.push('普通集中式训练不经过节点');
+  if(String(m.task_type||'').includes('runtime'))parts.push('更新用户端运行时检测模型');
   if(m.rounds!=null && Number(m.rounds)>0)parts.push(`轮次 ${m.rounds}`);
   return parts.join('；');
 }
@@ -978,6 +1045,7 @@ async function showPage(id){
   const markLoaded=ok=>{if(ok)pageLoaded.add(id);return ok};
   if(id==='submissions')return runPageLoader(pageId,[()=>loadSubmissionsData(false)],'正在加载用户提交...').then(markLoaded);
   if(id==='dataProcess')return runPageLoader(pageId,[()=>loadDataProcessPage(false)],'正在加载训练数据源...').then(markLoaded);
+  if(id==='training')return runPageLoader(pageId,[()=>loadTrainingPage(false)],'正在加载训练中心...').then(markLoaded);
   if(id==='modelVersions')return runPageLoader(pageId,[()=>loadTrainingRecords(false)],'正在加载模型版本...').then(markLoaded);
   if(id==='audit')return runPageLoader(pageId,[()=>loadAudit(false)],'正在加载系统审计...').then(markLoaded);
 }
@@ -1387,11 +1455,8 @@ async function loadAdminData(force=false){
 }
 function renderDataProcessStructure(data){
   const d=obj(data);
-  const policy=obj(d.processing_policy);
   const models=obj(d.model_inventory);
   const runtime=obj(models.runtime_detector);
-  const baseline=obj(models.platform_baseline);
-  const local=obj(models.local_training);
   const fed=obj(models.federated_training);
   const paillier=obj(models.paillier);
   const prep=obj(d.processed);
@@ -1399,22 +1464,19 @@ function renderDataProcessStructure(data){
   const structureBox=document.getElementById('dataProcessStructureBox');
   if(policyBox){
     const scope=prep.process_scope==='first_limit_rows'?'前 5 万条':'当前源全部样本';
-    policyBox.innerHTML=`<b>当前处理规则：</b>数据源未变化时直接复用；检测到变化时按${esc(scope)}全量重建统一数组和四节点文件，不做逐条增量追加。<span class="mini-badge ms-1">准备版本 ${esc(prep.preparation_id||'尚未生成')}</span>`;
+    policyBox.innerHTML=`<b>处理策略</b> · 未变化直接复用，变化时重建${esc(scope)}。<span class="mini-badge ms-1">${esc(prep.preparation_id||'尚未准备')}</span>`;
   }
   if(structureBox){
     structureBox.innerHTML=`
       <div class="compare-box">
-        <h6>系统运行时检测模型</h6>
+        <h6>用户端检测模型</h6>
         <div><b>${esc(runtime.name||'IF + XGBoost + LSTM 融合模型')}</b></div>
-        <div class="small-text text-muted mt-1">状态：${runtime.ready?'<span class="status-pill ok">模型文件已就绪</span>':'<span class="status-pill warn">模型文件不完整</span>'}；用于用户端风险检测。</div>
-        <div class="small-text text-muted mt-2">并行基线：${esc(baseline.name||'IF + 逻辑回归 + Q-learning')}；用于${esc(baseline.used_by||'兼容检测和参数优化')}。</div>
-        <div class="small-text text-muted mt-2">${esc(local.relation||'本地训练直接使用当前源并更新运行时模型。')}</div>
+        <div class="tag-line mt-2">${runtime.ready?'<span class="status-pill ok">已就绪</span>':'<span class="status-pill warn">待训练</span>'}<span class="mini-badge">本地风险判断</span></div>
       </div>
       <div class="compare-box">
-        <h6>四节点与联邦模型</h6>
+        <h6>训练与对比</h6>
         <div><b>${esc(fed.name||'四节点线性模型 + FedAvg')}</b></div>
-        <div class="small-text text-muted mt-1">${esc(fed.relation||'联邦训练使用已准备节点，聚合结果独立追踪。')}</div>
-        <div class="small-text text-muted mt-2">Paillier：${esc(paillier.relation||'当前用于安全聚合流程说明。')}</div>
+        <div class="tag-line mt-2"><span class="mini-badge">统一留出集评测</span><span class="mini-badge">${paillier.ready?'Paillier 已就绪':'Paillier 按需启用'}</span></div>
       </div>`;
   }
 }
@@ -1451,10 +1513,11 @@ async function loadDatasetSourcesData(force=false){
       ['已发现数据样本',sourceTotalSamples],
       ['已生成节点源',preparedCount]
     ].map(x=>`<div class="metric"><div class="metric-value">${esc(x[1])}</div><div class="metric-label">${x[0]}</div></div>`).join('');
-    if(typeof trainingSourceBox!=='undefined')trainingSourceBox.innerHTML=`<b>当前训练数据源：</b>${esc(currentDatasetSource.name||currentDatasetSource.source||sd.source||'未检测')} <span class="mini-badge">${esc(currentDatasetSource.source_type||sd.source_type||'-')}</span><div class="small-text text-muted mt-1">当前源样本 ${esc(currentDatasetSource.samples||sd.samples||0)} 条；准备版本 ${esc(currentPreparation.preparation_id||'尚未生成')}。本地训练直接使用当前源；联邦训练使用同一准备版本的四节点数据。</div>`;
+    const trainingReady=Boolean(currentDatasetSource.prepared_for_federated||sd.ready_for_federated);
+    if(typeof trainingSourceBox!=='undefined')trainingSourceBox.innerHTML=`<div class="d-flex align-items-center flex-wrap gap-2"><b>${esc(currentDatasetSource.name||currentDatasetSource.source||sd.source||'未检测')}</b><span class="mini-badge">${esc(currentDatasetSource.source_type||sd.source_type||'-')}</span><span class="status-pill ${trainingReady?'ok':'warn'}">${trainingReady?'已准备':'待同步'}</span></div>`;
     if(typeof trainDataMetric!=='undefined')trainDataMetric.textContent=currentDatasetSource.samples||sd.samples||0;
-    if(typeof trainFeatureMetric!=='undefined')trainFeatureMetric.textContent=currentDatasetSource.features||sd.features||0;
-    if(typeof trainNodeMetric!=='undefined')trainNodeMetric.textContent=(currentDatasetSource.prepared_for_federated||sd.ready_for_federated)?'ready':'missing';
+    if(typeof trainFeatureMetric!=='undefined')trainFeatureMetric.textContent=(currentDatasetSource.samples||sd.samples)?18:0;
+    if(typeof trainNodeMetric!=='undefined')trainNodeMetric.textContent=trainingReady?'4 / 4':'待同步';
     if(typeof datasetSourceTable!=='undefined'){
       datasetSourceTable.innerHTML=displaySources.length?displaySources.map(s=>`<tr>
         <td>${esc(s.name||s.source||'-')}<div class="small-text text-muted">${esc(s.source||'-')}</div></td>
@@ -1621,53 +1684,72 @@ async function runAdminSubmissionAi(id,ev){
 async function archiveSubmission(id){const r=await api(`/api/admin/submissions/${id}/archive`,{method:'POST'});invalidateSubmissionAndDataPages();toast(r.ok?'已归档':r.error,r.ok?'ok':'bad');loadSubmissionsData(true);}
 async function markTrainable(id){const r=await api(`/api/admin/submissions/${id}/mark-trainable`,{method:'POST'});invalidateSubmissionAndDataPages();toast(r.ok?'已标记可训练':r.error,r.ok?'ok':'bad');loadSubmissionsData(true);}
 async function rejectSubmission(id){const r=await api(`/api/admin/submissions/${id}/reject`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:'管理员确认暂不进入训练池'})});invalidateSubmissionAndDataPages();toast(r.ok?'已拒绝进入训练池':r.error,r.ok?'ok':'bad');loadSubmissionsData(true);}
+function federatedNodeLabel(name){
+  return ({hospital:'医疗节点',bank:'银行节点',insurance:'保险节点',government:'政务节点'})[String(name||'').toLowerCase()]||name||'节点';
+}
 async function loadNodes(force=false){
   if(force)clearAdminCache('/api/federated/nodes');
   const r=force?await api('/api/federated/nodes'):await cachedApi('/api/federated/nodes');
   const data=obj(r.data);
   const nodes=arr(data.nodes);
   const preparation=obj(data.preparation);
+  const preparationReady=Boolean(preparation.preprocessing_version&&preparation.validation_split_version);
   const html=nodes.length?nodes.map(n=>{
     const labels=obj(n.label_distribution);
     const normal=n.normal_samples??labels['0']??0;
     const attack=n.attack_samples??Math.max(0,(n.samples||0)-normal);
+    const nodeReady=Boolean(n.ready&&preparationReady);
     return `<div class="node-card">
-      <i class="fas fa-building"></i><b>${esc(n.name)}</b>
-      <div>${esc(n.samples||0)} 条 · ${esc(n.node_type||'模拟联邦节点')}</div>
-      <div class="small-text text-muted">正常 ${esc(normal)} / 攻击 ${esc(attack)} / 特征 ${esc(n.feature_dim||0)}</div>
-      <div class="small-text text-muted">来源：${esc(n.source_type||'-')} · 准备版本：${esc(n.preparation_id||preparation.preparation_id||'-')}</div>
-      <span class="status-pill ${n.ready?'ok':'warn'}">${n.ready?'ready':'not ready'}</span>
+      <div class="node-card-head"><i class="fas fa-building"></i><b title="${esc(n.name)}">${esc(federatedNodeLabel(n.name))}</b><span class="node-card-state ${nodeReady?'ok':''}" title="${nodeReady?'就绪':'待同步'}" aria-label="${nodeReady?'就绪':'待同步'}"><i class="fas ${nodeReady?'fa-check':'fa-clock'}"></i></span></div>
+      <div class="node-card-stats">
+        <span><b>${esc(n.samples||0)}</b>样本</span>
+        <span><b>${esc(normal)}</b>正常</span>
+        <span><b>${esc(attack)}</b>风险</span>
+      </div>
     </div>`;
   }).join(''):'<div class="text-muted">暂无节点数据</div>';
   if(typeof fedNodes!=='undefined')fedNodes.innerHTML=html;
   if(typeof fedNodesDataProcess!=='undefined')fedNodesDataProcess.innerHTML=html;
-  if(typeof fedNodeExplain!=='undefined')fedNodeExplain.textContent=`${data.explanation||'四节点数据由训练数据池按标签分层划分得到。'} 当前准备版本：${preparation.preparation_id||'-'}。`;
+  if(typeof fedNodeExplain!=='undefined')fedNodeExplain.textContent=nodes.length&&preparationReady?'四个节点已与当前训练数据同步。':'请先同步当前训练数据。';
+}
+function aggregationMethodLabel(method,paillierActual=false){
+  const value=String(method||'').toLowerCase();
+  if(paillierActual)return 'Paillier 安全聚合';
+  if(value==='plain'||value==='federated'||value.includes('fedavg')||value.includes('paillier'))return '普通 FedAvg';
+  if(value==='centralized')return '普通集中式';
+  return method||'-';
 }
 function renderTrainingResult(data,type){
   const d=obj(data);
+  const resultTitle=type==='centralized'?'普通集中式训练完成':type==='federated'?'联邦训练完成':'检测模型已更新';
   const metric=obj(d.metrics||d.result||d);
   const agg=obj(d.aggregation||d.secure_aggregation||metric.aggregation);
   const acc=Number(metric.accuracy??metric.avg_accuracy??d.accuracy??d.avg_accuracy);
   const clients=arr(d.clients);
-  const avgLoss=clients.length?clients.reduce((s,c)=>s+Number(c.loss||0),0)/clients.length:Number(metric.loss||d.loss||0);
+  const directLoss=Number(metric.loss??d.loss);
+  const avgLoss=Number.isFinite(directLoss)?directLoss:(clients.length?clients.reduce((s,c)=>s+Number(c.loss||0),0)/clients.length:0);
   const version=d.model_version||metric.model_version||d.version||'-';
   const samples=d.samples||metric.samples||currentDatasetSource?.samples||'-';
+  const validationSamples=Number(d.validation_samples??metric.validation_samples??0);
+  const metricLabel=d.metric_label||metric.metric_label||'训练指标';
   const source=d.source||metric.source||currentDatasetSource?.source_type||currentDatasetSource?.source||'-';
   const method=d.aggregation_method||metric.aggregation_method||(type==='federated'?'plain':'centralized');
   const paillierObj=obj(d.paillier||metric.paillier||agg);
   const paillier=type==='federated'&&(d.paillier_enabled||metric.paillier_enabled||paillierObj.paillier_enabled||method==='paillier');
-  const paillierLine=paillier?`<div class="subtle-note mt-2"><i class="fas fa-lock text-primary"></i> Paillier 接入开销估算（未进入实际权重链路）：加密 ${esc(paillierObj.encryption_time_ms??agg.encryption_time_ms??metric.encryption_time_ms??'-')} ms，密态聚合 ${esc(paillierObj.aggregation_time_ms??agg.aggregation_time_ms??metric.aggregation_time_ms??'-')} ms，解密 ${esc(paillierObj.decryption_time_ms??agg.decryption_time_ms??metric.decryption_time_ms??'-')} ms，参数 ${esc(paillierObj.encrypted_parameter_count??agg.encrypted_parameter_count??metric.encrypted_parameter_count??'-')} 个。</div>`:'';
+  const paillierActual=paillierObj.secure_aggregation===true&&paillierObj.actual_crypto_operations_performed===true&&!paillierObj.display_only;
+  const methodLabel=aggregationMethodLabel(method,paillierActual);
+  const paillierLine=paillier?`<div class="subtle-note mt-2"><i class="fas fa-lock text-primary"></i> 加密 ${esc(paillierObj.encryption_time_ms??agg.encryption_time_ms??metric.encryption_time_ms??'-')} ms · 聚合 ${esc(paillierObj.aggregation_time_ms??agg.aggregation_time_ms??metric.aggregation_time_ms??'-')} ms · 解密 ${esc(paillierObj.decryption_time_ms??agg.decryption_time_ms??metric.decryption_time_ms??'-')} ms</div>`:'';
   trainingResultSummary.innerHTML=`
-    <div class="title">${type==='local'?'本地训练完成':'四节点联邦训练完成'}</div>
+    <div class="title">${resultTitle}</div>
     <div class="result-grid">
-      <div class="result-item"><b>${esc(version)}</b><span class="small-text text-muted">生成模型版本</span></div>
-      <div class="result-item"><b>${Number.isFinite(acc)?(acc*100).toFixed(2)+'%':'--'}</b><span class="small-text text-muted">训练指标</span></div>
-      <div class="result-item"><b>${esc(samples)}</b><span class="small-text text-muted">使用样本</span></div>
+      <div class="result-item"><b>${esc(version)}</b><span class="small-text text-muted">模型版本</span></div>
+      <div class="result-item"><b>${Number.isFinite(acc)?(acc*100).toFixed(2)+'%':'--'}</b><span class="small-text text-muted">${validationSamples>0?'留出集准确率':esc(metricLabel)}</span></div>
+      <div class="result-item"><b>${esc(samples)}</b><span class="small-text text-muted">训练样本</span></div>
     </div>
-    <div class="tag-line mt-2"><span class="mini-badge">来源：${esc(source)}</span><span class="mini-badge">方式：${esc(method)}</span><span class="mini-badge">版本已写入列表</span></div>
+    <div class="tag-line mt-2"><span class="mini-badge">${esc(methodLabel)}</span>${validationSamples>0?`<span class="mini-badge">留出集 ${esc(validationSamples)} 条</span>`:''}</div>
     ${paillierLine}
   `;
-  updateTrainingCompare(type,{accuracy:acc, loss:avgLoss, samples, version, source, method, paillier:paillierObj, clients});
+  updateTrainingCompare(type,{accuracy:acc, loss:avgLoss, samples, version, source, method, paillier:paillierObj, clients,metric_scope:d.metric_scope||metric.metric_scope||'',metric_label:metricLabel,validation_samples:validationSamples,validation_id:d.validation_id||metric.validation_id||'',uses_shared_validation:d.uses_shared_validation===true||metric.uses_shared_validation===true,model_architecture:d.base_model_algorithm||metric.base_model_algorithm||d.algorithm||'',optimizer:d.optimizer||metric.optimizer||'',epochs:Number(d.effective_epochs||metric.effective_epochs||d.epochs||metric.epochs||0)});
 }
 function trainingRecordToCompare(row){
   const metric=trainingMetricInfo(row);
@@ -1675,7 +1757,8 @@ function trainingRecordToCompare(row){
   const nested=parseJsonObject(meta.metadata);
   const m={...meta,...nested};
   const clients=arr(m.clients);
-  const avgLoss=clients.length?clients.reduce((s,c)=>s+Number(c.loss||0),0)/clients.length:Number(m.loss||m.avg_loss||0);
+  const directLoss=Number(m.loss??m.avg_loss);
+  const avgLoss=Number.isFinite(directLoss)?directLoss:(clients.length?clients.reduce((s,c)=>s+Number(c.loss||0),0)/clients.length:0);
   return {
     accuracy:Number(row.accuracy||m.accuracy||m.avg_accuracy||0),
     loss:avgLoss,
@@ -1688,7 +1771,15 @@ function trainingRecordToCompare(row){
     label_distribution:m.label_distribution||{},
     dataset_source_id:m.dataset_source_id||row.dataset_source_id||'',
     preparation_id:m.preparation_id||row.preparation_id||'',
-    uses_prepared_nodes:m.uses_prepared_nodes===true
+    uses_prepared_nodes:m.uses_prepared_nodes===true,
+    metric_scope:m.metric_scope||row.metric_scope||'',
+    metric_label:m.metric_label||row.metric_label||metric.label||'',
+    validation_samples:Number(m.validation_samples||0),
+    validation_id:m.validation_id||'',
+    uses_shared_validation:m.uses_shared_validation===true,
+    model_architecture:m.base_model_algorithm||m.algorithm||'',
+    optimizer:m.optimizer||'',
+    epochs:Number(m.effective_epochs||m.epochs||0)
   };
 }
 function trainingTaskMatchesCurrentPreparation(row){
@@ -1705,7 +1796,7 @@ function trainingTaskMatchesCurrentPreparation(row){
   return preparedSamples>0 && taskSamples===preparedSamples;
 }
 function updateTrainingCompare(type,data){
-  if(type==='local')trainingCompareState.local=data;
+  if(type==='centralized')trainingCompareState.local=data;
   if(type==='federated')trainingCompareState.federated=data;
   renderAggregationVisual();
   renderTrainingCompare();
@@ -1717,7 +1808,7 @@ function pctValue(v){
 }
 function metricDisplay(v){
   const n=Number(v);
-  return Number.isFinite(n)&&n>0?(n>1?n.toFixed(2):(n*100).toFixed(2)+'%'):'--';
+  return Number.isFinite(n)&&n>=0?(n>1?n.toFixed(2):(n*100).toFixed(2)+'%'):'--';
 }
 function sampleBarValue(v,max){
   const n=Number(v), m=Number(max);
@@ -1726,28 +1817,25 @@ function sampleBarValue(v,max){
 }
 function lossDisplay(v){
   const n=Number(v);
-  return Number.isFinite(n)&&n>0?n.toFixed(4):'--';
+  return Number.isFinite(n)&&n>=0?n.toFixed(4):'--';
 }
 function renderAggregationVisual(){
   if(typeof aggregationVisualBox==='undefined')return;
+  const fed=obj(trainingCompareState.federated);
+  const paillier=obj(fed.paillier);
+  const hasRecord=Boolean(fed.method||paillier.aggregation_method||paillier.paillier_enabled);
+  const actual=paillier.secure_aggregation===true&&paillier.actual_crypto_operations_performed===true&&!paillier.display_only;
+  if(!hasRecord){
+    aggregationVisualBox.innerHTML='<div class="aggregation-status-main"><span class="aggregation-status-icon"><i class="fas fa-layer-group"></i></span><div><b>聚合状态</b><span>等待训练</span></div></div><span class="mini-badge">暂无记录</span>';
+    return;
+  }
+  const methodLabel=aggregationMethodLabel(fed.method||paillier.aggregation_method,actual);
+  const detail=actual
+    ? `加密 ${esc(paillier.encryption_time_ms??'-')} ms · 聚合 ${esc(paillier.aggregation_time_ms??'-')} ms · 解密 ${esc(paillier.decryption_time_ms??'-')} ms`
+    : '本轮使用快速聚合';
   aggregationVisualBox.innerHTML=`
-    <div class="compare-head">
-      <b>聚合与安全边界</b>
-      <span class="mini-badge">代码事实</span>
-    </div>
-    <div class="compare-split">
-      <div class="compare-box">
-        <h6>当前模型权重链路</h6>
-        <div class="small-text">四节点各自训练线性模型，服务端按样本量执行 FedAvg。</div>
-        <div class="tag-line mt-2"><span class="mini-badge">实际用于模型</span><span class="mini-badge">secure_aggregation: false</span></div>
-      </div>
-      <div class="compare-box">
-        <h6>Paillier 接入开销估算层</h6>
-        <div class="small-text">根据当前参数量估算量化、加密、密态求和和解密开销，用于评估安全聚合接入成本。</div>
-        <div class="tag-line mt-2"><span class="mini-badge">明确标记为估算</span><span class="mini-badge">尚未替代权重链路</span></div>
-      </div>
-    </div>
-    <div class="compare-explain">页面不再使用固定“隐私百分比”冒充测量结果。AI 只能依据上述边界、真实训练指标和明确标注的估算值进行辅助判断。</div>`;
+    <div class="aggregation-status-main"><span class="aggregation-status-icon"><i class="fas ${actual?'fa-lock':'fa-bolt'}"></i></span><div><b>${esc(methodLabel)}</b><span>${actual?'安全聚合已完成':'联邦权重已聚合'}</span></div></div>
+    <div class="aggregation-timing">${detail}</div>`;
 }
 function renderTrainingChart(local,fed){
   const canvas=document.getElementById('trainingCompareChart');
@@ -1778,12 +1866,13 @@ function renderFederatedTrainingDetails(fed={}){
   box.innerHTML=clients.map((client,index)=>{
     const accuracy=Number(client.accuracy);
     const loss=Number(client.loss);
+    const diagnosticLabel=client.metric_label||'节点内部诊断指标';
     return `<div class="node-card">
       <div class="small-text text-muted">节点 ${index+1}</div>
       <i class="fas fa-building"></i><b>${esc(client.name||`node-${index+1}`)}</b>
       <div class="mt-2"><strong>${esc(client.samples||0)}</strong> 条样本</div>
-      <div class="small-text">准确率：<b>${Number.isFinite(accuracy)?(accuracy*100).toFixed(2)+'%':'--'}</b></div>
-      <div class="small-text">损失：<b>${Number.isFinite(loss)?loss.toFixed(4):'--'}</b></div>
+      <div class="small-text">${esc(diagnosticLabel)} · 准确率：<b>${Number.isFinite(accuracy)?(accuracy*100).toFixed(2)+'%':'--'}</b></div>
+      <div class="small-text">${esc(diagnosticLabel)} · 损失：<b>${Number.isFinite(loss)?loss.toFixed(4):'--'}</b></div>
       <span class="status-pill ok">已参与聚合</span>
     </div>`;
   }).join('');
@@ -1801,18 +1890,6 @@ function renderCompareChartCore(canvas,fallback,local={},fed={},chartRef){
   const lossScore=(v)=>v>0?Math.max(0,100-Math.min(100,v*100)):0;
   const lLossScore=lossScore(lLoss);
   const fLossScore=lossScore(fLoss);
-  const lErr=hasLocal?Math.max(0,100-lAcc):0;
-  const fErr=hasFed?Math.max(0,100-fAcc):0;
-  const localNodes=Number(local.nodes||local.node_count||1)||1;
-  const fedNodes=Number(fed.nodes||fed.node_count||4)||4;
-  const nodeMax=Math.max(localNodes,fedNodes,4);
-  const lNodeScore=localNodes/nodeMax*100;
-  const fNodeScore=fedNodes/nodeMax*100;
-  const localLabels=Number(local.label_count||local.labels||2)||2;
-  const fedLabels=Number(fed.label_count||fed.labels||localLabels)||localLabels;
-  const labelMax=Math.max(localLabels,fedLabels,2);
-  const lLabelScore=localLabels/labelMax*100;
-  const fLabelScore=fedLabels/labelMax*100;
   if(fallback){
     const safeWidth=(v)=>Math.max(2,Math.min(100,Number(v)||0));
     const row=(name,lv,fv,ls,fs)=>`
@@ -1824,32 +1901,29 @@ function renderCompareChartCore(canvas,fallback,local={},fed={},chartRef){
         <span class="value">${esc(fs)}</span>
       </div>`;
     fallback.innerHTML=!hasLocal&&!hasFed
-      ? '<div class="notice mb-0">暂无训练对比数据。请先在数据处理页执行本地训练和四节点联邦训练。</div>'
+      ? '<div class="notice mb-0">暂无训练对比数据。请先执行普通集中式基线和四节点联邦训练。</div>'
       : `
       <div class="chart-fallback-row small-text text-muted">
-        <span></span><b>本地训练</b><span></span><b>四节点联邦</b><span></span>
+        <span></span><b>普通集中式</b><span></span><b>四节点联邦</b><span></span>
       </div>
       ${row('准确率',lAcc,fAcc,metricDisplay(local.accuracy),metricDisplay(fed.accuracy))}
-      ${row('错误率',lErr,fErr,hasLocal?lErr.toFixed(2)+'%':'--',hasFed?fErr.toFixed(2)+'%':'--')}
-      ${row('损失表现',lLossScore,fLossScore,lossDisplay(local.loss),lossDisplay(fed.loss))}
-      ${row('样本覆盖',lSamples,fSamples,local.samples||'--',fed.samples||'--')}
-      ${row('节点覆盖',lNodeScore,fNodeScore,localNodes+' 节点',hasFed?fedNodes+' 节点':'--')}
-      ${row('标签覆盖',lLabelScore,fLabelScore,localLabels+' 类',hasFed?fedLabels+' 类':'--')}
-      ${!hasFed?'<div class="small-text text-muted mt-2">当前只有本地训练记录，四节点联邦训练完成后会自动加入对比。</div>':''}
-      ${!hasLocal?'<div class="small-text text-muted mt-2">当前只有联邦训练记录，本地训练完成后会自动加入对比。</div>':''}`;
+      ${row('损失',lLossScore,fLossScore,lossDisplay(local.loss),lossDisplay(fed.loss))}
+      ${row('样本',lSamples,fSamples,local.samples||'--',fed.samples||'--')}
+      ${!hasFed?'<div class="small-text text-muted mt-2">当前只有普通集中式基线记录，四节点联邦训练完成后会自动加入对比。</div>':''}
+      ${!hasLocal?'<div class="small-text text-muted mt-2">当前只有联邦训练记录，普通集中式基线完成后会自动加入对比。</div>':''}`;
   }
   if(!canvas || typeof Chart==='undefined')return;
   const oldChart=chartRef&&chartRef.get?chartRef.get():null;
   if(oldChart)oldChart.destroy();
   const datasets=[];
-  if(hasLocal)datasets.push({label:'本地训练',data:[lAcc,lErr,lLossScore,lSamples,lNodeScore,lLabelScore],backgroundColor:'#4F83C2'});
-  if(hasFed)datasets.push({label:'四节点联邦',data:[fAcc,fErr,fLossScore,fSamples,fNodeScore,fLabelScore],backgroundColor:'#73A942'});
+  if(hasLocal)datasets.push({label:'普通集中式',data:[lAcc,lLossScore,lSamples],backgroundColor:'#4F83C2'});
+  if(hasFed)datasets.push({label:'四节点联邦',data:[fAcc,fLossScore,fSamples],backgroundColor:'#73A942'});
   if(!datasets.length){canvas.style.display='none';return}
   canvas.style.display='block';
   const chart=new Chart(canvas,{
     type:'bar',
     data:{
-      labels:['准确率','错误率','损失表现','样本覆盖','节点覆盖','标签覆盖'],
+      labels:['准确率','损失表现','样本覆盖'],
       datasets
     },
     options:{
@@ -1859,62 +1933,68 @@ function renderCompareChartCore(canvas,fallback,local={},fed={},chartRef){
       scales:{y:{beginAtZero:true,max:100,ticks:{callback:v=>v+'%'}}}
     }
   });
+  if(fallback)fallback.innerHTML='';
   if(chartRef&&chartRef.set)chartRef.set(chart);
 }
 function renderTrainingCompare(){
   const local=trainingCompareState.local||{};
   const fed=trainingCompareState.federated||{};
+  renderAggregationVisual();
   renderTrainingChart(local,fed);
   renderModelVersionCompareChart();
   renderFederatedTrainingDetails(fed);
   const status=document.getElementById('dataProcessTrainingStatus');
   if(status){
-    const localVersion=local.version&&local.version!=='-'?local.version:'当前准备版本尚无本地训练';
+    const localVersion=local.version&&local.version!=='-'?local.version:'当前准备版本尚无普通集中式基线';
     const fedVersion=fed.version&&fed.version!=='-'?fed.version:'当前准备版本尚无联邦训练';
     status.textContent=`准备版本 ${obj(currentPreparation).preparation_id||'-'}；本地：${localVersion}；联邦：${fedVersion}`;
   }
   if(typeof trainingCompareBox==='undefined')return;
   const lp=pctValue(local.accuracy), fp=pctValue(fed.accuracy);
+  const directlyComparable=String(local.metric_scope||'')==='shared_holdout_validation'
+    && String(fed.metric_scope||'')==='shared_holdout_validation'
+    && !!local.validation_id
+    && local.validation_id===fed.validation_id
+    && !!local.model_architecture
+    && local.model_architecture===fed.model_architecture
+    && local.optimizer===fed.optimizer
+    && Number(local.epochs)>0
+    && Number(local.epochs)===Number(fed.epochs);
   const maxSamples=Math.max(Number(local.samples)||0,Number(fed.samples)||0,1);
   const lsp=sampleBarValue(local.samples,maxSamples), fsp=sampleBarValue(fed.samples,maxSamples);
   const maxLoss=Math.max(Number(local.loss)||0,Number(fed.loss)||0,1);
   const llp=sampleBarValue(local.loss,maxLoss), flp=sampleBarValue(fed.loss,maxLoss);
-  const gap=(Number.isFinite(Number(local.accuracy))&&Number.isFinite(Number(fed.accuracy))&&Number(local.accuracy)>0&&Number(fed.accuracy)>0)
+  const hasBothMetrics=Number.isFinite(Number(local.accuracy))&&Number.isFinite(Number(fed.accuracy));
+  const gap=(directlyComparable&&hasBothMetrics)
     ? ((Number(fed.accuracy)-Number(local.accuracy))*100).toFixed(2)+' 个百分点'
     : '--';
   const paillier=fed.paillier||{};
-  const paillierText=paillier.paillier_enabled
-    ? `FedAvg 实际聚合；Paillier 接入开销估算：加密 ${paillier.encryption_time_ms||'-'}ms，密态聚合 ${paillier.aggregation_time_ms||'-'}ms，解密 ${paillier.decryption_time_ms||'-'}ms`
-    : '普通 FedAvg：不展示密态聚合耗时';
+  const securePaillier=paillier.secure_aggregation===true&&paillier.actual_crypto_operations_performed===true&&!paillier.display_only;
+  const compareState=directlyComparable?'可直接对比':hasBothMetrics?'评测口径不同':'等待训练';
   trainingCompareBox.innerHTML=`
     <div class="compare-head">
-      <b>本地训练 vs 四节点联邦训练</b>
-      <span class="mini-badge">${local.accuracy&&fed.accuracy?'已形成对比':'等待两类训练结果'}</span>
+      <b>普通集中式 vs 四节点联邦训练</b>
+      <span class="mini-badge">${compareState}</span>
     </div>
     <div class="compare-split">
       <div class="compare-box">
-        <h6>本地训练基线</h6>
+        <h6>普通集中式</h6>
         <div class="compare-row"><span>准确率</span><div class="bar-track"><div class="bar-fill" style="width:${lp}%"></div></div><b>${metricDisplay(local.accuracy)}</b></div>
         <div class="compare-row"><span>样本数</span><div class="bar-track"><div class="bar-fill" style="width:${lsp}%"></div></div><b>${esc(local.samples||'--')}</b></div>
         <div class="compare-row"><span>损失</span><div class="bar-track"><div class="bar-fill loss" style="width:${llp}%"></div></div><b>${lossDisplay(local.loss)}</b></div>
-        <div class="small-text text-muted">版本：${esc(local.version||'--')}；来源：${esc(modelSourceLabel(local.source))}</div>
       </div>
       <div class="compare-box">
-        <h6>四节点联邦训练</h6>
+        <h6>四节点联邦</h6>
         <div class="compare-row"><span>准确率</span><div class="bar-track"><div class="bar-fill fed" style="width:${fp}%"></div></div><b>${metricDisplay(fed.accuracy)}</b></div>
         <div class="compare-row"><span>样本数</span><div class="bar-track"><div class="bar-fill fed" style="width:${fsp}%"></div></div><b>${esc(fed.samples||'--')}</b></div>
         <div class="compare-row"><span>损失</span><div class="bar-track"><div class="bar-fill loss" style="width:${flp}%"></div></div><b>${lossDisplay(fed.loss)}</b></div>
-        <div class="small-text text-muted">版本：${esc(fed.version||'--')}；聚合：${esc(fed.method||'--')}</div>
       </div>
     </div>
-    <div class="compare-cards">
-      <div class="compare-card"><strong>${esc(local.samples||'--')}</strong><span>本地训练样本</span></div>
-      <div class="compare-card"><strong>${esc(fed.samples||'--')}</strong><span>联邦训练样本</span></div>
-      <div class="compare-card"><strong>${esc(gap)}</strong><span>联邦相对本地差异</span></div>
-      <div class="compare-card"><strong>${esc(fed.method||local.method||'--')}</strong><span>当前聚合/训练方式</span></div>
-    </div>
-    <div class="compare-explain">
-      <b>对比结论：</b>本地训练是集中式基线，联邦训练是四节点聚合结果。${esc(paillierText)}。
+    <div class="comparison-summary ${directlyComparable?'ok':'warn'}">
+      <i class="fas ${directlyComparable?'fa-circle-check':'fa-circle-info'}"></i>
+      <b>${directlyComparable?`差异 ${esc(gap)}`:compareState}</b>
+      <span>${directlyComparable?`共享留出集 ${esc(local.validation_samples||fed.validation_samples||'--')} 条`:'完成同一数据源的两类训练后再比较'}</span>
+      ${securePaillier?'<span class="mini-badge ms-auto">安全聚合</span>':''}
     </div>`;
 }
 function trainLimit(){
@@ -1927,17 +2007,26 @@ async function ensureTrainingSource(){
 async function runAdminLocalTrain(refresh=true){
   await ensureTrainingSource();
   const r=await api('/api/admin/training/local',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:trainLimit(),dataset_source_id:currentDatasetSourceId})});
-  toast(r.ok?'本地训练完成':r.error,r.ok?'ok':'bad');
-  if(r.ok)renderTrainingResult(r.data,'local');
+  toast(r.ok?'运行时检测模型已更新':r.error,r.ok?'ok':'bad');
+  if(r.ok)renderTrainingResult(r.data,'runtime');
+  if(r.ok)clearAdminCache();
+  if(refresh)await Promise.allSettled([loadTrainingRecords(true,true)]);
+  return r;
+}
+async function runAdminCentralizedTrain(refresh=true){
+  await ensureTrainingSource();
+  const r=await api('/api/admin/training/centralized',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({epochs:20,limit:trainLimit(),dataset_source_id:currentDatasetSourceId})});
+  toast(r.ok?'普通集中式基线训练完成':r.error,r.ok?'ok':'bad');
+  if(r.ok)renderTrainingResult(r.data,'centralized');
   if(r.ok)clearAdminCache();
   if(refresh)await Promise.allSettled([loadTrainingRecords(true,true)]);
   return r;
 }
 async function runAdminFederatedTrain(refresh=true){
   await ensureTrainingSource();
-  const method='paillier';
-  const r=await api('/api/admin/training/federated',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({epochs:3,limit:trainLimit(),dataset_source_id:currentDatasetSourceId,aggregation_method:method,secure_aggregation:true})});
-  toast(r.ok?'联邦训练完成':r.error,r.ok?'ok':'bad');
+  const method=document.getElementById('federatedAggregationMode')?.value==='paillier'?'paillier':'plain';
+  const r=await apiWithTimeout('/api/admin/training/federated',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({epochs:20,limit:trainLimit(),dataset_source_id:currentDatasetSourceId,aggregation_method:method,secure_aggregation:method==='paillier'})},180000);
+  toast(r.ok?(method==='paillier'?'Paillier 安全聚合完成':'普通联邦训练完成'):r.error,r.ok?'ok':'bad');
   if(r.ok)renderTrainingResult(r.data,'federated');
   if(r.ok)clearAdminCache();
   if(refresh)await Promise.allSettled([loadNodes(true),loadTrainingRecords(true,true)]);
@@ -1945,7 +2034,7 @@ async function runAdminFederatedTrain(refresh=true){
 }
 async function runTrainingAiComparison(ev){
   const local=obj(trainingCompareState.local), fed=obj(trainingCompareState.federated);
-  if(!Object.keys(local).length || !Object.keys(fed).length){toast('请先完成同一数据版本的普通训练和四节点联邦训练','bad');return}
+  if(!Object.keys(local).length || !Object.keys(fed).length){toast('请先完成同一数据版本的普通集中式基线和四节点联邦训练','bad');return}
   const btn=ev&&ev.currentTarget, oldHtml=btn?btn.innerHTML:'';
   if(btn){btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> AI 判断中';}
   try{
@@ -1958,32 +2047,33 @@ async function runTrainingAiComparison(ev){
     if(!r.ok){toast(r.error||'AI 辅助判断失败，现有训练结果不受影响','bad');return}
     currentTrainingAiComparison=obj(r.data);
     renderExternalAiResult(currentTrainingAiComparison,'training');
+    showExternalAiResultModal(currentTrainingAiComparison,'training');
     toast(currentTrainingAiComparison.cache_reused?'已复用 AI 模型选择缓存':'AI 模型选择判断完成','ok');
   }finally{if(btn){btn.disabled=false;btn.innerHTML=oldHtml;}}
 }
 async function runAdminFullTraining(){
   await ensureTrainingSource();
-  const button=document.getElementById('dataProcessTrainButton');
+  const button=document.getElementById('trainingRunButton');
   if(button){button.disabled=true;button.innerHTML='<i class="fas fa-spinner fa-spin"></i> 正在训练';}
   const status=document.getElementById('dataProcessTrainingStatus');
-  if(status)status.textContent='正在确认当前源准备版本，然后执行本地基线和四节点联邦训练。';
-  trainingResultSummary.innerHTML='<div class="title">训练进行中</div><div class="subtle-note"><i class="fas fa-spinner fa-spin text-primary"></i> 正在依次执行本地基线训练和四节点联邦训练，完成后右侧同步展示结果。</div>';
+  if(status)status.textContent='正在确认当前源准备版本，然后执行同构普通基线和四节点联邦训练。';
+  trainingResultSummary.innerHTML='<div class="title">训练进行中</div><div class="subtle-note"><i class="fas fa-spinner fa-spin text-primary"></i> 正在依次执行普通集中式线性基线和四节点 FedAvg，完成后在同一共享留出集上展示结果。</div>';
   try{
     const prepared=await processSystemDatasetImpl(false);
     if(!prepared.ok)return;
     currentPreparation=obj(prepared.data);
     await loadDatasetSourcesData(false);
-    const local=await runAdminLocalTrain(false);
+    const local=await runAdminCentralizedTrain(false);
     if(!local.ok)return;
     const fed=await runAdminFederatedTrain(false);
     if(local.ok&&fed.ok){
       clearAdminCache();
       await Promise.allSettled([loadNodes(true),loadTrainingRecords(true,true)]);
-      toast('本地基线与四节点联邦训练均已完成','ok');
+      toast('普通集中式基线与四节点联邦训练均已完成','ok');
       renderTrainingCompare();
     }
   }finally{
-    if(button){button.disabled=false;button.innerHTML='<i class="fas fa-play"></i> 运行本地基线 + 四节点联邦训练';}
+    if(button){button.disabled=false;button.innerHTML='<i class="fas fa-play"></i> 开始对比训练';}
   }
 }
 async function loadDataProcessPage(force=false,ev=null){
@@ -2008,7 +2098,7 @@ async function loadTrainingRecords(force=false, withVersions=true){
   const rows=arr(obj(r.data).tasks);
   latestTrainingTasks=rows;
   const currentRows=rows.filter(trainingTaskMatchesCurrentPreparation);
-  const latestLocal=currentRows.find(x=>String(x.task_type||'').includes('local'));
+  const latestLocal=currentRows.find(x=>String(x.task_type||'').includes('central'));
   const latestFed=currentRows.find(x=>String(x.task_type||'').includes('federated')||String(x.task_type||'').includes('fed'));
   trainingCompareState={local:null,federated:null};
   if(latestLocal)trainingCompareState.local=trainingRecordToCompare(latestLocal);
@@ -2033,8 +2123,9 @@ async function loadTrainingRecords(force=false, withVersions=true){
 function modelTypeLabel(type){
   const t=String(type||'');
   if(t.includes('federated'))return'四节点联邦模型';
-  if(t.includes('local')||t.includes('ensemble'))return'本地检测模型';
+  if(t.includes('centralized'))return'普通集中式线性基线';
   if(t.includes('runtime'))return'运行时检测模型';
+  if(t.includes('local')||t.includes('ensemble'))return'本地检测模型';
   return t||'检测模型';
 }
 function modelSourceLabel(source){
@@ -2124,12 +2215,15 @@ function trainingTaskToModelVersion(task,idx=0){
   const meta=parseJsonObject(task.metadata);
   const nested=parseJsonObject(meta.metadata);
   const merged={...meta,...nested};
-  const isFed=String(task.task_type||merged.task_type||'').includes('federated')||String(task.task_type||'').includes('fed');
+  const taskType=String(task.task_type||merged.task_type||'').toLowerCase();
+  const isFed=taskType.includes('federated')||taskType.includes('fed');
+  const isCentralized=taskType.includes('central');
+  const isRuntime=taskType.includes('runtime')||taskType.includes('ensemble');
   const version=merged.model_version||merged.version||task.model_version||task.version||`task-${task.id||idx+1}`;
   return {
     id: task.id ? -Math.abs(Number(task.id)) : -(idx+1),
     version,
-    model_type: isFed ? 'federated_fedavg' : 'admin_local_ensemble',
+    model_type:isFed?'federated_fedavg':isCentralized?'centralized_linear_baseline':isRuntime?'runtime_ensemble':'local_tracking_model',
     source: task.source||merged.source||'training_task',
     samples: task.samples||merged.samples||0,
     accuracy: task.accuracy||merged.accuracy||merged.avg_accuracy||0,
@@ -2137,7 +2231,7 @@ function trainingTaskToModelVersion(task,idx=0){
     precision: merged.precision,
     f1: merged.f1,
     label_distribution: merged.label_distribution||{},
-    metadata: JSON.stringify({...merged,...task,version,algorithm:merged.algorithm||(isFed?'fedavg':'ensemble_detector')}),
+    metadata:JSON.stringify({...merged,...task,version,algorithm:merged.algorithm||(isFed?'fedavg':isCentralized?'linear_logistic_gradient_descent':isRuntime?'ensemble_detector':'unknown')}),
     timestamp: task.created_at||task.timestamp,
     artifact_status: 'tracking_only',
     version_role: 'training_tracking',
