@@ -9,6 +9,7 @@ import json
 import sqlite3
 import threading
 import time
+import uuid
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 
@@ -28,6 +29,9 @@ class DataStorage:
     def __init__(self, db_path: str = DB_PATH):
         self.db_path = db_path
         self._lock = threading.Lock()
+        self._collector_lock = threading.Lock()
+        self._collector_thread_handle = None
+        self._status_callback = None
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
         self._init_db()
         self._collect_count = 0
@@ -36,6 +40,8 @@ class DataStorage:
     def _get_conn(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path, timeout=10)
         conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA busy_timeout = 10000")
+        conn.execute("PRAGMA foreign_keys = ON")
         return conn
 
     def _ensure_model_version_tables(self, conn: sqlite3.Connection):
@@ -66,6 +72,11 @@ class DataStorage:
         with self._lock:
             conn = self._get_conn()
             try:
+                # WAL lets short page reads continue while the single training
+                # worker updates task state. NORMAL is a practical durability /
+                # latency balance for the small 2GB deployment target.
+                conn.execute("PRAGMA journal_mode = WAL")
+                conn.execute("PRAGMA synchronous = NORMAL")
                 conn.executescript("""
                     CREATE TABLE IF NOT EXISTS system_status (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -207,6 +218,24 @@ class DataStorage:
                     );
                     CREATE INDEX IF NOT EXISTS idx_training_tasks_ts ON training_tasks(timestamp);
 
+                    CREATE TABLE IF NOT EXISTS training_jobs (
+                        id TEXT PRIMARY KEY,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        created_epoch REAL DEFAULT 0,
+                        task_type TEXT DEFAULT '',
+                        status TEXT DEFAULT 'queued',
+                        payload TEXT DEFAULT '{}',
+                        result TEXT DEFAULT '{}',
+                        error TEXT DEFAULT '',
+                        started_at DATETIME,
+                        finished_at DATETIME,
+                        worker_id TEXT DEFAULT '',
+                        lease_until REAL DEFAULT 0
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_training_jobs_state
+                        ON training_jobs(status, created_epoch);
+
                     CREATE TABLE IF NOT EXISTS model_versions (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -344,6 +373,30 @@ class DataStorage:
         except Exception:
             return "{}"
 
+    @staticmethod
+    def _canonical_json(data: Any) -> str:
+        try:
+            return json.dumps(data or {}, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        except Exception:
+            return "{}"
+
+    @staticmethod
+    def _prune_training_jobs_conn(conn: sqlite3.Connection, keep_finished: int = 100) -> int:
+        """Bound duplicated queue results while retaining active jobs and recent history."""
+        cursor = conn.execute(
+            """
+            DELETE FROM training_jobs
+             WHERE id IN (
+                SELECT id FROM training_jobs
+                 WHERE status IN ('completed', 'failed')
+                 ORDER BY COALESCE(finished_at, updated_at) DESC, created_epoch DESC
+                 LIMIT -1 OFFSET ?
+             )
+            """,
+            (max(10, int(keep_finished or 100)),),
+        )
+        return int(cursor.rowcount or 0)
+
     def upsert_user_submission(self, data: Dict[str, Any]):
         with self._lock:
             conn = self._get_conn()
@@ -447,6 +500,225 @@ class DataStorage:
                     (int(limit),)
                 ).fetchall()
                 return [dict(r) for r in rows]
+            finally:
+                conn.close()
+
+    def _decode_training_job(self, row) -> Dict[str, Any]:
+        if row is None:
+            return {}
+        item = dict(row)
+        item["payload"] = self._parse_json(item.get("payload"))
+        item["result"] = self._parse_json(item.get("result"))
+        return item
+
+    def enqueue_training_job(
+        self,
+        task_type: str,
+        payload: Dict[str, Any],
+        max_pending: int = 8,
+    ) -> Dict[str, Any]:
+        task_type = str(task_type or "").strip().lower()
+        if task_type not in {"runtime", "centralized", "federated"}:
+            raise ValueError("unsupported training job type")
+        job_id = "train-%s" % uuid.uuid4().hex
+        now_epoch = time.time()
+        payload_json = self._canonical_json(payload)
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                conn.execute("BEGIN IMMEDIATE")
+                active_rows = conn.execute(
+                    """
+                    SELECT * FROM training_jobs
+                     WHERE status IN ('queued', 'running')
+                     ORDER BY created_epoch ASC
+                    """
+                ).fetchall()
+                for active_row in active_rows:
+                    active = self._decode_training_job(active_row)
+                    if (
+                        active.get("task_type") == task_type
+                        and self._canonical_json(active.get("payload")) == payload_json
+                    ):
+                        active["reused"] = True
+                        conn.commit()
+                        return active
+                if len(active_rows) >= max(1, int(max_pending or 8)):
+                    conn.rollback()
+                    raise RuntimeError("training queue is full")
+                conn.execute(
+                    """
+                    INSERT INTO training_jobs
+                    (id, created_at, updated_at, created_epoch, task_type, status, payload)
+                    VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, 'queued', ?)
+                    """,
+                    (job_id, now_epoch, task_type, payload_json),
+                )
+                conn.commit()
+                row = conn.execute("SELECT * FROM training_jobs WHERE id = ?", (job_id,)).fetchone()
+                item = self._decode_training_job(row)
+                item["reused"] = False
+                return item
+            except Exception:
+                if conn.in_transaction:
+                    conn.rollback()
+                raise
+            finally:
+                conn.close()
+
+    def claim_next_training_job(self, worker_id: str, lease_seconds: int = 21600) -> Dict[str, Any]:
+        """Atomically claim one job only when no live training job is running."""
+        now_epoch = time.time()
+        lease_until = now_epoch + max(300, int(lease_seconds or 21600))
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                conn.execute("BEGIN IMMEDIATE")
+                conn.execute(
+                    """
+                    UPDATE training_jobs
+                       SET status='queued', worker_id='', lease_until=0,
+                           updated_at=CURRENT_TIMESTAMP,
+                           error=CASE WHEN error='' THEN 'worker lease expired; queued again' ELSE error END
+                     WHERE status='running' AND lease_until > 0 AND lease_until < ?
+                    """,
+                    (now_epoch,),
+                )
+                running = conn.execute(
+                    "SELECT id FROM training_jobs WHERE status='running' AND lease_until >= ? LIMIT 1",
+                    (now_epoch,),
+                ).fetchone()
+                if running is not None:
+                    conn.commit()
+                    return {}
+                row = conn.execute(
+                    "SELECT * FROM training_jobs WHERE status='queued' ORDER BY created_epoch ASC LIMIT 1"
+                ).fetchone()
+                if row is None:
+                    conn.commit()
+                    return {}
+                conn.execute(
+                    """
+                    UPDATE training_jobs
+                       SET status='running', started_at=COALESCE(started_at, CURRENT_TIMESTAMP),
+                           updated_at=CURRENT_TIMESTAMP, worker_id=?, lease_until=?, error=''
+                     WHERE id=? AND status='queued'
+                    """,
+                    (str(worker_id or "worker"), lease_until, row["id"]),
+                )
+                conn.commit()
+                claimed = conn.execute(
+                    "SELECT * FROM training_jobs WHERE id = ?",
+                    (row["id"],),
+                ).fetchone()
+                return self._decode_training_job(claimed)
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                conn.close()
+
+    def finish_training_job(self, job_id: str, result: Dict[str, Any]) -> Dict[str, Any]:
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                conn.execute(
+                    """
+                    UPDATE training_jobs
+                       SET status='completed', result=?, error='', finished_at=CURRENT_TIMESTAMP,
+                           updated_at=CURRENT_TIMESTAMP, lease_until=0
+                     WHERE id=?
+                    """,
+                    (self._json(result), str(job_id)),
+                )
+                self._prune_training_jobs_conn(conn)
+                conn.commit()
+                row = conn.execute("SELECT * FROM training_jobs WHERE id = ?", (str(job_id),)).fetchone()
+                return self._decode_training_job(row)
+            finally:
+                conn.close()
+
+    def fail_training_job(self, job_id: str, error: str, result: Dict[str, Any] = None) -> Dict[str, Any]:
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                conn.execute(
+                    """
+                    UPDATE training_jobs
+                       SET status='failed', result=?, error=?, finished_at=CURRENT_TIMESTAMP,
+                           updated_at=CURRENT_TIMESTAMP, lease_until=0
+                     WHERE id=?
+                    """,
+                    (self._json(result or {}), str(error or "training failed")[:2000], str(job_id)),
+                )
+                self._prune_training_jobs_conn(conn)
+                conn.commit()
+                row = conn.execute("SELECT * FROM training_jobs WHERE id = ?", (str(job_id),)).fetchone()
+                return self._decode_training_job(row)
+            finally:
+                conn.close()
+
+    def get_training_job(self, job_id: str) -> Dict[str, Any]:
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                row = conn.execute(
+                    "SELECT * FROM training_jobs WHERE id = ?",
+                    (str(job_id),),
+                ).fetchone()
+                return self._decode_training_job(row)
+            finally:
+                conn.close()
+
+    def get_training_jobs(self, limit: int = 50, include_result: bool = True) -> List[Dict[str, Any]]:
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                columns = "*" if include_result else (
+                    "id, created_at, updated_at, created_epoch, task_type, status, payload, "
+                    "'{}' AS result, error, started_at, finished_at, worker_id, lease_until"
+                )
+                rows = conn.execute(
+                    "SELECT %s FROM training_jobs ORDER BY created_epoch DESC LIMIT ?" % columns,
+                    (max(1, min(int(limit or 50), 200)),),
+                ).fetchall()
+                return [self._decode_training_job(row) for row in rows]
+            finally:
+                conn.close()
+
+    def has_pending_training_jobs(self) -> bool:
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                row = conn.execute(
+                    """
+                    SELECT 1 FROM training_jobs
+                     WHERE status='queued'
+                        OR (status='running' AND lease_until >= ?)
+                     LIMIT 1
+                    """,
+                    (time.time(),),
+                ).fetchone()
+                return row is not None
+            finally:
+                conn.close()
+
+    def requeue_interrupted_training_jobs(self) -> int:
+        """Recover jobs left running when the single-process service stopped."""
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                cursor = conn.execute(
+                    """
+                    UPDATE training_jobs
+                       SET status='queued', worker_id='', lease_until=0,
+                           started_at=NULL, updated_at=CURRENT_TIMESTAMP,
+                           error='service restarted; queued again'
+                     WHERE status='running'
+                    """
+                )
+                conn.commit()
+                return int(cursor.rowcount or 0)
             finally:
                 conn.close()
 
@@ -824,8 +1096,9 @@ class DataStorage:
 
     # ─── 数据采集器（后台线程） ───
 
-    def _collector_thread(self, interval: float = 10.0):
-        """后台采集线程：每10秒采集并存储系统状态"""
+    def _collector_thread(self, interval: float = 60.0):
+        """后台采集线程：低频保存系统趋势，避免监控数据挤占业务存储。"""
+        interval = max(10.0, float(interval or 60.0))
         while True:
             try:
                 # 从当前全局状态获取数据（通过回调）
@@ -838,31 +1111,53 @@ class DataStorage:
                         # 每循环100次清理一次旧数据
                         if self._collect_count % 100 == 0:
                             self._cleanup_old_data()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("系统状态采集失败: {}", exc)
             time.sleep(interval)
 
-    def start_collector(self, status_callback, interval: float = 1.0):
+    def start_collector(self, status_callback, interval: float = 60.0) -> bool:
         """启动后台数据采集器
 
         Args:
             status_callback: 返回系统状态字典的回调函数
             interval: 采集间隔（秒）
         """
-        self._status_callback = status_callback
-        import threading
-        t = threading.Thread(target=self._collector_thread, args=(interval,), daemon=True)
-        t.start()
+        with self._collector_lock:
+            self._status_callback = status_callback
+            if self._collector_thread_handle is not None and self._collector_thread_handle.is_alive():
+                return False
+            t = threading.Thread(
+                target=self._collector_thread,
+                args=(interval,),
+                name="dachuang-status-collector",
+                daemon=True,
+            )
+            self._collector_thread_handle = t
+            t.start()
         logger.info("数据采集器已启动: interval={:.1f}s", interval)
+        return True
 
-    def _cleanup_old_data(self, days: int = 180):
-        """清理180天前的历史数据"""
+    def _cleanup_old_data(self, days: int = 180, status_days: int = 30, status_limit: int = 50000):
+        """保留业务历史，压缩高频系统状态，适配小型服务器。"""
         try:
             cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
+            status_cutoff = (datetime.now() - timedelta(days=status_days)).strftime("%Y-%m-%d %H:%M:%S")
             conn = self._get_conn()
             try:
-                for table in ["system_status", "attack_records", "optimization_history"]:
+                conn.execute("DELETE FROM system_status WHERE timestamp < ?", (status_cutoff,))
+                for table in ["attack_records", "optimization_history"]:
                     conn.execute("DELETE FROM %s WHERE timestamp < ?" % table, (cutoff,))
+                conn.execute(
+                    """
+                    DELETE FROM system_status
+                     WHERE id IN (
+                        SELECT id FROM system_status
+                         ORDER BY id DESC
+                         LIMIT -1 OFFSET ?
+                     )
+                    """,
+                    (max(1000, int(status_limit or 50000)),),
+                )
                 conn.commit()
             finally:
                 conn.close()

@@ -51,6 +51,7 @@ from src.utils.model_manager import model_manager
 from src.utils.atomic_files import atomic_save_npy, atomic_write_bytes, atomic_write_json
 from src.user_submission_manager import SubmissionStatusError, UploadValidationError, user_submission_manager, validate_upload_file
 from src.preprocess.feature_engineering import FEATURE_NORMALIZATION_VERSION
+from src.preprocess.federated_splitter import FEDERATED_SPLIT_VERSION
 from src.analysis.external_advisor import (
     ExternalAdvisorClient,
     ExternalAdvisorConfigError,
@@ -200,6 +201,7 @@ def evaluate_linear_binary_weights(X, y, weights):
 SHARED_VALIDATION_SPLIT_VERSION = "shared-stratified-holdout-v1"
 SHARED_VALIDATION_FRACTION = 0.2
 FEDERATED_DEFAULT_LOCAL_EPOCHS = 20
+PREPARED_BUNDLE_VERSION = "prepared-array-bundle-v1"
 
 
 def _stable_seed(value, default=42):
@@ -316,6 +318,9 @@ _admin_submissions_cache_lock = threading.Lock()
 ADMIN_SUBMISSIONS_CACHE_SECONDS = 15
 _dataset_prepare_lock = threading.RLock()
 _training_operation_lock = threading.Lock()
+_training_worker_state_lock = threading.Lock()
+_training_worker_thread = None
+_training_worker_wakeup = threading.Event()
 _analysis_operation_lock = threading.Lock()
 _external_analysis_operation_lock = threading.Lock()
 _external_analysis_rate_lock = threading.Lock()
@@ -631,9 +636,12 @@ def _processed_dataset_ready():
     if not all(os.path.exists(path) for path in required_paths):
         return False
     metadata = _load_processed_metadata()
-    return (
+    return bool(
         metadata.get("preprocessing_version") == FEATURE_NORMALIZATION_VERSION
         and metadata.get("validation_split_version") == SHARED_VALIDATION_SPLIT_VERSION
+        and metadata.get("federated_split_version") == FEDERATED_SPLIT_VERSION
+        and metadata.get("prepared_bundle_version") == PREPARED_BUNDLE_VERSION
+        and _prepared_array_bundle_consistent(metadata)
     )
 
 
@@ -713,7 +721,12 @@ def _save_shared_training_partitions(X, y, split_seed, preparation_id):
     atomic_save_npy(PROCESSED_TRAIN_Y_PATH, y_train)
     atomic_save_npy(PROCESSED_VALIDATION_X_PATH, X_validation)
     atomic_save_npy(PROCESSED_VALIDATION_Y_PATH, y_validation)
-    nodes = save_federated_data(X_train, y_train, seed=split_seed)
+    nodes, split_metadata = save_federated_data(
+        X_train,
+        y_train,
+        seed=split_seed,
+        return_metadata=True,
+    )
 
     def label_counts(values):
         return {
@@ -731,6 +744,119 @@ def _save_shared_training_partitions(X, y, split_seed, preparation_id):
         "validation_fraction": SHARED_VALIDATION_FRACTION if validation_available else 0.0,
         "training_label_counts": label_counts(y_train),
         "validation_label_counts": label_counts(y_validation),
+        "federated_split_version": FEDERATED_SPLIT_VERSION,
+        "federated_split": split_metadata,
+        "node_details": split_metadata.get("nodes") or [],
+    }
+
+
+def _append_incremental_training_partitions(new_x, new_y, split_seed, preparation_id):
+    """Append newly approved rows while keeping the existing holdout frozen.
+
+    Feature extraction/decryption is performed only for the new submissions.
+    The lightweight node files are regenerated so their Non-IID profile remains
+    deterministic and every training row still belongs to exactly one node.
+    """
+    from src.preprocess.data_drift import calculate_data_drift
+    from src.preprocess.federated_splitter import save_federated_data
+
+    new_x = np.asarray(new_x, dtype=np.float64)
+    new_y = np.asarray(new_y, dtype=np.int32).reshape(-1)
+    old_x = np.load(PROCESSED_X_PATH)
+    old_y = np.load(PROCESSED_Y_PATH)
+    train_x = np.load(PROCESSED_TRAIN_X_PATH)
+    train_y = np.load(PROCESSED_TRAIN_Y_PATH)
+    validation_x = np.load(PROCESSED_VALIDATION_X_PATH)
+    validation_y = np.load(PROCESSED_VALIDATION_Y_PATH)
+    if (
+        new_x.ndim != 2
+        or len(new_x) != len(new_y)
+        or old_x.ndim != 2
+        or train_x.ndim != 2
+        or new_x.shape[1] != old_x.shape[1]
+        or new_x.shape[1] != train_x.shape[1]
+    ):
+        raise ValueError("incremental rows do not match the prepared feature schema")
+
+    drift = calculate_data_drift(train_x, train_y, new_x, new_y)
+    combined_x = np.vstack([old_x, new_x])
+    combined_y = np.concatenate([old_y, new_y])
+    combined_train_x = np.vstack([train_x, new_x])
+    combined_train_y = np.concatenate([train_y, new_y])
+
+    atomic_save_npy(PROCESSED_X_PATH, combined_x)
+    atomic_save_npy(PROCESSED_Y_PATH, combined_y)
+    atomic_save_npy(PROCESSED_TRAIN_X_PATH, combined_train_x)
+    atomic_save_npy(PROCESSED_TRAIN_Y_PATH, combined_train_y)
+    # Re-save the unchanged holdout atomically as part of the new preparation
+    # revision. Its validation_id remains stable in metadata.
+    atomic_save_npy(PROCESSED_VALIDATION_X_PATH, validation_x)
+    atomic_save_npy(PROCESSED_VALIDATION_Y_PATH, validation_y)
+    nodes, split_metadata = save_federated_data(
+        combined_train_x,
+        combined_train_y,
+        seed=split_seed,
+        return_metadata=True,
+    )
+
+    def label_counts(values):
+        return {
+            str(key): int(value)
+            for key, value in zip(*np.unique(values, return_counts=True))
+        } if len(values) else {}
+
+    return {
+        "nodes": nodes,
+        "node_details": split_metadata.get("nodes") or [],
+        "federated_split": split_metadata,
+        "federated_split_version": FEDERATED_SPLIT_VERSION,
+        "samples": int(len(combined_x)),
+        "training_samples": int(len(combined_train_x)),
+        "validation_samples": int(len(validation_x)),
+        "validation_available": bool(len(validation_x)),
+        "training_label_counts": label_counts(combined_train_y),
+        "validation_label_counts": label_counts(validation_y),
+        "label_counts": label_counts(combined_y),
+        "drift": drift,
+        "added_samples": int(len(new_x)),
+        "previous_samples": int(len(old_x)),
+        "preparation_id": preparation_id,
+    }
+
+
+def _incremental_submission_change(source, source_id, limit):
+    """Return append-only submission IDs when the current preparation is safe to extend."""
+    if (source or {}).get("source_type") != "user_submission_pool":
+        return None
+    metadata = _load_processed_metadata()
+    if (
+        not _processed_dataset_ready()
+        or str(metadata.get("dataset_source_id") or "") != str(source_id or "")
+        or metadata.get("preprocessing_version") != FEATURE_NORMALIZATION_VERSION
+        or metadata.get("validation_split_version") != SHARED_VALIDATION_SPLIT_VERSION
+        or metadata.get("federated_split_version") != FEDERATED_SPLIT_VERSION
+        or metadata.get("prepared_bundle_version") != PREPARED_BUNDLE_VERSION
+        or int(metadata.get("process_limit") or 0) != int(limit)
+    ):
+        return None
+    previous_ids = {
+        str(value) for value in (
+            metadata.get("source_submission_ids")
+            or metadata.get("submission_ids")
+            or []
+        ) if value
+    }
+    current_ids = {
+        str(value) for value in ((source or {}).get("submission_ids") or []) if value
+    }
+    if not previous_ids or not previous_ids.issubset(current_ids):
+        return None
+    new_ids = sorted(current_ids - previous_ids)
+    return {
+        "metadata": metadata,
+        "previous_ids": sorted(previous_ids),
+        "current_ids": sorted(current_ids),
+        "new_ids": new_ids,
     }
 
 
@@ -745,6 +871,8 @@ def _dataset_source_revision(source, limit=50000):
         "preprocessing_version": FEATURE_NORMALIZATION_VERSION,
         "validation_split_version": SHARED_VALIDATION_SPLIT_VERSION,
         "validation_fraction": SHARED_VALIDATION_FRACTION,
+        "federated_split_version": FEDERATED_SPLIT_VERSION,
+        "prepared_bundle_version": PREPARED_BUNDLE_VERSION,
         "limit": max(1, min(int(limit or 50000), 50000)),
         "submission_ids": sorted(str(v) for v in (source.get("submission_ids") or []) if v),
     }
@@ -770,13 +898,39 @@ def _dataset_preparation_id(source_id, revision):
 
 def _federated_files_ready():
     try:
-        from src.preprocess.federated_splitter import NODE_NAMES, FEDERATED_DIR
-        return all(
-            os.path.exists(os.path.join(FEDERATED_DIR, name, filename))
-            for name in NODE_NAMES
-            for filename in ("X.npy", "y.npy")
+        from src.preprocess.federated_splitter import (
+            NODE_NAMES,
+            FEDERATED_DIR,
+            load_split_metadata,
         )
-    except Exception:
+
+        prepared_meta = _load_processed_metadata()
+        expected_samples = int(prepared_meta.get("training_samples"))
+        expected_features = int(prepared_meta.get("features"))
+        split_meta = load_split_metadata()
+        if split_meta.get("version") != FEDERATED_SPLIT_VERSION:
+            return False
+
+        manifest_nodes = {
+            str(item.get("name")): item
+            for item in (split_meta.get("nodes") or [])
+            if isinstance(item, dict) and item.get("name")
+        }
+        total_samples = 0
+        for name in NODE_NAMES:
+            node_x_shape = _npy_shape(os.path.join(FEDERATED_DIR, name, "X.npy"))
+            node_y_shape = _npy_shape(os.path.join(FEDERATED_DIR, name, "y.npy"))
+            if (
+                len(node_x_shape) != 2
+                or len(node_y_shape) != 1
+                or node_x_shape[0] != node_y_shape[0]
+                or node_x_shape[1] != expected_features
+                or int((manifest_nodes.get(name) or {}).get("samples", -1)) != node_x_shape[0]
+            ):
+                return False
+            total_samples += int(node_x_shape[0])
+        return total_samples == expected_samples
+    except (OSError, ValueError, TypeError, KeyError):
         return False
 
 
@@ -797,6 +951,8 @@ def _preparation_matches(source, source_id=None, limit=50000):
         str(meta.get("dataset_source_id") or "") == str(expected_id or "")
         and str(meta.get("dataset_revision") or "") == expected_revision
         and str(meta.get("preprocessing_version") or "") == FEATURE_NORMALIZATION_VERSION
+        and str(meta.get("federated_split_version") or "") == FEDERATED_SPLIT_VERSION
+        and str(meta.get("prepared_bundle_version") or "") == PREPARED_BUNDLE_VERSION
         and int(meta.get("process_limit") or 50000) == max(1, min(int(limit or 50000), 50000))
     )
 
@@ -823,22 +979,26 @@ def _model_inventory():
             "used_by": "用户端风险检测",
         },
         "platform_baseline": {
-            "name": "IF + 逻辑回归 + Q-learning 平台基线",
+            "name": "历史兼容基线（只读）",
             "ready": all(baseline_files.values()),
             "files": baseline_files,
-            "used_by": "兼容检测、算法对比和自适应参数优化接口",
+            "used_by": "仅供旧检测与优化接口读取，不再允许写入正式训练记录或替换运行时模型",
+            "official_training": False,
         },
         "local_training": {
             "name": "运行时融合检测模型训练",
             "relation": "直接使用当前训练分区，不经过四节点；完成后更新用户端实际使用的融合模型文件，不参与普通/FedAvg 同构对比。",
+            "serving_impact": "updates_user_detector",
         },
         "centralized_comparison": {
             "name": "普通集中式线性基线",
             "relation": "与四节点使用相同线性模型、优化参数、训练分区和共享留出集，仅训练方式不同。",
+            "serving_impact": "comparison_only",
         },
         "federated_training": {
             "name": "四节点线性二分类模型 + FedAvg",
             "relation": "使用与普通集中式基线相同的线性模型和训练预算，四节点分别训练后执行 FedAvg；不会自动替换用户端融合检测模型。",
+            "serving_impact": "comparison_only",
         },
         "paillier": {
             "ready": bool(_secure_aggregation_paillier is not None),
@@ -855,6 +1015,8 @@ def _source_prepared_for_federated(source):
     if meta.get("preprocessing_version") != FEATURE_NORMALIZATION_VERSION:
         return False
     if meta.get("validation_split_version") != SHARED_VALIDATION_SPLIT_VERSION:
+        return False
+    if meta.get("federated_split_version") != FEDERATED_SPLIT_VERSION:
         return False
     source_id = source.get("id") or _dataset_source_id(source)
     if source_id and meta.get("dataset_source_id") == source_id:
@@ -1260,6 +1422,12 @@ def _load_training_dataset_source(source_id=None, limit=50000):
                 "validation_split_version": processed_meta.get("validation_split_version"),
                 "validation_label_distribution": processed_meta.get("validation_label_counts") or {},
                 "preprocessing_version": processed_meta.get("preprocessing_version"),
+                "federated_split_version": processed_meta.get("federated_split_version"),
+                "prepared_bundle_version": processed_meta.get("prepared_bundle_version"),
+                "federated_split": processed_meta.get("federated_split") or {},
+                "drift": processed_meta.get("drift") or {},
+                "incremental": bool(processed_meta.get("incremental")),
+                "added_samples": int(processed_meta.get("added_samples") or 0),
                 "nodes": processed_meta.get("nodes") or _prepared_node_counts(),
             }
         except Exception as prepared_error:
@@ -1328,6 +1496,12 @@ def _federated_node_details_unlocked():
     from src.preprocess.federated_splitter import NODE_NAMES, FEDERATED_DIR
 
     meta = _load_processed_metadata()
+    split_meta = meta.get("federated_split") or {}
+    split_node_map = {
+        str(item.get("name")): item
+        for item in (split_meta.get("nodes") or meta.get("nodes") or [])
+        if isinstance(item, dict) and item.get("name")
+    }
     nodes = []
     for name in NODE_NAMES:
         node_dir = os.path.join(FEDERATED_DIR, name)
@@ -1335,7 +1509,7 @@ def _federated_node_details_unlocked():
         y_path = os.path.join(node_dir, "y.npy")
         detail = {
             "name": name,
-            "node_type": "模拟联邦节点",
+            "node_type": "业务联邦节点",
             "samples": 0,
             "ready": False,
             "feature_dim": meta.get("features", 0),
@@ -1346,11 +1520,14 @@ def _federated_node_details_unlocked():
             "preparation_id": meta.get("preparation_id"),
             "validation_id": meta.get("validation_id"),
             "processed_at": meta.get("processed_at"),
+            "split_version": meta.get("federated_split_version"),
+            "heterogeneity_level": split_meta.get("heterogeneity_level"),
             "label_distribution": {},
             "normal_samples": 0,
             "attack_samples": 0,
             "description": "节点只接收训练分区；共享留出集不会写入任何节点，用于普通模型与联邦模型的同口径评估。",
         }
+        detail.update(split_node_map.get(name) or {})
         if os.path.exists(X_path) and os.path.exists(y_path):
             try:
                 X = np.load(X_path)
@@ -1518,6 +1695,12 @@ def add_cors_headers(response):
 @app.route("/")
 def index():
     return send_file(os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html"))
+
+
+@app.route("/favicon.ico")
+def favicon():
+    """Avoid a noisy browser-console 404 until a branded icon is provided."""
+    return "", 204
 
 
 # ─── API: 访客记录 ───
@@ -1735,41 +1918,30 @@ def compare_encryption():
 
 # ─── API: 模型训练 ───
 
+def _deprecated_training_api(replacement):
+    return jsonify(api_response(
+        code=410,
+        msg="该历史训练入口已停用，请使用当前管理端正式训练链路。",
+        data={
+            "deprecated": True,
+            "replacement": replacement,
+            "official_endpoints": {
+                "runtime": "/api/admin/training/local",
+                "centralized": "/api/admin/training/centralized",
+                "federated": "/api/admin/training/federated",
+                "tasks": "/api/admin/training/tasks",
+            },
+        },
+    )), 410
+
 @app.route("/api/train_fate", methods=["POST"])
 def train_fate():
-    data = generate_sensitive_dataset(100)
-    logs, history, results = _simulate_training(data, "联邦")
-    return jsonify(api_response(data={"logs": logs, "history": history, "results": results}))
+    return _deprecated_training_api("/api/admin/training/federated")
 
 
 @app.route("/api/train_plaintext", methods=["POST"])
 def train_plaintext():
-    data = generate_sensitive_dataset(100)
-    logs, history, results = _simulate_training(data, "明文")
-    return jsonify(api_response(data={"logs": logs, "history": history, "results": results}))
-
-
-def _simulate_training(data, mode):
-    ts = lambda: datetime.now().strftime('%H:%M:%S')
-    logs = ["[%s] INFO: 初始化%s训练任务..." % (ts(), mode),
-            "[%s] INFO: 数据集大小: %d条" % (ts(), len(data))]
-    history = []
-    acc = 0.5
-    for ep in range(1, 11):
-        if mode == "联邦":
-            acc += random.uniform(0.015, 0.06)
-            noise = random.uniform(0.005, 0.015)
-            if acc > 0.96: acc = 0.96
-            acc -= noise
-        else:
-            acc += random.uniform(0.025, 0.08)
-            if acc > 0.99: acc = 0.99
-        loss = round(1 - acc, 4)
-        acc = round(max(0.5, acc), 4)
-        history.append({"epoch": ep, "accuracy": acc, "loss": loss})
-        logs.append("[%s] INFO: Epoch %d/10 - 准确率: %.4f, 损失: %.4f" % (ts(), ep, acc, loss))
-    logs.append("[%s] INFO: %s训练完成! 最终准确率: %.4f" % (ts(), mode, acc))
-    return logs, history, {"final_accuracy": acc, "final_loss": loss}
+    return _deprecated_training_api("/api/admin/training/centralized")
 
 
 # ─── API: 联邦学习 (PrimiHub) ───
@@ -2613,15 +2785,18 @@ def admin_dataset_sources():
         "ready_for_federated": ready_for_federated,
         "model_inventory": _model_inventory(),
         "processing_policy": {
-            "mode": "full_rebuild_on_change",
-            "incremental": False,
+            "mode": "incremental_for_approved_submissions",
+            "incremental": True,
             "max_rows": 50000,
             "unchanged_action": "reuse",
+            "append_action": "decrypt_and_transform_new_submissions_only",
+            "fallback_action": "full_rebuild_when_source_or_schema_changes",
             "validation_split": SHARED_VALIDATION_SPLIT_VERSION,
             "validation_fraction": SHARED_VALIDATION_FRACTION,
-            "note": "数据源未变化时直接复用当前准备结果；检测到变化时按当前源全量重建，超过 5 万条时处理前 5 万条。",
+            "federated_split": FEDERATED_SPLIT_VERSION,
+            "note": "用户可训练池只解密并提取新增提交，已有共享留出集保持冻结；提交撤销、数据源或特征版本变化时自动回退为全量重建。",
         },
-        "note": "数据准备会先保留同源共享留出集，再将训练分区写入四节点；公开流量型数据集未配置时不会伪装为已加载。",
+        "note": "数据准备会保留同源共享留出集，再按业务 Non-IID 分布写入四节点；公开流量型数据集未配置时不会伪装为已加载。",
     }))
 
 
@@ -2666,6 +2841,109 @@ def _prepare_dataset_source_for_federated_locked(source, source_id=None, limit=5
             }))
 
         source_type = source.get("source_type")
+        incremental_change = None if force_rebuild else _incremental_submission_change(
+            source,
+            effective_source_id,
+            limit,
+        )
+        if incremental_change and incremental_change.get("new_ids"):
+            previous_meta = dict(incremental_change.get("metadata") or {})
+            previous_samples = int(previous_meta.get("samples") or 0)
+            remaining = max(0, limit - previous_samples)
+            current_source_ids = incremental_change.get("current_ids") or []
+            new_ids = incremental_change.get("new_ids") or []
+            if remaining == 0:
+                # The configured preparation cap is already full. Record the
+                # source revision without decrypting rows that cannot enter the
+                # current training scope.
+                metadata = dict(previous_meta)
+                metadata.update({
+                    "dataset_revision": dataset_revision,
+                    "processed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "process_mode": "incremental_limit_reached",
+                    "process_scope": "existing_limit_rows",
+                    "incremental": True,
+                    "added_samples": 0,
+                    "new_submission_count": len(new_ids),
+                    "ignored_new_submissions": len(new_ids),
+                    "source_submission_ids": current_source_ids,
+                    "raw_samples": int(source.get("samples") or previous_meta.get("raw_samples") or previous_samples),
+                    "processing_time_ms": round((time.perf_counter() - started_at) * 1000, 3),
+                })
+                atomic_write_json(PROCESSED_META_PATH, metadata)
+                _clear_dataset_sources_cache()
+                return jsonify(api_response(msg="新增提交已识别，但当前处理上限已满，继续复用现有训练数据", data={
+                    **metadata,
+                    "reused": True,
+                    "changed": True,
+                }))
+
+            new_x, new_y, new_user_meta = user_submission_manager.load_trainable_features(
+                ids=new_ids,
+                limit=remaining,
+            )
+            if len(new_x):
+                partition_meta = _append_incremental_training_partitions(
+                    new_x,
+                    new_y,
+                    split_seed,
+                    preparation_id,
+                )
+                loaded_new_ids = [
+                    str(item.get("id"))
+                    for item in ((new_user_meta or {}).get("sources") or [])
+                    if item.get("id")
+                ]
+                loaded_submission_ids = list(previous_meta.get("submission_ids") or [])
+                loaded_submission_ids.extend(
+                    value for value in loaded_new_ids if value not in loaded_submission_ids
+                )
+                metadata = dict(previous_meta)
+                metadata.update({
+                    "dataset_source_id": effective_source_id,
+                    "dataset_revision": dataset_revision,
+                    "preparation_id": preparation_id,
+                    "preprocessing_version": FEATURE_NORMALIZATION_VERSION,
+                    "federated_split_version": FEDERATED_SPLIT_VERSION,
+                    "prepared_bundle_version": PREPARED_BUNDLE_VERSION,
+                    "source": source.get("name") or source.get("source") or "用户可训练数据池",
+                    "source_type": source_type,
+                    "samples": partition_meta["samples"],
+                    "training_samples": partition_meta["training_samples"],
+                    "validation_samples": partition_meta["validation_samples"],
+                    "features": int(new_x.shape[1]),
+                    "label_counts": partition_meta["label_counts"],
+                    "training_label_counts": partition_meta["training_label_counts"],
+                    "validation_label_counts": partition_meta["validation_label_counts"],
+                    "processed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "prepared_only": True,
+                    "process_mode": "incremental_append",
+                    "process_scope": "new_approved_submissions",
+                    "process_limit": limit,
+                    "incremental": True,
+                    "added_samples": partition_meta["added_samples"],
+                    "previous_samples": partition_meta["previous_samples"],
+                    "new_submission_count": len(loaded_new_ids),
+                    "source_submission_ids": current_source_ids,
+                    "submission_ids": loaded_submission_ids,
+                    "raw_samples": int(source.get("samples") or partition_meta["samples"]),
+                    "split_strategy": "shared_frozen_holdout_then_business_noniid",
+                    "split_seed": split_seed,
+                    "federated_split": partition_meta["federated_split"],
+                    "drift": partition_meta["drift"],
+                    "nodes": partition_meta["node_details"],
+                })
+                processing_seconds = max(time.perf_counter() - started_at, 0.000001)
+                metadata["processing_time_ms"] = round(processing_seconds * 1000, 3)
+                metadata["processing_rows_per_second"] = round(len(new_x) / processing_seconds, 2)
+                atomic_write_json(PROCESSED_META_PATH, metadata)
+                _clear_dataset_sources_cache()
+                return jsonify(api_response(msg="仅处理新增可训练提交，并已更新四节点数据", data={
+                    **metadata,
+                    "reused": False,
+                    "changed": True,
+                }))
+
         if source_type in {"user_submission_pool", "user_submission"}:
             ids = None
             if source_type == "user_submission":
@@ -2684,6 +2962,7 @@ def _prepare_dataset_source_for_federated_locked(source, source_id=None, limit=5
                 "dataset_revision": dataset_revision,
                 "preparation_id": preparation_id,
                 "preprocessing_version": FEATURE_NORMALIZATION_VERSION,
+                "prepared_bundle_version": PREPARED_BUNDLE_VERSION,
                 "source": source.get("name") or source.get("source") or "用户可训练数据池",
                 "source_type": source_type,
                 "source_path": source.get("id") or source_type,
@@ -2699,11 +2978,9 @@ def _prepare_dataset_source_for_federated_locked(source, source_id=None, limit=5
                 "process_scope": "all_rows" if int(source.get("samples") or len(X)) <= limit else "first_limit_rows",
                 "process_limit": limit,
                 "incremental": False,
+                "added_samples": int(len(X)),
                 "raw_samples": int(source.get("samples") or len(X)),
-                "split_strategy": (
-                    "shared_stratified_holdout_then_stratified_even"
-                    if partition_meta["validation_available"] else "stratified_even_no_holdout"
-                ),
+                "split_strategy": "shared_holdout_then_business_noniid",
                 "split_seed": split_seed,
                 "validation_available": partition_meta["validation_available"],
                 "validation_id": partition_meta["validation_id"],
@@ -2711,9 +2988,13 @@ def _prepare_dataset_source_for_federated_locked(source, source_id=None, limit=5
                 "validation_fraction": partition_meta["validation_fraction"],
                 "training_label_counts": partition_meta["training_label_counts"],
                 "validation_label_counts": partition_meta["validation_label_counts"],
+                "federated_split_version": partition_meta["federated_split_version"],
+                "federated_split": partition_meta["federated_split"],
                 "submission_ids": (user_meta or {}).get("submission_ids") or source.get("submission_ids") or [],
+                "source_submission_ids": sorted(str(value) for value in (source.get("submission_ids") or []) if value),
+                "drift": {"available": False, "level": "baseline", "reason": "initial_full_preparation"},
             }
-            metadata["nodes"] = [{"name": n[0], "samples": int(n[1]), "ready": True} for n in nodes]
+            metadata["nodes"] = partition_meta["node_details"]
             processing_seconds = max(time.perf_counter() - started_at, 0.000001)
             metadata["processing_time_ms"] = round(processing_seconds * 1000, 3)
             metadata["processing_rows_per_second"] = round(len(X) / processing_seconds, 2)
@@ -2747,6 +3028,7 @@ def _prepare_dataset_source_for_federated_locked(source, source_id=None, limit=5
             "dataset_revision": dataset_revision,
             "preparation_id": preparation_id,
             "preprocessing_version": FEATURE_NORMALIZATION_VERSION,
+            "prepared_bundle_version": PREPARED_BUNDLE_VERSION,
             "source": source.get("source") or os.path.basename(filepath),
             "source_type": source.get("source_type") or "dataset",
             "source_path": filepath,
@@ -2763,10 +3045,7 @@ def _prepare_dataset_source_for_federated_locked(source, source_id=None, limit=5
             "process_limit": limit,
             "incremental": False,
             "raw_samples": int(source.get("samples") or info.get("samples") or len(X)),
-            "split_strategy": (
-                "shared_stratified_holdout_then_stratified_even"
-                if partition_meta["validation_available"] else "stratified_even_no_holdout"
-            ),
+            "split_strategy": "shared_holdout_then_business_noniid",
             "split_seed": split_seed,
             "validation_available": partition_meta["validation_available"],
             "validation_id": partition_meta["validation_id"],
@@ -2774,8 +3053,11 @@ def _prepare_dataset_source_for_federated_locked(source, source_id=None, limit=5
             "validation_fraction": partition_meta["validation_fraction"],
             "training_label_counts": partition_meta["training_label_counts"],
             "validation_label_counts": partition_meta["validation_label_counts"],
+            "federated_split_version": partition_meta["federated_split_version"],
+            "federated_split": partition_meta["federated_split"],
+            "drift": {"available": False, "level": "baseline", "reason": "full_preparation"},
         }
-        metadata["nodes"] = [{"name": n[0], "samples": int(n[1]), "ready": True} for n in nodes]
+        metadata["nodes"] = partition_meta["node_details"]
         processing_seconds = max(time.perf_counter() - started_at, 0.000001)
         metadata["processing_time_ms"] = round(processing_seconds * 1000, 3)
         metadata["processing_rows_per_second"] = round(len(X) / processing_seconds, 2)
@@ -2909,8 +3191,139 @@ def admin_submission_review_status(submission_id):
     return jsonify(api_response(msg="审核状态已更新", data=item))
 
 
+def _public_training_job(job, include_result=True):
+    job = dict(job or {})
+    result = job.get("result") if isinstance(job.get("result"), dict) else {}
+    payload = job.get("payload") if isinstance(job.get("payload"), dict) else {}
+    output = result.get("data") if isinstance(result, dict) else None
+    public = {
+        "id": job.get("id"),
+        "task_type": job.get("task_type"),
+        "status": job.get("status"),
+        "created_at": job.get("created_at"),
+        "updated_at": job.get("updated_at"),
+        "started_at": job.get("started_at"),
+        "finished_at": job.get("finished_at"),
+        "error": job.get("error") or "",
+        "dataset_source_id": payload.get("dataset_source_id"),
+        "aggregation_method": payload.get("aggregation_method"),
+    }
+    if include_result and result:
+        public["message"] = result.get("msg") or ""
+        public["output"] = output if output is not None else result
+    return public
+
+
+def _execute_training_job(job):
+    handlers = {
+        "runtime": ("/api/admin/training/local", _admin_training_local_locked),
+        "centralized": ("/api/admin/training/centralized", _admin_training_centralized_locked),
+        "federated": ("/api/admin/training/federated", _admin_training_federated_locked),
+    }
+    task_type = str((job or {}).get("task_type") or "")
+    route_path, handler = handlers.get(task_type, (None, None))
+    if handler is None:
+        raise ValueError("unsupported queued training type: %s" % task_type)
+    payload = job.get("payload") if isinstance(job.get("payload"), dict) else {}
+    with _training_operation_lock:
+        with app.test_request_context(route_path, method="POST", json=payload):
+            raw_response = handler()
+            response = app.make_response(raw_response)
+            try:
+                response_payload = response.get_json(silent=True) or {}
+                response_code = int(response_payload.get("code", 200) or 200)
+                if response.status_code >= 400 or response_code != 200:
+                    message = response_payload.get("msg") or "training request failed"
+                    db.fail_training_job(job.get("id"), message, response_payload)
+                    return
+                db.finish_training_job(job.get("id"), response_payload)
+            finally:
+                response.close()
+
+
+def _training_worker_loop():
+    global _training_worker_thread
+    worker_id = "pid-%s-thread-%s" % (os.getpid(), threading.current_thread().ident)
+    try:
+        while True:
+            job = db.claim_next_training_job(worker_id)
+            if not job:
+                # Coordinate shutdown with enqueue so a task cannot land in
+                # the tiny gap between the final empty claim and thread exit.
+                with _training_worker_state_lock:
+                    if _training_worker_wakeup.is_set():
+                        _training_worker_wakeup.clear()
+                        continue
+                    if _training_worker_thread is threading.current_thread():
+                        _training_worker_thread = None
+                    return
+            try:
+                _execute_training_job(job)
+            except Exception as exc:
+                logger.exception("Queued training job failed: {}", job.get("id"))
+                db.fail_training_job(job.get("id"), str(exc))
+    finally:
+        with _training_worker_state_lock:
+            if _training_worker_thread is threading.current_thread():
+                _training_worker_thread = None
+
+
+def _ensure_training_worker():
+    global _training_worker_thread
+    with _training_worker_state_lock:
+        _training_worker_wakeup.set()
+        if _training_worker_thread is not None and _training_worker_thread.is_alive():
+            return
+        _training_worker_thread = threading.Thread(
+            target=_training_worker_loop,
+            name="dachuang-training-worker",
+            daemon=True,
+        )
+        _training_worker_thread.start()
+
+
+def _enqueue_training_request(task_type, payload):
+    try:
+        job = db.enqueue_training_job(task_type, payload or {}, max_pending=8)
+    except RuntimeError:
+        return jsonify(api_response(
+            code=429,
+            msg="训练队列已满，请等待当前任务完成后再提交。",
+        )), 429
+    _ensure_training_worker()
+    return jsonify(api_response(
+        msg="相同训练任务已在队列中" if job.get("reused") else "训练任务已进入单任务队列",
+        data=_public_training_job(job, include_result=False),
+    )), 202
+
+
+@app.route("/api/admin/training/jobs/<job_id>", methods=["GET"])
+def admin_training_job(job_id):
+    job = db.get_training_job(job_id)
+    if not job:
+        return jsonify(api_response(code=404, msg="训练任务不存在")), 404
+    if job.get("status") in {"queued", "running"}:
+        _ensure_training_worker()
+    return jsonify(api_response(data=_public_training_job(job)))
+
+
+@app.route("/api/admin/training/jobs", methods=["GET"])
+def admin_training_jobs():
+    limit = max(1, min(int(request.args.get("limit", 20) or 20), 100))
+    jobs = db.get_training_jobs(limit, include_result=False)
+    if any(item.get("status") in {"queued", "running"} for item in jobs):
+        _ensure_training_worker()
+    return jsonify(api_response(data={
+        "jobs": [_public_training_job(item) for item in jobs],
+        "worker_mode": "sqlite_single_worker",
+    }))
+
+
 @app.route("/api/admin/training/local", methods=["POST"])
 def admin_training_local():
+    payload = request.get_json(silent=True) or {}
+    if not app.config.get("TESTING"):
+        return _enqueue_training_request("runtime", payload)
     if not _training_operation_lock.acquire(blocking=False):
         return jsonify(api_response(code=409, msg="已有训练任务正在执行，请等待当前任务完成后再试。")), 409
     try:
@@ -2922,6 +3335,9 @@ def admin_training_local():
 @app.route("/api/admin/training/centralized", methods=["POST"])
 def admin_training_centralized():
     """Train the ordinary centralized baseline used for a fair FedAvg comparison."""
+    payload = request.get_json(silent=True) or {}
+    if not app.config.get("TESTING"):
+        return _enqueue_training_request("centralized", payload)
     if not _training_operation_lock.acquire(blocking=False):
         return jsonify(api_response(code=409, msg="已有训练任务正在执行，请等待当前任务完成后再试。")), 409
     try:
@@ -3182,6 +3598,8 @@ def _admin_training_local_locked():
             "dataset_revision": meta.get("dataset_revision"),
             "preparation_id": meta.get("preparation_id"),
             "preprocessing_version": FEATURE_NORMALIZATION_VERSION,
+            "prepared_bundle_version": meta.get("prepared_bundle_version"),
+            "model_cycle_id": meta.get("preparation_id"),
             "source_type": meta.get("source_type"),
             "uses_prepared_data": bool(meta.get("uses_prepared_data")),
             "uses_prepared_nodes": False,
@@ -3208,6 +3626,7 @@ def _admin_training_local_locked():
             "source_samples": int(meta.get("source_samples") or (len(X) + len(validation_x))),
             "source_count": int(meta.get("source_count", 0)),
             "label_distribution": meta.get("label_distribution", {}),
+            "drift": meta.get("drift") or {},
             "node_count": 1,
             "rounds": 0,
             "epochs": 1,
@@ -3245,6 +3664,9 @@ def _admin_training_local_locked():
 
 @app.route("/api/admin/training/federated", methods=["POST"])
 def admin_training_federated():
+    payload = request.get_json(silent=True) or {}
+    if not app.config.get("TESTING"):
+        return _enqueue_training_request("federated", payload)
     if not _training_operation_lock.acquire(blocking=False):
         return jsonify(api_response(code=409, msg="已有训练任务正在执行，请等待当前任务完成后再试。")), 409
     try:
@@ -3310,6 +3732,8 @@ def _admin_training_federated_locked():
                 and current_preparation.get("dataset_revision") == meta.get("dataset_revision")
                 and current_preparation.get("preprocessing_version") == FEATURE_NORMALIZATION_VERSION
                 and current_preparation.get("validation_split_version") == SHARED_VALIDATION_SPLIT_VERSION
+                and current_preparation.get("federated_split_version") == FEDERATED_SPLIT_VERSION
+                and current_preparation.get("prepared_bundle_version") == PREPARED_BUNDLE_VERSION
             )
             if not reuse_prepared_nodes:
                 return jsonify(api_response(
@@ -3427,11 +3851,16 @@ def _admin_training_federated_locked():
             "samples": int(len(X)),
             "requested_limit": requested_limit,
             "preprocessing_version": FEATURE_NORMALIZATION_VERSION,
+            "prepared_bundle_version": meta.get("prepared_bundle_version"),
             "uses_prepared_nodes": reuse_prepared_nodes,
             "federated_context_id": context_id,
             "federated_context_reset": context_reset,
             "continued_from_previous_round": continue_training,
-            "nodes": [{"name": n, "samples": int(c), "ready": True} for n, c in saved],
+            "nodes": prepared_nodes,
+            "federated_split_version": meta.get("federated_split_version"),
+            "federated_split": meta.get("federated_split") or {},
+            "heterogeneity_level": (meta.get("federated_split") or {}).get("heterogeneity_level"),
+            "drift": meta.get("drift") or {},
             "round": fedavg_server.round,
             "clients": [{
                 "name": r.get("name"),
@@ -3525,6 +3954,9 @@ def _admin_training_federated_locked():
 @app.route("/api/admin/training/tasks", methods=["GET"])
 def admin_training_tasks():
     limit = max(1, min(int(request.args.get("limit", 50) or 50), 200))
+    queued_jobs = db.get_training_jobs(min(limit, 50), include_result=False)
+    if any(item.get("status") in {"queued", "running"} for item in queued_jobs):
+        _ensure_training_worker()
     sqlite_tasks = db.get_training_tasks(limit)
     legacy_tasks = []
     try:
@@ -3538,6 +3970,11 @@ def admin_training_tasks():
         "sources": {
             "sqlite": len(sqlite_tasks),
             "legacy_json": len(legacy_tasks),
+        },
+        "queue": {
+            "mode": "sqlite_single_worker",
+            "jobs": [_public_training_job(item) for item in queued_jobs],
+            "pending": sum(1 for item in queued_jobs if item.get("status") in {"queued", "running"}),
         },
     }))
 
@@ -3684,6 +4121,46 @@ def _parse_meta(value):
         return parsed if isinstance(parsed, dict) else {}
     except Exception:
         return {}
+
+
+def _npy_shape(path):
+    """Read only an NPY header through mmap and release the file immediately."""
+    value = np.load(path, mmap_mode="r", allow_pickle=False)
+    try:
+        return tuple(value.shape)
+    finally:
+        mmap_handle = getattr(value, "_mmap", None)
+        if mmap_handle is not None:
+            mmap_handle.close()
+
+
+def _prepared_array_bundle_consistent(metadata=None):
+    """Reject partial preparation writes before training can consume them."""
+    metadata = metadata or _load_processed_metadata()
+    try:
+        full_x = _npy_shape(PROCESSED_X_PATH)
+        full_y = _npy_shape(PROCESSED_Y_PATH)
+        train_x = _npy_shape(PROCESSED_TRAIN_X_PATH)
+        train_y = _npy_shape(PROCESSED_TRAIN_Y_PATH)
+        validation_x = _npy_shape(PROCESSED_VALIDATION_X_PATH)
+        validation_y = _npy_shape(PROCESSED_VALIDATION_Y_PATH)
+        expected_samples = int(metadata.get("samples"))
+        expected_training = int(metadata.get("training_samples"))
+        expected_validation = int(metadata.get("validation_samples"))
+        expected_features = int(metadata.get("features"))
+    except (OSError, ValueError, TypeError, KeyError):
+        return False
+    return bool(
+        len(full_x) == 2
+        and len(train_x) == 2
+        and len(validation_x) == 2
+        and len(full_y) == len(train_y) == len(validation_y) == 1
+        and full_x[0] == full_y[0] == expected_samples
+        and train_x[0] == train_y[0] == expected_training
+        and validation_x[0] == validation_y[0] == expected_validation
+        and expected_training + expected_validation == expected_samples
+        and full_x[1] == train_x[1] == validation_x[1] == expected_features
+    )
 
 
 def _training_task_merged(task):
@@ -3926,6 +4403,8 @@ def admin_activate_model_version(version_id):
         return jsonify(api_response(code=404, msg="模型版本不存在"))
     enriched = _enrich_model_version(item)
     if enriched.get("can_activate"):
+        if db.has_pending_training_jobs():
+            return jsonify(api_response(code=409, msg="训练队列中仍有任务，暂时不能切换运行时模型。")), 409
         if not _training_operation_lock.acquire(blocking=False):
             return jsonify(api_response(code=409, msg="训练任务正在执行，暂时不能切换运行时模型。")), 409
         try:
@@ -4045,83 +4524,7 @@ def datasets_delete(dataset_id):
 @app.route("/api/datasets/<dataset_id>/train", methods=["POST"])
 def datasets_train(dataset_id):
     """使用数据集训练检测模型"""
-    data = request.get_json() or {}
-    epochs = data.get("epochs", 10)
-    batch_size = data.get("batch_size", 32)
-    label_column = data.get("label_column", None)
-
-    ensure_detector_trained()
-    fe = get_fe()
-    det = get_detector()
-
-    # 加载数据集
-    records, columns, detected_label = dataset_manager.load_dataset_data(dataset_id)
-    if not records:
-        return jsonify(api_response(code=400, msg="数据集为空或无法加载"))
-
-    # 确定标签列
-    label_col = label_column or detected_label
-    if not label_col or label_col not in columns:
-        return jsonify(api_response(code=400, msg="未找到标签列，请指定"))
-
-    try:
-        # 提取特征并训练
-        features_list = []
-        labels = []
-        for record in records:
-            try:
-                feats = fe.extract_features(record)
-                fn = fe.normalize_features(feats.reshape(1, -1))
-                features_list.append(fn[0])
-                labels.append(int(record.get(label_col, 0)))
-            except Exception:
-                continue
-
-        if len(features_list) < 10:
-            return jsonify(api_response(code=400, msg="有效数据不足，至少需要10条"))
-
-        X = np.array(features_list)
-        y = np.array(labels)
-
-        # 训练IF
-        det.fit_isolation_forest(X)
-
-        # 训练LSTM（如果有序列数据）
-        lstm_history = {}
-        if len(X) >= 20:
-            X_seq = np.array([X[i:i + 10] for i in range(len(X) - 10)])
-            y_seq = np.array([1.0 if np.mean(y[i:i + 10]) > 0.3 else 0.0 for i in range(len(y) - 10)])
-            if len(X_seq) > 0:
-                lstm_history = det.fit_lstm(X_seq, y_seq, epochs=epochs, batch_size=batch_size)
-
-        global _detector_trained
-        _detector_trained = True
-
-        # 评估
-        preds, _, _ = det.predict(X)
-        accuracy = float(np.mean(preds == y))
-
-        # 保存训练记录
-        save_training_record({
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "dataset_id": dataset_id,
-            "samples": len(features_list),
-            "epochs": epochs,
-            "accuracy": round(accuracy, 4),
-            "model": "IF + LSTM",
-        })
-
-        logger.info("数据集训练完成: dataset=%s, accuracy=%.4f, samples=%d" % (dataset_id, accuracy, len(features_list)))
-        return jsonify(api_response(data={
-            "accuracy": round(float(accuracy), 4),
-            "samples": len(features_list),
-            "epochs": epochs,
-            "lstm_trained": bool(lstm_history.get("accuracy")),
-            "message": "训练完成",
-        }))
-    except Exception as e:
-        logger.error("数据集训练失败: %s" % e)
-        return jsonify(api_response(code=500, msg="训练失败: %s" % e))
+    return _deprecated_training_api("/api/admin/training/local")
 
 
 # ─── API: 训练记录 ───
@@ -4243,27 +4646,7 @@ def model_status():
 @app.route("/api/model/retrain", methods=["POST"])
 def model_retrain():
     """重新训练所有模型"""
-    try:
-        X_train, y_train, X_test, y_test = ensure_data_generated()
-        model_manager.retrain(X_train, y_train)
-        # 保存详细训练记录
-        try:
-            det = model_manager.get_status()
-            if det.get("history"):
-                h = det["history"][-1]
-                db.save_detailed_training({
-                    "dataset_name": "generated",
-                    "epochs": 10, "batch_size": 32,
-                    "accuracy": h.get("accuracy", 0),
-                    "training_time": time.time(),
-                    "samples": h.get("samples", 0),
-                    "model_version": 1,
-                })
-        except Exception:
-            pass
-        return jsonify(api_response(data={"message": "重训练已启动，请查看 /api/model/status"}))
-    except Exception as e:
-        return jsonify(api_response(code=500, msg="重训练失败: %s" % e))
+    return _deprecated_training_api("/api/admin/training/local")
 
 
 @app.route("/api/model/versions", methods=["GET"])
@@ -4275,8 +4658,7 @@ def model_versions():
 @app.route("/api/model/rollback/<int:version>", methods=["POST"])
 def model_rollback(version):
     """回滚模型到指定版本"""
-    ok = model_manager.rollback(version)
-    return jsonify(api_response(data={"success": ok, "version": version}))
+    return _deprecated_training_api("/api/admin/model-versions")
 
 
 @app.route("/api/model/compare", methods=["GET"])
@@ -4303,87 +4685,7 @@ def train_history():
 @app.route("/api/train/dual", methods=["POST"])
 def train_dual():
     """双模式训练（传统+联邦对比）"""
-    req = request.get_json() or {}
-    epochs = req.get("epochs", 10)
-    batch_size = req.get("batch_size", 32)
-
-    # 生成/加载数据
-    X_train, y_train, X_test, y_test = ensure_data_generated()
-
-    # 传统训练（sklearn逻辑回归）
-    from sklearn.linear_model import LogisticRegression
-    from sklearn.metrics import accuracy_score
-    t0 = time.time()
-    trad_model = LogisticRegression(C=1.0, max_iter=200, solver="lbfgs")
-    trad_model.fit(X_train, y_train)
-    trad_preds = trad_model.predict(X_test)
-    trad_acc = float(accuracy_score(y_test, trad_preds))
-    trad_time = time.time() - t0
-
-    # 联邦训练（numpy梯度下降模拟）
-    t0 = time.time()
-    n_features = X_train.shape[1]
-    w = np.zeros(n_features)
-    b = 0.0
-    lr = 0.01
-    fed_history = []
-    for ep in range(min(epochs, 20)):
-        idx = np.random.permutation(len(X_train))
-        for start in range(0, len(X_train), batch_size):
-            batch_idx = idx[start:start+batch_size]
-            X_b = X_train[batch_idx]
-            y_b = y_train[batch_idx]
-            logits = np.clip(X_b @ w + b, -20, 20)
-            preds = 1.0 / (1.0 + np.exp(-logits))
-            error = preds - y_b
-            gw = X_b.T @ error / len(X_b)
-            gb = np.mean(error)
-            # 加密噪声（模拟Paillier）
-            gw *= 1 + np.random.randn() * 0.001
-            gb *= 1 + np.random.randn() * 0.0005
-            w -= lr * gw
-            b -= lr * gb
-        # 评估
-        test_logits = np.clip(X_test @ w + b, -20, 20)
-        test_preds = (1.0 / (1.0 + np.exp(-test_logits)) > 0.5).astype(int)
-        ep_acc = float(accuracy_score(y_test, test_preds))
-        ep_loss = float(-np.mean(y_test * np.log(1.0/(1.0+np.exp(-test_logits)) + 1e-10) +
-                                  (1-y_test) * np.log(1 - 1.0/(1.0+np.exp(-test_logits)) + 1e-10)))
-        fed_history.append({"epoch": ep+1, "accuracy": round(ep_acc, 4), "loss": round(ep_loss, 4)})
-    fed_acc = fed_history[-1]["accuracy"] if fed_history else 0
-    fed_time = time.time() - t0
-
-    # 保存训练记录
-    db.save_detailed_training({
-        "model_type": "dual",
-        "epochs": epochs,
-        "batch_size": batch_size,
-        "accuracy": round(fed_acc, 4),
-        "loss": round(fed_history[-1]["loss"] if fed_history else 0, 4),
-        "training_time": round(fed_time + trad_time, 2),
-        "traditional_accuracy": round(trad_acc, 4),
-        "federated_accuracy": round(fed_acc, 4),
-        "samples": len(X_train),
-        "model_version": model_manager._version_counter if hasattr(model_manager, '_version_counter') else 1,
-    })
-
-    return jsonify(api_response(data={
-        "traditional": {
-            "accuracy": round(trad_acc, 4),
-            "training_time": round(trad_time, 2),
-        },
-        "federated": {
-            "accuracy": round(fed_acc, 4),
-            "training_time": round(fed_time, 2),
-            "history": fed_history,
-        },
-        "comparison": {
-            "accuracy_diff": round((fed_acc - trad_acc) * 100, 2),
-            "time_diff": "+%.1f%%" % ((fed_time / max(trad_time, 0.01) - 1) * 100),
-        },
-        "samples": len(X_train),
-        "features": n_features,
-    }))
+    return _deprecated_training_api("/api/admin/training/centralized + /api/admin/training/federated")
 
 
 # ─── API: 检测历史 ───
@@ -4615,7 +4917,7 @@ def federated_nodes():
         "nodes": nodes,
         "total": len(nodes),
         "preparation": _load_processed_metadata(),
-        "explanation": "当前源先固定划分训练分区和共享留出集，再将训练分区按标签分层均分到四节点；留出集不进入节点，仅用于普通模型与 FedAvg 全局模型的同口径评估。",
+        "explanation": "当前源先固定训练分区和共享留出集，再按业务 Non-IID 标签与特征偏移生成四节点；留出集仅用于普通模型与 FedAvg 的同口径评估。",
     }))
 
 
@@ -4629,78 +4931,15 @@ def admin_federated_nodes_detail():
         "total": len(nodes),
         "total_samples": total_samples,
         "source": _load_processed_metadata(),
-        "explanation": "这些节点仅包含当前源的训练分区，共享留出集与节点隔离。它们用于执行节点本地训练、FedAvg 聚合和同口径评估，但不等同于真实跨机构部署。",
+        "heterogeneity": (_load_processed_metadata().get("federated_split") or {}),
+        "explanation": "四节点具有不同样本规模、标签比例和特征分布，并共享同一独立留出集。",
     }))
 
 
 @app.route("/api/federated/round", methods=["POST"])
 def federated_round():
     """执行一轮联邦训练"""
-    if not _training_operation_lock.acquire(blocking=False):
-        return jsonify(api_response(code=409, msg="已有训练任务正在执行，请稍后再试。")), 409
-    try:
-        return _federated_round_locked()
-    finally:
-        _training_operation_lock.release()
-
-
-def _federated_round_locked():
-    req = request.get_json() or {}
-    epochs = max(1, min(int(req.get("epochs") or FEDERATED_DEFAULT_LOCAL_EPOCHS), 20))
-    from src.preprocess.federated_splitter import NODE_NAMES, FEDERATED_DIR
-    from src.federated.client import FederatedClient
-    from src.federated.aggregator import fedavg_server
-
-    validation_x = np.empty((0, 18), dtype=np.float64)
-    validation_y = np.empty(0, dtype=np.int32)
-    with _dataset_prepare_lock:
-        preparation = _load_processed_metadata()
-        context_id = preparation.get("preparation_id")
-        if (
-            not context_id
-            or preparation.get("validation_split_version") != SHARED_VALIDATION_SPLIT_VERSION
-            or not _federated_files_ready()
-        ):
-            return jsonify(api_response(code=400, msg="请先准备当前数据源并生成四节点数据。"))
-        fedavg_server.ensure_context(context_id)
-        if preparation.get("validation_available") and preparation.get("validation_id"):
-            validation_x, validation_y, _ = _load_prepared_validation_arrays()
-
-        results = []
-        for name in NODE_NAMES:
-            client = FederatedClient(name, os.path.join(FEDERATED_DIR, name))
-            if client.load_data():
-                result = client.train_local(
-                    global_weights=fedavg_server.global_weights,
-                    epochs=epochs,
-                    use_internal_validation=not bool(len(validation_x)),
-                )
-                results.append(result)
-
-    global_weights = fedavg_server.aggregate(results)
-    latest = fedavg_server.get_history()[-1] if fedavg_server.get_history() else {}
-    shared_metrics = evaluate_linear_binary_weights(validation_x, validation_y, global_weights) if len(validation_x) else None
-
-    return jsonify(api_response(data={
-        "round": fedavg_server.round,
-        "clients": [{
-            "name": r["name"],
-            "accuracy": r["accuracy"],
-            "loss": r.get("loss", 0),
-            "samples": r["samples"],
-        } for r in results],
-        "avg_accuracy": shared_metrics["accuracy"] if shared_metrics is not None else float(latest.get("accuracy") or 0),
-        "avg_loss": shared_metrics["loss"] if shared_metrics is not None else float(latest.get("loss") or 0),
-        "precision": shared_metrics["precision"] if shared_metrics is not None else None,
-        "recall": shared_metrics["recall"] if shared_metrics is not None else None,
-        "f1": shared_metrics["f1"] if shared_metrics is not None else None,
-        "metric_scope": "shared_holdout_validation" if shared_metrics is not None else "node_validation_weighted",
-        "metric_label": "同源共享留出集指标" if shared_metrics is not None else "四节点样本加权验证指标",
-        "validation_samples": int(len(validation_x)) if shared_metrics is not None else 0,
-        "validation_id": preparation.get("validation_id") if shared_metrics is not None else None,
-        "federated_context_id": context_id,
-        "history": fedavg_server.get_history(),
-    }))
+    return _deprecated_training_api("/api/admin/training/federated")
 
 
 @app.route("/api/federated/history", methods=["GET"])
@@ -4937,7 +5176,7 @@ def _pretrain_on_startup():
     else:
         logger.warning("运行时融合模型初始化失败，检测接口会返回 503 而不会伪造模型分数。")
 
-    # 3. 启动数据采集器（每10秒）. The optimizer itself trains lazily when
+    # 3. 启动低频数据采集器. The optimizer itself trains lazily when
     # explicitly requested; its rule fallback is immediately available.
     try:
         def _status_callback():
@@ -4951,8 +5190,8 @@ def _pretrain_on_startup():
                 "key_length": opt_st["current_key_length"],
                 "encryption_rounds": opt_st["current_rounds"],
             }
-        db.start_collector(_status_callback, interval=10.0)
-        logger.info("数据采集器已启动(10秒间隔)")
+        db.start_collector(_status_callback, interval=60.0)
+        logger.info("数据采集器已启动(60秒间隔)")
     except Exception as e:
         logger.warning("数据采集器启动失败: {}", e)
 
@@ -4961,6 +5200,10 @@ def _pretrain_on_startup():
 
 if __name__ == "__main__":
     host = os.environ.get("HOST", "0.0.0.0")
+
+    recovered_jobs = db.requeue_interrupted_training_jobs()
+    if recovered_jobs:
+        logger.warning("检测到 {} 个被服务重启中断的训练任务，已重新排队", recovered_jobs)
 
     # 后台加载模型；仅在运行时检测模型缺失时执行一次 bootstrap。
     t = threading.Thread(target=_pretrain_on_startup, daemon=True)

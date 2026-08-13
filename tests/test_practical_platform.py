@@ -2,7 +2,10 @@ import io
 import json
 import os
 import sys
+import tempfile
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 os.chdir(os.path.join(os.path.dirname(__file__), ".."))
@@ -11,8 +14,44 @@ os.chdir(os.path.join(os.path.dirname(__file__), ".."))
 class TestPracticalPlatformRoadmap(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        from app import app
-        cls.client = app.test_client()
+        import importlib
+        import app as app_module
+        from src.utils.data_storage import DataStorage
+
+        submission_module = importlib.import_module("src.user_submission_manager")
+        cls._temp_dir = tempfile.TemporaryDirectory()
+        root = Path(cls._temp_dir.name)
+        upload_dir = root / "uploads"
+        upload_dir.mkdir(parents=True)
+        user_root = root / "user_submissions"
+        isolated_paths = {
+            "DATA_ROOT": str(user_root),
+            "TEMP_DIR": str(user_root / "plain_temp"),
+            "ARCHIVE_DIR": str(user_root / "archive"),
+            "REPORT_DIR": str(user_root / "reports"),
+            "INDEX_FILE": str(user_root / "index.json"),
+            "KEY_DIR": str(root / "keys"),
+            "KEY_FILE": str(root / "keys" / "user_archive.key"),
+        }
+        cls._patchers = [
+            patch.object(submission_module, name, value)
+            for name, value in isolated_paths.items()
+        ]
+        cls._patchers.extend([
+            patch.object(app_module, "db", DataStorage(str(root / "system.db"))),
+            patch.dict(app_module.app.config, {"UPLOAD_FOLDER": str(upload_dir)}),
+        ])
+        for patcher in cls._patchers:
+            patcher.start()
+        cls.app_module = app_module
+        cls.submission_module = submission_module
+        cls.client = app_module.app.test_client()
+
+    @classmethod
+    def tearDownClass(cls):
+        for patcher in reversed(cls._patchers):
+            patcher.stop()
+        cls._temp_dir.cleanup()
 
     def test_frontend_uses_risk_ranking_without_legacy_detail_copy(self):
         with open("index.html", "r", encoding="utf-8") as f:
@@ -45,6 +84,11 @@ class TestPracticalPlatformRoadmap(unittest.TestCase):
         upload_data = json.loads(upload.data)
         self.assertEqual(upload_data["code"], 200, upload_data)
         submission_id = upload_data["data"]["id"]
+        stored_submission = next(
+            item for item in self.submission_module._read_index()["submissions"]
+            if item.get("id") == submission_id
+        )
+        self.assertIn(self._temp_dir.name, stored_submission["encrypted_path"])
 
         analyze = self.client.post(
             f"/api/user/datasets/{submission_id}/analyze",

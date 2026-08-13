@@ -1197,6 +1197,24 @@ async function runUserAiAssist(ev){
     if(btn){btn.disabled=false;btn.innerHTML=oldHtml;}
   }
 }
+function waitMs(ms){return new Promise(resolve=>setTimeout(resolve,ms))}
+async function submitTrainingJob(url,payload,timeoutMs=20*60*1000){
+  const queued=await api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload||{})});
+  if(!queued.ok)return queued;
+  const initial=obj(queued.data);
+  if(!initial.id)return queued;
+  toast('训练任务已进入队列，可继续浏览其他模块','info');
+  const deadline=Date.now()+timeoutMs;
+  while(Date.now()<deadline){
+    await waitMs(1200);
+    const state=await api(`/api/admin/training/jobs/${encodeURIComponent(initial.id)}`);
+    if(!state.ok)return state;
+    const job=obj(state.data);
+    if(job.status==='completed')return{ok:true,data:obj(job.output),msg:job.message||'训练完成',job};
+    if(job.status==='failed')return{ok:false,error:job.error||job.message||'训练失败',data:obj(job.output),job};
+  }
+  return{ok:false,error:'等待训练结果超时，后台任务仍会继续，可稍后在训练记录中查看',data:initial};
+}
 async function detectFromSystemDataset(){
   const res=await api('/api/ensemble/detect_from_dataset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:50})});
   if(!res.ok){toast(res.error || '请先在管理端处理训练数据源','bad');return}
@@ -1612,7 +1630,8 @@ async function prepareDatasetSource(sourceId,ev){
   if(btn){btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> 生成中';}
   try{
     const r=await apiWithTimeout(`/api/admin/datasets/${encodeURIComponent(sourceId)}/prepare`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:50000})},90000);
-    toast(r.ok?(obj(r.data).reused?'数据未变化，已复用现有节点':'当前源已全量同步到四节点'):r.error,r.ok?'ok':'bad');
+    const mode=String(obj(r.data).process_mode||'');
+    toast(r.ok?(obj(r.data).reused?'数据未变化，已复用现有节点':(mode==='incremental_append'?`已增量处理 ${obj(r.data).added_samples||0} 条并更新节点`:'当前源已同步到四节点')):r.error,r.ok?'ok':'bad');
     if(r.ok){
       rememberCurrentDatasetSource(sourceId);
       currentPreparation=obj(r.data);
@@ -1627,7 +1646,8 @@ async function processSystemDatasetImpl(refresh=true){
   const sourceId=currentDatasetSourceId||'';
   const url=sourceId?`/api/admin/datasets/${encodeURIComponent(sourceId)}/prepare`:'/api/dataset/unsw/process';
   const r=await apiWithTimeout(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:50000})},90000);
-  toast(r.ok?(obj(r.data).reused?'数据未变化，已复用现有节点':'当前源已全量重建并生成节点'):r.error,r.ok?'ok':'bad');
+  const mode=String(obj(r.data).process_mode||'');
+  toast(r.ok?(obj(r.data).reused?'数据未变化，已复用现有节点':(mode==='incremental_append'?`已增量处理 ${obj(r.data).added_samples||0} 条并更新节点`:'当前源已重建并生成节点')):r.error,r.ok?'ok':'bad');
   if(r.ok){
     if(sourceId)rememberCurrentDatasetSource(sourceId);
     currentPreparation=obj(r.data);
@@ -1699,6 +1719,8 @@ async function loadNodes(force=false){
     const normal=n.normal_samples??labels['0']??0;
     const attack=n.attack_samples??Math.max(0,(n.samples||0)-normal);
     const nodeReady=Boolean(n.ready&&preparationReady);
+    const attackRate=Number(n.attack_rate);
+    const quality=Number(n.quality_score);
     return `<div class="node-card">
       <div class="node-card-head"><i class="fas fa-building"></i><b title="${esc(n.name)}">${esc(federatedNodeLabel(n.name))}</b><span class="node-card-state ${nodeReady?'ok':''}" title="${nodeReady?'就绪':'待同步'}" aria-label="${nodeReady?'就绪':'待同步'}"><i class="fas ${nodeReady?'fa-check':'fa-clock'}"></i></span></div>
       <div class="node-card-stats">
@@ -1706,11 +1728,12 @@ async function loadNodes(force=false){
         <span><b>${esc(normal)}</b>正常</span>
         <span><b>${esc(attack)}</b>风险</span>
       </div>
+      <div class="small-text text-muted mt-2">攻击占比 ${Number.isFinite(attackRate)?esc((attackRate*100).toFixed(1)+'%'):'--'} · 数据质量 ${Number.isFinite(quality)?esc(quality.toFixed(0)):'--'}</div>
     </div>`;
   }).join(''):'<div class="text-muted">暂无节点数据</div>';
   if(typeof fedNodes!=='undefined')fedNodes.innerHTML=html;
   if(typeof fedNodesDataProcess!=='undefined')fedNodesDataProcess.innerHTML=html;
-  if(typeof fedNodeExplain!=='undefined')fedNodeExplain.textContent=nodes.length&&preparationReady?'四个节点已与当前训练数据同步。':'请先同步当前训练数据。';
+  if(typeof fedNodeExplain!=='undefined')fedNodeExplain.textContent=nodes.length&&preparationReady?'四个业务 Non-IID 节点已同步。':'请先同步当前训练数据。';
 }
 function aggregationMethodLabel(method,paillierActual=false){
   const value=String(method||'').toLowerCase();
@@ -2006,7 +2029,7 @@ async function ensureTrainingSource(){
 }
 async function runAdminLocalTrain(refresh=true){
   await ensureTrainingSource();
-  const r=await api('/api/admin/training/local',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:trainLimit(),dataset_source_id:currentDatasetSourceId})});
+  const r=await submitTrainingJob('/api/admin/training/local',{limit:trainLimit(),dataset_source_id:currentDatasetSourceId});
   toast(r.ok?'运行时检测模型已更新':r.error,r.ok?'ok':'bad');
   if(r.ok)renderTrainingResult(r.data,'runtime');
   if(r.ok)clearAdminCache();
@@ -2015,7 +2038,7 @@ async function runAdminLocalTrain(refresh=true){
 }
 async function runAdminCentralizedTrain(refresh=true){
   await ensureTrainingSource();
-  const r=await api('/api/admin/training/centralized',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({epochs:20,limit:trainLimit(),dataset_source_id:currentDatasetSourceId})});
+  const r=await submitTrainingJob('/api/admin/training/centralized',{epochs:20,limit:trainLimit(),dataset_source_id:currentDatasetSourceId});
   toast(r.ok?'普通集中式基线训练完成':r.error,r.ok?'ok':'bad');
   if(r.ok)renderTrainingResult(r.data,'centralized');
   if(r.ok)clearAdminCache();
@@ -2025,7 +2048,7 @@ async function runAdminCentralizedTrain(refresh=true){
 async function runAdminFederatedTrain(refresh=true){
   await ensureTrainingSource();
   const method=document.getElementById('federatedAggregationMode')?.value==='paillier'?'paillier':'plain';
-  const r=await apiWithTimeout('/api/admin/training/federated',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({epochs:20,limit:trainLimit(),dataset_source_id:currentDatasetSourceId,aggregation_method:method,secure_aggregation:method==='paillier'})},180000);
+  const r=await submitTrainingJob('/api/admin/training/federated',{epochs:20,limit:trainLimit(),dataset_source_id:currentDatasetSourceId,aggregation_method:method,secure_aggregation:method==='paillier'},30*60*1000);
   toast(r.ok?(method==='paillier'?'Paillier 安全聚合完成':'普通联邦训练完成'):r.error,r.ok?'ok':'bad');
   if(r.ok)renderTrainingResult(r.data,'federated');
   if(r.ok)clearAdminCache();
@@ -2096,6 +2119,15 @@ async function loadTrainingRecords(force=false, withVersions=true){
   if(force)clearAdminCache('/api/admin/training/tasks');
   const r=force?await api(url):await cachedApi(url);
   const rows=arr(obj(r.data).tasks);
+  const queueJobs=arr(obj(obj(r.data).queue).jobs).filter(x=>x.status==='queued'||x.status==='running');
+  const queueRows=queueJobs.map(x=>({
+    task_type:x.task_type,
+    source:x.dataset_source_id||'当前数据源',
+    samples:'--',accuracy:0,
+    metric_label:'等待执行',metric_note:'SQLite 单任务队列',
+    metric_scope:'queued',status:x.status==='running'?'训练中':'排队中',
+    created_at:x.created_at
+  }));
   latestTrainingTasks=rows;
   const currentRows=rows.filter(trainingTaskMatchesCurrentPreparation);
   const latestLocal=currentRows.find(x=>String(x.task_type||'').includes('central'));
@@ -2104,7 +2136,8 @@ async function loadTrainingRecords(force=false, withVersions=true){
   if(latestLocal)trainingCompareState.local=trainingRecordToCompare(latestLocal);
   if(latestFed)trainingCompareState.federated=trainingRecordToCompare(latestFed);
   renderTrainingCompare();
-  trainingTable.innerHTML=rows.length?rows.map(x=>{
+  const displayRows=[...queueRows,...rows];
+  trainingTable.innerHTML=displayRows.length?displayRows.map(x=>{
     const metric=trainingMetricInfo(x);
     const accuracy=Number(x.accuracy||0);
     return `<tr>

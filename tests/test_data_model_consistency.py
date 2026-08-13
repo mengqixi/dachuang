@@ -313,10 +313,48 @@ class PreparedMetadataTests(unittest.TestCase):
                     json.dumps({
                         "preprocessing_version": app_module.FEATURE_NORMALIZATION_VERSION,
                         "validation_split_version": app_module.SHARED_VALIDATION_SPLIT_VERSION,
+                        "federated_split_version": app_module.FEDERATED_SPLIT_VERSION,
+                        "prepared_bundle_version": app_module.PREPARED_BUNDLE_VERSION,
+                        "samples": 2,
+                        "training_samples": 2,
+                        "validation_samples": 0,
+                        "features": 18,
                     }),
                     encoding="utf-8",
                 )
                 self.assertTrue(app_module._processed_dataset_ready())
+                np.save(train_y_path, np.zeros(1, dtype=int))
+                self.assertFalse(app_module._processed_dataset_ready())
+
+    def test_federated_node_bundle_rejects_partial_or_mismatched_files(self):
+        import app as app_module
+        import src.preprocess.federated_splitter as splitter_module
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            node_rows = {"hospital": 2, "bank": 3, "insurance": 2, "government": 3}
+            manifest = {
+                "version": app_module.FEDERATED_SPLIT_VERSION,
+                "nodes": [
+                    {"name": name, "samples": count}
+                    for name, count in node_rows.items()
+                ],
+            }
+            for name, count in node_rows.items():
+                node_dir = root / name
+                node_dir.mkdir()
+                np.save(node_dir / "X.npy", np.zeros((count, 18), dtype=float))
+                np.save(node_dir / "y.npy", np.zeros(count, dtype=int))
+            (root / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+            metadata = {"training_samples": 10, "features": 18}
+
+            with (
+                patch.object(splitter_module, "FEDERATED_DIR", str(root)),
+                patch.object(app_module, "_load_processed_metadata", return_value=metadata),
+            ):
+                self.assertTrue(app_module._federated_files_ready())
+                np.save(root / "bank" / "y.npy", np.zeros(2, dtype=int))
+                self.assertFalse(app_module._federated_files_ready())
 
 
 class SharedValidationTests(unittest.TestCase):
@@ -428,6 +466,8 @@ class SharedValidationTests(unittest.TestCase):
             "validation_id": "val-a",
             "validation_split_version": app_module.SHARED_VALIDATION_SPLIT_VERSION,
             "preprocessing_version": app_module.FEATURE_NORMALIZATION_VERSION,
+            "federated_split_version": app_module.FEDERATED_SPLIT_VERSION,
+            "prepared_bundle_version": app_module.PREPARED_BUNDLE_VERSION,
             "validation_available": True,
             "uses_shared_validation": True,
             "validation_samples": 10,
@@ -506,6 +546,8 @@ class SharedValidationTests(unittest.TestCase):
             "validation_id": "val-a",
             "validation_split_version": app_module.SHARED_VALIDATION_SPLIT_VERSION,
             "preprocessing_version": app_module.FEATURE_NORMALIZATION_VERSION,
+            "federated_split_version": app_module.FEDERATED_SPLIT_VERSION,
+            "prepared_bundle_version": app_module.PREPARED_BUNDLE_VERSION,
             "validation_available": True,
             "validation_samples": 10,
             "validation_label_distribution": {"0": 5, "1": 5},
@@ -579,6 +621,8 @@ class SharedValidationTests(unittest.TestCase):
             "validation_id": "val-a",
             "validation_split_version": app_module.SHARED_VALIDATION_SPLIT_VERSION,
             "preprocessing_version": app_module.FEATURE_NORMALIZATION_VERSION,
+            "federated_split_version": app_module.FEDERATED_SPLIT_VERSION,
+            "prepared_bundle_version": app_module.PREPARED_BUNDLE_VERSION,
             "validation_available": True,
             "validation_samples": 10,
             "validation_label_distribution": {"0": 5, "1": 5},

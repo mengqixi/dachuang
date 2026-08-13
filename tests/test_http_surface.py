@@ -15,6 +15,12 @@ class HttpSurfaceTests(unittest.TestCase):
         self.assertIn(b"<!DOCTYPE html>", response.data)
         response.close()
 
+    def test_favicon_request_is_intentionally_empty(self):
+        response = self.client.get("/favicon.ico")
+
+        self.assertEqual(response.status_code, 204)
+        response.close()
+
     def test_repository_files_are_not_public_static_assets(self):
         for path in (
             "/.env.example",

@@ -48,6 +48,8 @@ data/keys/
 
 # Runtime state and generated artifacts
 data/system.db
+data/system.db-shm
+data/system.db-wal
 data/datasets/processed/
 data/federated/**/*.npy
 data/models/
@@ -59,6 +61,7 @@ logs/
 
 # Local assistant/check artifacts
 .claude/settings.local.json
+.playwright-cli/
 .tmp_*/
 tools_inspect_plan.py
 

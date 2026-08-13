@@ -251,11 +251,12 @@ class TestAPI(unittest.TestCase):
         self.assertIn("traditional", data["data"])
         self.assertIn("homomorphic", data["data"])
 
-    def test_train_fate(self):
+    def test_legacy_train_fate_is_deprecated(self):
         resp = self.app.post("/api/train_fate", content_type="application/json")
-        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.status_code, 410)
         data = json.loads(resp.data)
-        self.assertEqual(len(data["data"]["history"]), 10)
+        self.assertTrue(data["data"]["deprecated"])
+        self.assertEqual(data["data"]["replacement"], "/api/admin/training/federated")
 
     def test_federated_submit(self):
         resp = self.app.post("/api/federated/submit",
