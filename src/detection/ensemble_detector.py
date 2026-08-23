@@ -423,6 +423,8 @@ class EnsembleDetector:
             return {
                 "ready": self._is_ready,
                 "is_ready": self._is_ready,
+                "algorithm": "ensemble_detector",
+                "display_name": "IF + 分类器 + NumPy LSTM 融合检测",
                 "version": self._manifest.get("version") or "",
                 "model_version": self._manifest.get("version") or "",
                 "trained_at": self._manifest.get("trained_at"),

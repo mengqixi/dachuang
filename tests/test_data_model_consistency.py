@@ -33,6 +33,113 @@ class FeatureTransformTests(unittest.TestCase):
         features = extract_features_structured({"response_time_ms": 250})
         self.assertAlmostEqual(features[FEATURE_NAMES.index("response_time")], 0.25)
 
+    def test_label_never_changes_anomaly_score_feature(self):
+        from src.preprocess.feature_engineering import FEATURE_NAMES, extract_features_structured
+
+        common = {
+            "failed_attempts": 9,
+            "request_frequency": 120,
+            "response_time": 0.8,
+        }
+        normal = extract_features_structured({**common, "label": 0})
+        attack = extract_features_structured({**common, "label": 1})
+
+        np.testing.assert_allclose(normal, attack)
+        anomaly_index = FEATURE_NAMES.index("anomaly_score")
+        self.assertGreater(normal[anomaly_index], 0.0)
+        self.assertLessEqual(normal[anomaly_index], 1.0)
+
+    def test_supplied_model_scores_never_become_training_features(self):
+        from src.preprocess.feature_engineering import extract_features_structured
+
+        behaviour = {
+            "failed_attempts": 7,
+            "request_frequency": 90,
+            "response_time": 0.6,
+            "protocol_violations": 1,
+        }
+        low = extract_features_structured({**behaviour, "anomaly_score": 0.0, "risk_score": 0.0})
+        high = extract_features_structured({**behaviour, "anomaly_score": 1.0, "model_score": 1.0})
+
+        np.testing.assert_allclose(low, high)
+
+    def test_generated_matrix_replaces_attack_pattern_anomaly_score(self):
+        import random
+        from src.data_generator import FEATURE_NAMES as GENERATED_FEATURE_NAMES, generate_training_data
+        from src.preprocess.feature_engineering import derive_behavior_anomaly_scores
+
+        random_state = random.getstate()
+        numpy_state = np.random.get_state()
+        try:
+            random.seed(20260823)
+            np.random.seed(20260823)
+            X, _, _ = generate_training_data(200, attack_ratio=0.25)
+            anomaly_index = GENERATED_FEATURE_NAMES.index("anomaly_score")
+
+            self.assertEqual(len(X), 200)
+            np.testing.assert_allclose(X[:, anomaly_index], derive_behavior_anomaly_scores(X))
+        finally:
+            random.setstate(random_state)
+            np.random.set_state(numpy_state)
+
+    def test_generated_baseline_has_realistic_class_overlap(self):
+        import random
+        from src.data_generator import generate_training_data
+        from src.federated.client import FederatedClient
+        from src.preprocess.feature_engineering import normalize_security_features
+
+        random_state = random.getstate()
+        numpy_state = np.random.get_state()
+        try:
+            random.seed(20260823)
+            np.random.seed(20260823)
+            X, y, _ = generate_training_data(4000, attack_ratio=0.35)
+            X = normalize_security_features(X)
+            split = 3200
+            client = FederatedClient("quality-check", "unused")
+            client.X, client.y, client._loaded = X[:split], y[:split], True
+            normal_count = int(np.sum(client.y == 0))
+            risk_count = int(np.sum(client.y == 1))
+            client.class_weights = {
+                0: split / (2.0 * normal_count),
+                1: split / (2.0 * risk_count),
+            }
+            weights = client.train_local(epochs=35, use_internal_validation=False)["weights"]
+            holdout = np.c_[X[split:], np.ones(len(X) - split)]
+            probabilities = 1.0 / (1.0 + np.exp(-np.clip(holdout @ weights, -50, 50)))
+            predictions = (probabilities >= 0.5).astype(int)
+            truth = y[split:]
+            accuracy = float(np.mean(predictions == truth))
+            true_positive = int(np.sum((predictions == 1) & (truth == 1)))
+            false_negative = int(np.sum((predictions == 0) & (truth == 1)))
+            recall = true_positive / max(true_positive + false_negative, 1)
+
+            self.assertGreater(accuracy, 0.75)
+            self.assertLess(accuracy, 0.985)
+            self.assertGreater(recall, 0.68)
+        finally:
+            random.setstate(random_state)
+            np.random.set_state(numpy_state)
+
+    def test_missing_security_fields_use_neutral_baselines(self):
+        from src.preprocess.feature_engineering import FEATURE_NAMES, extract_features_structured
+
+        features = extract_features_structured({
+            "failed_attempts": 0,
+            "request_frequency": 20,
+            "response_time": 0.05,
+        })
+        self.assertAlmostEqual(features[FEATURE_NAMES.index("ciphertext_entropy")], 7.5)
+        self.assertAlmostEqual(features[FEATURE_NAMES.index("decryption_success_rate")], 1.0)
+        self.assertAlmostEqual(features[FEATURE_NAMES.index("protocol_violations")], 0.0)
+
+    def test_zero_risk_recall_has_zero_f1(self):
+        from app import binary_classification_metrics
+
+        metrics = binary_classification_metrics([0, 0, 1, 1], [0, 0, 0, 0])
+        self.assertEqual(metrics["recall"], 0.0)
+        self.assertEqual(metrics["f1"], 0.0)
+
     def test_csv_inspection_counts_rows_and_invalidates_by_file_revision(self):
         from src.preprocess.feature_engineering import inspect_csv
 
@@ -236,6 +343,17 @@ class HttpBoundaryTests(unittest.TestCase):
         response = self.client.get("/api/optimization/status")
         self.assertEqual(response.status_code, 401)
         self.assertEqual(response.get_json()["code"], 401)
+
+    def test_user_can_read_small_current_model_descriptor(self):
+        with patch("app._ensure_runtime_ensemble_ready") as ensure_runtime:
+            response = self.client.get("/api/model/current")
+
+        self.assertEqual(response.status_code, 200)
+        ensure_runtime.assert_not_called()
+        versions = response.get_json()["data"]["versions"]
+        self.assertEqual(len(versions), 1)
+        self.assertEqual(versions[0]["model_type"], "runtime_ensemble")
+        self.assertNotIn("path", str(versions[0]).lower())
 
     def test_blank_admin_password_cannot_enable_remote_default_login(self):
         with patch.dict(
@@ -445,6 +563,63 @@ class SharedValidationTests(unittest.TestCase):
         self.assertEqual(result["samples"], 20)
         self.assertEqual(result["metric_scope"], "node_training_diagnostic")
         self.assertEqual(result["metric_label"], "节点训练诊断指标")
+
+    def test_shared_class_weights_keep_minority_risk_detectable(self):
+        import app as app_module
+        from src.federated.client import FederatedClient
+
+        client = FederatedClient("balanced-node", "unused")
+        client.X = np.vstack([np.zeros((80, 18)), np.ones((20, 18))])
+        client.y = np.array([0] * 80 + [1] * 20, dtype=int)
+        client._loaded = True
+        client.class_weights = app_module.balanced_binary_class_weights(client.y)
+
+        result = client.train_local(epochs=20, use_internal_validation=False)
+        metrics = app_module.evaluate_linear_binary_weights(client.X, client.y, result["weights"])
+
+        self.assertGreater(client.class_weights[1], client.class_weights[0])
+        self.assertGreaterEqual(metrics["recall"], 0.95)
+        self.assertGreaterEqual(metrics["f1"], 0.95)
+
+    def test_one_weighted_step_matches_centralized_and_noniid_fedavg(self):
+        import app as app_module
+        from src.federated.aggregator import FedAvgServer
+        from src.federated.client import FederatedClient
+
+        rng = np.random.default_rng(17)
+        node_specs = [(30, 2), (10, 8)]
+        clients = []
+        all_x, all_y = [], []
+        for index, (normal_count, risk_count) in enumerate(node_specs):
+            y = np.array([0] * normal_count + [1] * risk_count, dtype=int)
+            X = rng.normal(0.0, 0.15, size=(len(y), 18)) + y[:, None] * 0.4
+            client = FederatedClient("node-%d" % index, "unused")
+            client.X, client.y, client._loaded = X, y, True
+            clients.append(client)
+            all_x.append(X)
+            all_y.append(y)
+
+        combined_x = np.vstack(all_x)
+        combined_y = np.concatenate(all_y)
+        class_weights = app_module.balanced_binary_class_weights(combined_y)
+
+        centralized = FederatedClient("centralized", "unused")
+        centralized.X, centralized.y, centralized._loaded = combined_x, combined_y, True
+        centralized.class_weights = class_weights
+        centralized_result = centralized.train_local(epochs=1, use_internal_validation=False)
+
+        node_results = []
+        for client in clients:
+            client.class_weights = class_weights
+            node_results.append(client.train_local(epochs=1, use_internal_validation=False))
+        federated_weights = FedAvgServer().aggregate(node_results)
+
+        np.testing.assert_allclose(
+            federated_weights,
+            centralized_result["weights"],
+            rtol=1e-10,
+            atol=1e-10,
+        )
 
     def test_local_training_uses_prepared_shared_holdout_metrics(self):
         import app as app_module

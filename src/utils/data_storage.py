@@ -464,9 +464,17 @@ class DataStorage:
             conn = self._get_conn()
             try:
                 self._ensure_model_version_tables(conn)
+                metadata = data.get("metadata") if isinstance(data.get("metadata"), dict) else {}
+                timestamp = (
+                    data.get("timestamp")
+                    or data.get("created_at")
+                    or metadata.get("timestamp")
+                    or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                )
                 cur = conn.execute(
-                    "INSERT INTO model_versions (version, model_type, source, samples, accuracy, metadata) VALUES (?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO model_versions (timestamp, version, model_type, source, samples, accuracy, metadata) VALUES (?, ?, ?, ?, ?, ?, ?)",
                     (
+                        timestamp,
                         data.get("version", ""), data.get("model_type", ""),
                         data.get("source", ""), int(data.get("samples", 0) or 0),
                         float(data.get("accuracy", 0) or 0), self._json(data),
@@ -801,8 +809,9 @@ class DataStorage:
                         "backfilled_from_training_task": item.get("id"),
                     }}
                     cur = conn.execute(
-                        "INSERT INTO model_versions (version, model_type, source, samples, accuracy, metadata) VALUES (?, ?, ?, ?, ?, ?)",
+                        "INSERT INTO model_versions (timestamp, version, model_type, source, samples, accuracy, metadata) VALUES (?, ?, ?, ?, ?, ?, ?)",
                         (
+                            item.get("timestamp") or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                             version,
                             model_type,
                             item.get("source") or meta.get("source") or full_meta.get("source") or "",

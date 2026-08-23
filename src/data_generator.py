@@ -12,6 +12,8 @@ from typing import Tuple, List, Dict, Any
 import numpy as np
 from loguru import logger
 
+from src.preprocess.feature_engineering import derive_behavior_anomaly_scores
+
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "generated")
 
 # 与 FeatureExtractor.FEATURE_NAMES 一致的18维特征
@@ -44,7 +46,6 @@ ATTACK_PATTERNS = {
         "cpu_usage": (0.02, 0.2),
         "network_latency": (0.001, 0.02),
         "protocol_violations": (0, 1),
-        "anomaly_score": (0.0, 0.15),
     },
     "brute_force": {
         "key_generation_time": (0.15, 0.5),
@@ -64,7 +65,6 @@ ATTACK_PATTERNS = {
         "cpu_usage": (0.4, 0.9),
         "network_latency": (0.01, 0.05),
         "protocol_violations": (3, 15),
-        "anomaly_score": (0.6, 0.95),
     },
     "side_channel": {
         "key_generation_time": (0.3, 0.8),
@@ -84,7 +84,6 @@ ATTACK_PATTERNS = {
         "cpu_usage": (0.1, 0.4),
         "network_latency": (0.02, 0.08),
         "protocol_violations": (0, 3),
-        "anomaly_score": (0.4, 0.8),
     },
     "ciphertext_analysis": {
         "key_generation_time": (0.05, 0.2),
@@ -104,7 +103,6 @@ ATTACK_PATTERNS = {
         "cpu_usage": (0.2, 0.6),
         "network_latency": (0.005, 0.03),
         "protocol_violations": (1, 8),
-        "anomaly_score": (0.5, 0.85),
     },
     "key_recovery": {
         "key_generation_time": (0.5, 2.0),
@@ -124,7 +122,6 @@ ATTACK_PATTERNS = {
         "cpu_usage": (0.3, 0.8),
         "network_latency": (0.01, 0.04),
         "protocol_violations": (2, 10),
-        "anomaly_score": (0.7, 0.98),
     },
 }
 
@@ -136,54 +133,90 @@ def _rand_between(rng: tuple) -> float:
     return random.uniform(rng[0], rng[1])
 
 
-def generate_one_record(attack_type: str) -> Dict[str, Any]:
-    """生成一条记录（dict，key为FEATURE_NAMES）"""
+_INTEGER_FEATURES = {
+    "hash_collision_count", "payload_size", "connection_duration",
+    "failed_attempts", "session_duration", "protocol_violations",
+    "encryption_rounds",
+}
+
+
+def _sample_pattern(attack_type: str) -> Dict[str, Any]:
+    """Sample one raw pattern without assigning any label-derived score."""
     p = ATTACK_PATTERNS[attack_type]
     vals = {}
     for fn in FEATURE_NAMES:
-        if fn in ("hash_collision_count", "payload_size", "connection_duration",
-                  "failed_attempts", "session_duration", "protocol_violations",
-                  "encryption_rounds"):
+        if fn == "anomaly_score":
+            vals[fn] = 0.0
+        elif fn in _INTEGER_FEATURES:
             vals[fn] = int(_rand_between(p[fn]))
         else:
             vals[fn] = round(_rand_between(p[fn]), 6)
-    vals["anomaly_score"] = round(_rand_between(p["anomaly_score"]), 6)
     return vals
 
 
+def _blend_patterns(normal: Dict[str, Any], risky: Dict[str, Any], intensity: float) -> Dict[str, Any]:
+    """Blend normal and risky behaviour to create realistic boundary rows."""
+    intensity = min(max(float(intensity), 0.0), 1.0)
+    values = {}
+    for feature in FEATURE_NAMES:
+        if feature == "anomaly_score":
+            values[feature] = 0.0
+            continue
+        value = float(normal[feature]) + intensity * (float(risky[feature]) - float(normal[feature]))
+        values[feature] = max(0, int(round(value))) if feature in _INTEGER_FEATURES else round(value, 6)
+    return values
+
+
+def generate_one_record(attack_type: str) -> Dict[str, Any]:
+    """Generate a row with overlap between benign bursts and stealthy attacks."""
+    normal = _sample_pattern("normal")
+    if attack_type == "normal":
+        # Benign traffic can still be busy or unusual. These hard negatives
+        # prevent the built-in baseline from learning unrealistically perfect
+        # attack-pattern boundaries.
+        if random.random() < 0.14:
+            risky = _sample_pattern(random.choice(ATTACK_TYPES[1:]))
+            return _blend_patterns(normal, risky, random.uniform(0.15, 0.50))
+        return normal
+
+    risky = _sample_pattern(attack_type)
+    # Some attacks deliberately resemble normal traffic; the remainder span
+    # medium-to-strong behaviour instead of sharing one fixed severity.
+    intensity = random.uniform(0.10, 0.48) if random.random() < 0.25 else random.uniform(0.50, 1.0)
+    return _blend_patterns(normal, risky, intensity)
+
+
 def generate_training_data(n_samples: int = 10000, attack_ratio: float = 0.35) -> Tuple[np.ndarray, np.ndarray, List[str]]:
-    """生成训练数据集，分2批每批5000控制内存"""
+    """Generate an exact-size dataset with overlapping security behaviour."""
+    n_samples = max(2, int(n_samples))
+    attack_ratio = min(max(float(attack_ratio), 0.0), 1.0)
     n_attack = int(n_samples * attack_ratio)
     n_normal = n_samples - n_attack
-    attack_dist = [0.35, 0.25, 0.25, 0.15]
-    attack_counts = [int(n_attack * d) for d in attack_dist]
-    attack_counts[-1] = n_attack - sum(attack_counts[:-1])
 
     records, labels, types = [], [], []
-    batch_size = 5000
+    for _ in range(n_normal):
+        records.append(generate_one_record("normal"))
+        labels.append(0)
+        types.append("正常")
 
-    for batch_start in range(0, n_samples, batch_size):
-        batch_end = min(batch_start + batch_size, n_samples)
-        batch_n = batch_end - batch_start
-        batch_normal = int(batch_n * (1 - attack_ratio))
-
-        for _ in range(batch_normal):
-            records.append(generate_one_record("normal"))
-            labels.append(0)
-            types.append("正常")
-
-        for at_idx, cnt in zip(range(1, len(ATTACK_TYPES)), attack_counts):
-            assigned = max(1, cnt * batch_n // n_samples)
-            for _ in range(assigned):
-                records.append(generate_one_record(ATTACK_TYPES[at_idx]))
-                labels.append(1)
-                types.append(ATTACK_TYPES[at_idx])
+    sampled_attacks = random.choices(
+        ATTACK_TYPES[1:],
+        weights=[0.35, 0.25, 0.25, 0.15],
+        k=n_attack,
+    )
+    for attack_type in sampled_attacks:
+        records.append(generate_one_record(attack_type))
+        labels.append(1)
+        types.append(attack_type)
 
     X = np.zeros((len(records), N_FEATURES), dtype=np.float64)
     y = np.array(labels, dtype=np.int32)
     for i, rec in enumerate(records):
         for j, fn in enumerate(FEATURE_NAMES):
             X[i, j] = float(rec[fn])
+    # The last feature is a behavioural signal, not an answer generated from
+    # the attack label or attack-pattern table.
+    X[:, FEATURE_NAMES.index("anomaly_score")] = derive_behavior_anomaly_scores(X)
 
     idx = np.random.permutation(len(X))
     X, y = X[idx], y[idx]
@@ -205,6 +238,23 @@ def save_dataset(X: np.ndarray, y: np.ndarray, types: List[str], prefix: str):
             vals = ",".join(["%.6f" % X[i, j] for j in range(N_FEATURES)])
             f.write("%s,%d,%s\n" % (vals, y[i], types[i]))
     logger.info("数据集已保存: {} ({}条)", filepath, len(X))
+
+
+def regenerate_builtin_dataset(seed: int = 20260823, n_samples: int = 10000):
+    """Rebuild the bundled train/test CSVs reproducibly."""
+    random_state = random.getstate()
+    numpy_state = np.random.get_state()
+    try:
+        random.seed(int(seed))
+        np.random.seed(int(seed))
+        X, y, types = generate_training_data(n_samples, 0.35)
+        split = int(len(X) * 0.8)
+        save_dataset(X[:split], y[:split], types[:split], "train")
+        save_dataset(X[split:], y[split:], types[split:], "test")
+        return len(X[:split]), len(X[split:])
+    finally:
+        random.setstate(random_state)
+        np.random.set_state(numpy_state)
 
 
 def ensure_data_generated():
@@ -241,7 +291,12 @@ def _load_data():
                 if len(parts) >= N_FEATURES + 2:
                     X_rows.append([float(v) for v in parts[:N_FEATURES]])
                     y_vals.append(int(parts[N_FEATURES]))
-        result.append(np.array(X_rows, dtype=np.float64))
+        matrix = np.array(X_rows, dtype=np.float64)
+        if len(matrix):
+            # Sanitize existing generated CSVs as they are loaded so old
+            # label-proxy anomaly values cannot enter a newly trained model.
+            matrix[:, FEATURE_NAMES.index("anomaly_score")] = derive_behavior_anomaly_scores(matrix)
+        result.append(matrix)
         result.append(np.array(y_vals, dtype=np.int32))
     return result[0], result[1], result[2], result[3]
 
@@ -272,3 +327,8 @@ def generate_and_prepare(force=False):
         "train_path": os.path.join(DATA_DIR, "train.csv"),
         "demo_path": os.path.join(DATA_DIR, "test.csv"),
     }
+
+
+if __name__ == "__main__":
+    train_count, test_count = regenerate_builtin_dataset()
+    print("generated train=%d test=%d" % (train_count, test_count))

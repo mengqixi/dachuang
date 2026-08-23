@@ -7,7 +7,7 @@ def home():
     return "<h1>Flask is working!</h1>"
 
 @app.route('/api/test')
-def test_api():
+def api_test():
     return jsonify({'message': 'API is working!'})
 
 if __name__ == '__main__':

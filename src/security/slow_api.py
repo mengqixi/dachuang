@@ -68,6 +68,9 @@ class SlowAPIDetector:
         self.config = config or {}
         self._enabled = self.config.get("enabled", True)
         self._threshold_ms = self.config.get("threshold_ms", 1000)
+        self._exclude_paths = tuple(
+            str(path).strip() for path in self.config.get("exclude_paths", []) if str(path).strip()
+        )
 
         log_path = self.config.get("log_path", DEFAULT_LOG_PATH)
         self._slow_logger = SlowAPILogger(log_path)
@@ -95,6 +98,8 @@ class SlowAPIDetector:
         """
         if not self._enabled:
             return
+        if self.is_ignored(path, method):
+            return
         if not self.was_slow(duration_ms):
             return
 
@@ -113,3 +118,8 @@ class SlowAPIDetector:
         if not self._enabled:
             return False
         return duration_ms >= self._threshold_ms
+
+    def is_ignored(self, path: str, method: str = "") -> bool:
+        """Return True for expected polling endpoints excluded from alerts."""
+        normalized_path = str(path or "")
+        return any(normalized_path.startswith(prefix) for prefix in self._exclude_paths)

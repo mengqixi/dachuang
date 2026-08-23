@@ -18,6 +18,7 @@ class FederatedClient:
         self.X = None
         self.y = None
         self.model = None
+        self.class_weights = None
         self._loaded = False
 
     def load_data(self):
@@ -130,10 +131,23 @@ class FederatedClient:
         learning_rate = 0.35
         l2 = 0.01
         Xb = np.c_[X_train, np.ones(len(X_train))]
+        class_weights = self.class_weights if isinstance(self.class_weights, dict) else {}
+        sample_weights = np.where(
+            y_train == 1,
+            float(class_weights.get(1, class_weights.get("1", 1.0))),
+            float(class_weights.get(0, class_weights.get("0", 1.0))),
+        )
+        # Global balanced weights sum to the global row count. Dividing each
+        # Non-IID node by its own weighted sum and then applying sample-count
+        # FedAvg changes that node's effective contribution. Row-count
+        # normalization keeps one local step equivalent to the centralized
+        # weighted objective; multiple local steps retain the intended FedAvg
+        # divergence caused by heterogeneous data.
+        gradient_denominator = max(float(len(y_train)), 1.0)
 
         for _ in range(local_epochs):
             probs = self._sigmoid(Xb @ weights)
-            grad = (Xb.T @ (probs - y_train)) / max(len(y_train), 1)
+            grad = (Xb.T @ (sample_weights * (probs - y_train))) / gradient_denominator
             grad[:-1] += l2 * weights[:-1]
             weights -= learning_rate * grad
 

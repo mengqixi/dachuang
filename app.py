@@ -160,7 +160,11 @@ def binary_classification_metrics(y_true, y_pred):
     accuracy = float((tp + tn) / max(1, len(y_true)))
     precision = float(tp / (tp + fp)) if (tp + fp) else None
     recall = float(tp / (tp + fn)) if (tp + fn) else None
-    if precision is None or recall is None or (precision + recall) == 0:
+    if recall == 0:
+        # A model that misses every positive sample has a defined F1 of zero,
+        # even when precision is undefined because it predicted no positives.
+        f1 = 0.0
+    elif precision is None or recall is None or (precision + recall) == 0:
         f1 = None
     else:
         f1 = float(2 * precision * recall / (precision + recall))
@@ -181,6 +185,39 @@ def binary_log_loss(y_true, scores):
     scores = np.clip(scores, 1e-6, 1.0 - 1e-6)
     loss = -np.mean(y_true * np.log(scores) + (1 - y_true) * np.log(1 - scores))
     return round(float(loss), 4)
+
+
+def balanced_binary_class_weights(y):
+    """Return deterministic global class weights for an imbalanced binary source."""
+    labels = (np.asarray(y).reshape(-1) > 0).astype(int)
+    total = int(len(labels))
+    if total == 0:
+        return {0: 1.0, 1: 1.0}
+    counts = {label: int(np.sum(labels == label)) for label in (0, 1)}
+    if not counts[0] or not counts[1]:
+        return {0: 1.0, 1: 1.0}
+    return {
+        label: float(total / (2.0 * counts[label]))
+        for label in (0, 1)
+    }
+
+
+def _runtime_model_version_summary(status):
+    """Build the small runtime-model descriptor shared by user-facing APIs."""
+    status = status if isinstance(status, dict) else {}
+    version = str(status.get("model_version") or status.get("version") or "runtime")
+    return {
+        "model_type": "runtime_ensemble",
+        "version": version,
+        "model_version": version,
+        "current_runtime": bool(status.get("ready") or status.get("is_ready")),
+        "preprocessing_version": status.get("preprocessing_version"),
+        "metadata": {
+            "algorithm": status.get("algorithm") or "ensemble_detector",
+            "classifier_type": status.get("classifier_type"),
+            "trained_at": status.get("trained_at"),
+        },
+    }
 
 
 def evaluate_linear_binary_weights(X, y, weights):
@@ -540,6 +577,10 @@ def admin_api_guard():
         "/api/admin/login",
         "/api/admin/session",
         "/api/admin/logout",
+        # User-side risk detection displays only this small, read-only runtime
+        # model descriptor. Model activation and all other management routes
+        # remain protected by the prefix guard above.
+        "/api/model/current",
     ):
         if not _is_admin_logged_in():
             return _admin_required_response()
@@ -1576,11 +1617,35 @@ def generate_login_security_dataset(n_records=100):
     devices = ["desktop", "desktop", "desktop", "mobile", "tablet"]
     rows = []
     for i in range(n_records):
-        attack = random.random() < 0.22
-        failed_attempts = random.randint(8, 45) if attack else random.randint(0, 4)
-        request_frequency = random.randint(130, 320) if attack else random.randint(5, 80)
-        response_time = round(random.uniform(0.7, 3.5) if attack else random.uniform(0.03, 0.45), 3)
-        payload_size = random.randint(4000, 60000) if attack else random.randint(300, 3800)
+        attack = random.random() < 0.25
+        # Keep meaningful overlap between normal and risky behaviour.  Perfectly
+        # separated synthetic ranges produce misleading 100% validation scores
+        # and do not exercise the platform's review/threshold paths.
+        if attack:
+            failed_attempts = random.randint(4, 35)
+            request_frequency = random.randint(65, 280)
+            response_time = round(random.uniform(0.25, 3.5), 3)
+            payload_size = random.randint(2500, 60000)
+            # Some attacks are intentionally close to the normal boundary so
+            # validation measures a useful decision problem instead of two
+            # perfectly separated synthetic ranges.
+            if random.random() < 0.18:
+                failed_attempts = random.randint(2, 8)
+                request_frequency = random.randint(40, 130)
+                response_time = round(random.uniform(0.12, 1.2), 3)
+                payload_size = random.randint(1000, 9000)
+        else:
+            failed_attempts = random.randint(0, 4)
+            request_frequency = random.randint(5, 75)
+            response_time = round(random.uniform(0.03, 0.55), 3)
+            payload_size = random.randint(300, 3800)
+            # A small amount of benign burst traffic exercises the platform's
+            # review path without making most normal rows trigger a rule.
+            if random.random() < 0.10:
+                failed_attempts = random.randint(4, 8)
+                request_frequency = random.randint(65, 125)
+                response_time = round(random.uniform(0.15, 1.0), 3)
+                payload_size = random.randint(1500, 9000)
         unusual_hour = 1 if (attack and random.random() < 0.6) else random.choice([0, 0, 0, 1])
         rows.append({
             "id": i + 1,
@@ -2557,6 +2622,9 @@ def _submission_analysis_response(submission_id, actor="user"):
         )
         if analysis is None:
             return jsonify(api_response(code=404, msg="提交记录不存在"))
+        analysis["current_model_versions"] = [
+            _runtime_model_version_summary(ensemble_detector.status())
+        ]
         cache_reused = bool((analysis.get("analysis_trace") or {}).get("cache_reused"))
         try:
             tracking_versions = db.get_current_model_versions()
@@ -3391,6 +3459,8 @@ def _admin_training_centralized_locked():
         baseline.X = np.asarray(X, dtype=np.float64)
         baseline.y = np.asarray(y, dtype=np.int32)
         baseline._loaded = True
+        class_weights = balanced_binary_class_weights(baseline.y)
+        baseline.class_weights = class_weights
         fit_result = baseline.train_local(
             global_weights=None,
             epochs=epochs,
@@ -3432,7 +3502,9 @@ def _admin_training_centralized_locked():
             "train_loss": fit_result.get("loss"),
             "algorithm": "linear_logistic_gradient_descent",
             "base_model_algorithm": "linear_logistic_binary_classifier",
-            "optimizer": "batch_gradient_descent_l2",
+            "optimizer": "class_balanced_batch_gradient_descent_l2",
+            "class_weighting": "balanced_global",
+            "class_weights": {str(key): value for key, value in class_weights.items()},
             "epochs": epochs,
             "effective_epochs": epochs,
             "rounds": 0,
@@ -3762,10 +3834,12 @@ def _admin_training_federated_locked():
 
             context_id = str(meta.get("preparation_id"))
             context_reset = fedavg_server.ensure_context(context_id, force_reset=not continue_training)
+            class_weights = balanced_binary_class_weights(y)
             results = []
             for name in NODE_NAMES:
                 client = FederatedClient(name, os.path.join(FEDERATED_DIR, name))
                 if client.load_data():
+                    client.class_weights = class_weights
                     results.append(client.train_local(
                         global_weights=fedavg_server.global_weights,
                         epochs=epochs,
@@ -3885,7 +3959,9 @@ def _admin_training_federated_locked():
             ),
             "algorithm": "fedavg",
             "base_model_algorithm": "linear_logistic_binary_classifier",
-            "optimizer": "batch_gradient_descent_l2",
+            "optimizer": "class_balanced_batch_gradient_descent_l2",
+            "class_weighting": "balanced_global",
+            "class_weights": {str(key): value for key, value in class_weights.items()},
             "aggregation_method": paillier_metrics.get("aggregation_method", aggregation_method),
             "secure_aggregation": bool(paillier_metrics.get("secure_aggregation", False)),
             "paillier": paillier_metrics,
@@ -4315,6 +4391,11 @@ def _enrich_model_version(item, runtime_versions=None, runtime_status=None):
     meta = _parse_meta(enriched.get("metadata"))
     nested = _parse_meta(meta.get("metadata"))
     merged = {**meta, **nested}
+    # SQLite CURRENT_TIMESTAMP is UTC, while training records intentionally use
+    # the server's local wall-clock time.  Prefer the training timestamp stored
+    # inside version metadata so one task is not shown eight hours apart.
+    if merged.get("timestamp"):
+        enriched["timestamp"] = merged.get("timestamp")
     model_type = str(enriched.get("model_type") or merged.get("model_type") or "")
     runtime_version = str(enriched.get("version") or merged.get("model_version") or "")
     is_runtime_type = model_type in {"runtime_ensemble", "admin_local_ensemble", "runtime_detector"}
@@ -4390,8 +4471,13 @@ def admin_model_versions():
 
 @app.route("/api/model/current", methods=["GET"])
 def current_model_versions():
+    from src.detection.ensemble_detector import ensemble_detector
+
+    # A public status read must not start training or mutate model artifacts.
+    # Startup/detection paths remain responsible for model initialization.
+    runtime = _runtime_model_version_summary(ensemble_detector.status())
     return jsonify(api_response(msg="success", data={
-        "versions": db.get_current_model_versions(),
+        "versions": [runtime],
     }))
 
 

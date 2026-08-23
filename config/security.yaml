@@ -32,6 +32,8 @@ security:
     enabled: true
     threshold_ms: 1000
     log_path: data/logs/slow_api.log
+    exclude_paths:
+      - /api/admin/training/jobs/
   api_switch:
     enabled: false
     disabled_paths: []

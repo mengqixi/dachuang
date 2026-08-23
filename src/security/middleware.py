@@ -491,16 +491,18 @@ class SecurityMiddleware:
             pass
 
         try:
+            request_path = request.path if request else ""
+            request_method = request.method if request else ""
             self.slow_api.report_if_slow(
                 trace_id=trace_id,
-                path=request.path if request else "",
-                method=request.method if request else "",
+                path=request_path,
+                method=request_method,
                 status_code=response.status_code,
                 duration_ms=elapsed_ms,
                 ip=self._get_client_ip(request) if request else "unknown",
                 user_agent=request.headers.get("User-Agent", "") if request else "",
             )
-            if self.slow_api.was_slow(elapsed_ms):
+            if self.slow_api.was_slow(elapsed_ms) and not self.slow_api.is_ignored(request_path, request_method):
                 self.security_logger.log_security_event(
                     trace_id=trace_id,
                     event_type="slow_api_detected",

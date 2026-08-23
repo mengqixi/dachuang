@@ -97,6 +97,21 @@ class TestSlowAPIDetector(unittest.TestCase):
         d.report_if_slow("tid-003", "/disabled", "GET", 200, 9999.0, "3.3.3.3", "curl")
         self.assertEqual(_count_lines(LOG_PATH), 0)
 
+    def test_excluded_polling_path_does_not_log(self):
+        cfg = {
+            "enabled": True,
+            "threshold_ms": 1000,
+            "log_path": LOG_PATH,
+            "exclude_paths": ["/api/admin/training/jobs/"],
+        }
+        d = SlowAPIDetector(cfg)
+        d.report_if_slow(
+            "tid-poll", "/api/admin/training/jobs/train-123", "GET",
+            200, 5000.0, "127.0.0.1", "browser",
+        )
+        self.assertTrue(d.is_ignored("/api/admin/training/jobs/train-123", "GET"))
+        self.assertEqual(_count_lines(LOG_PATH), 0)
+
     def test_timer_helpers(self):
         d = SlowAPIDetector({})
         t0 = d.start_timer()

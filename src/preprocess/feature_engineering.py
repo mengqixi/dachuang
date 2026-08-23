@@ -38,7 +38,7 @@ FEATURE_NAMES = [
 # One fixed transform is shared by preparation, training and inference.  A
 # per-file min/max transform makes the same row receive different values in a
 # one-row upload, a 500-row upload and the training dataset.
-FEATURE_NORMALIZATION_VERSION = "security-fixed-ranges-v1"
+FEATURE_NORMALIZATION_VERSION = "security-fixed-ranges-v5-derived-score-overlap-data"
 FEATURE_MIN_VALUES = np.array([
     0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
     0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
@@ -47,6 +47,16 @@ FEATURE_MAX_VALUES = np.array([
     10.0, 8.0, 100.0, 1000.0, 5.0, 1_000_000.0, 3600.0,
     1.0, 100.0, 7200.0, 10_000.0, 10.0, 1.0, 1.0, 1.0,
     5.0, 10.0, 1.0,
+], dtype=np.float64)
+
+# A missing field is not the same thing as a measured zero. Login-event CSVs,
+# for example, usually have no ciphertext entropy or decryption-success field;
+# filling those values with zero makes an otherwise normal login look like a
+# cryptographic attack. These are conservative normal baselines in raw units.
+# Explicit zeros supplied by a data source are still preserved.
+FEATURE_DEFAULT_VALUES = np.array([
+    0.05, 7.5, 0.0, 30.0, 0.05, 1000.0, 15.0, 0.10, 0.0,
+    300.0, 50.0, 1.0, 1.0, 0.20, 0.10, 0.01, 0.0, 0.0,
 ], dtype=np.float64)
 
 
@@ -68,7 +78,10 @@ UNSW_FEATURE_ALIASES = {
     "cpu_usage": ["cpu_usage"],
     "network_latency": ["network_latency", "trans_depth"],
     "protocol_violations": ["protocol_violations", "ct_state_ttl"],
-    "anomaly_score": ["anomaly_score", "label"],
+    # These names are accepted for schema compatibility, but their values are
+    # always replaced by a score derived from observable behaviour below. This
+    # prevents a previous model's output from becoming a circular train input.
+    "anomaly_score": ["anomaly_score", "risk_score", "model_score"],
 }
 
 LABEL_COLUMNS = ["label", "is_attack", "attack", "target", "class"]
@@ -110,15 +123,36 @@ def infer_label(row: Dict) -> int:
     return 0
 
 
+def derive_behavior_anomaly_scores(features: np.ndarray) -> np.ndarray:
+    """Derive the final feature only from observable, non-label behaviour."""
+    matrix = np.asarray(features, dtype=np.float64)
+    if matrix.ndim == 1:
+        matrix = matrix.reshape(1, -1)
+    if matrix.ndim != 2 or matrix.shape[1] != len(FEATURE_NAMES):
+        raise ValueError("security feature matrix must have %d columns" % len(FEATURE_NAMES))
+    failed = np.clip(matrix[:, FEATURE_NAMES.index("failed_attempts")] / 30.0, 0.0, 1.0)
+    frequency = np.clip(matrix[:, FEATURE_NAMES.index("request_frequency")] / 250.0, 0.0, 1.0)
+    response = np.clip(matrix[:, FEATURE_NAMES.index("response_time")] / 3.0, 0.0, 1.0)
+    violations = np.clip(matrix[:, FEATURE_NAMES.index("protocol_violations")] / 5.0, 0.0, 1.0)
+    return 0.35 * failed + 0.30 * frequency + 0.20 * response + 0.15 * violations
+
+
 def extract_features_structured(row: Dict) -> np.ndarray:
     """Extract the fixed 18-dimensional vector from a dictionary row."""
-    vec = np.zeros(len(FEATURE_NAMES), dtype=np.float64)
+    vec = FEATURE_DEFAULT_VALUES.copy()
     for i, feature in enumerate(FEATURE_NAMES):
-        vec[i] = _read_first(row, UNSW_FEATURE_ALIASES.get(feature, [feature]))
+        vec[i] = _read_first(
+            row,
+            UNSW_FEATURE_ALIASES.get(feature, [feature]),
+            default=float(FEATURE_DEFAULT_VALUES[i]),
+        )
     # API/upload schemas often express response latency in milliseconds while
     # the canonical model feature uses seconds.
     if row.get("response_time_ms") not in (None, ""):
         vec[FEATURE_NAMES.index("response_time")] = _to_float(row.get("response_time_ms")) / 1000.0
+    # Never trust a supplied anomaly/risk/model score as a base feature. It can
+    # be the output of a previous classifier and would make training circular.
+    vec[FEATURE_NAMES.index("anomaly_score")] = derive_behavior_anomaly_scores(vec)[0]
     return vec
 
 

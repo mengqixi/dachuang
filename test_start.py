@@ -1,24 +1,46 @@
+"""Manual local startup smoke check.
+
+This file intentionally exposes no pytest test. Run it explicitly when a
+temporary local service check is needed: ``python test_start.py``.
+"""
+
+from pathlib import Path
 import subprocess
+import sys
 import time
+
 import requests
 
-print("Starting server...")
-proc = subprocess.Popen(['python', 'run_server_simple.py'], 
-                       stdout=subprocess.PIPE, 
-                       stderr=subprocess.PIPE,
-                       cwd='c:\\Users\\Administrator\\Documents\\trae_projects\\dachuang')
 
-time.sleep(3)
+def main() -> int:
+    project_dir = Path(__file__).resolve().parent
+    proc = subprocess.Popen(
+        [sys.executable, "run_server_simple.py"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        cwd=str(project_dir),
+    )
+    try:
+        time.sleep(3)
+        response = requests.get("http://localhost:8080/api/get_stats", timeout=5)
+        print("API Response: %s" % response.status_code)
+        print("Response Content: %s..." % response.text[:500])
+        return 0 if response.ok else 1
+    except Exception as exc:
+        print("Startup check failed: %s" % exc)
+        return 1
+    finally:
+        proc.terminate()
+        try:
+            stdout, stderr = proc.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            stdout, stderr = proc.communicate(timeout=5)
+        if stdout:
+            print(stdout.decode("utf-8", errors="ignore"))
+        if stderr:
+            print(stderr.decode("utf-8", errors="ignore"), file=sys.stderr)
 
-try:
-    print("Testing API...")
-    response = requests.get('http://localhost:8080/api/get_stats', timeout=5)
-    print(f"API Response: {response.status_code}")
-    print(f"Response Content: {response.text[:500]}...")
-except Exception as e:
-    print(f"Error: {e}")
-    print("Checking server output...")
-    stdout, stderr = proc.communicate(timeout=2)
-    print(f"STDOUT: {stdout.decode('utf-8', errors='ignore')}")
-    print(f"STDERR: {stderr.decode('utf-8', errors='ignore')}")
-    proc.kill()
+
+if __name__ == "__main__":
+    raise SystemExit(main())
