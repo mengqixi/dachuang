@@ -184,6 +184,80 @@ class TestPracticalPlatformRoadmap(unittest.TestCase):
         self.assertEqual(report_data["code"], 200, report_data)
         self.assertIn("隐私暴露", report_data["data"]["report_markdown"])
 
+    def test_private_submission_is_bound_to_uploading_browser_session(self):
+        owner = self.app_module.app.test_client()
+        outsider = self.app_module.app.test_client()
+        payload = b"username,failed_attempts,label\nalice,0,0\n"
+        upload = owner.post(
+            "/api/user/datasets/upload",
+            data={"file": (io.BytesIO(payload), "nested\\private.csv")},
+            content_type="multipart/form-data",
+        )
+        upload_data = upload.get_json()
+        self.assertEqual(upload.status_code, 200, upload_data)
+        submission_id = upload_data["data"]["id"]
+
+        # The owner reaches the resource lookup; a different browser session
+        # is rejected before the existence or state of that record is exposed.
+        self.assertEqual(owner.get(f"/api/user/reports/{submission_id}").status_code, 200)
+        self.assertEqual(
+            outsider.post(f"/api/user/datasets/{submission_id}/analyze", json={}).status_code,
+            403,
+        )
+        self.assertEqual(
+            outsider.post(f"/api/user/datasets/{submission_id}/external-analysis", json={}).status_code,
+            403,
+        )
+        self.assertEqual(outsider.get(f"/api/user/reports/{submission_id}").status_code, 403)
+
+    def test_privacy_cipher_preview_is_full_but_strictly_bounded(self):
+        class FakePaillier:
+            def encrypt(self, value):
+                return int("9" * 96) + int(value)
+
+        with patch.object(self.app_module, "get_paillier", return_value=FakePaillier()):
+            response = self.app_module.app.test_client().post(
+                "/api/generate_privacy_dataset",
+                json={"n_records": 5000},
+            )
+        body = response.get_json()
+        self.assertEqual(response.status_code, 200, body)
+        data = body["data"]
+        self.assertEqual(data["requested_records"], 5000)
+        self.assertEqual(data["n_records"], self.app_module.PRIVACY_PREVIEW_MAX_ROWS)
+        self.assertTrue(data["preview_only"])
+        self.assertLessEqual(len(data["encrypted"]), self.app_module.PRIVACY_PREVIEW_MAX_ROWS)
+        self.assertGreater(len(data["encrypted"][0]["phone_encrypted"]), 40)
+
+        invalid_body = self.app_module.app.test_client().post(
+            "/api/generate_privacy_dataset",
+            json=[{"n_records": 20}],
+        )
+        self.assertEqual(invalid_body.status_code, 400)
+
+    def test_dataset_detection_rejects_invalid_pagination_without_500(self):
+        with patch.object(self.app_module, "_processed_dataset_ready", return_value=True):
+            invalid = self.app_module.app.test_client().post(
+                "/api/ensemble/detect_from_dataset",
+                json={"limit": "many", "offset": -1, "seed": -3},
+            )
+        self.assertEqual(invalid.status_code, 400, invalid.get_json())
+
+    def test_legacy_write_and_heavy_routes_require_admin_session(self):
+        guest = self.app_module.app.test_client()
+        for path in (
+            "/upload",
+            "/api/generate_dataset",
+            "/api/save_sample",
+            "/api/compare_encryption",
+            "/api/detection/analyze",
+            "/api/detection/real",
+            "/api/ensemble/detect",
+        ):
+            with self.subTest(path=path):
+                response = guest.post(path, json={})
+                self.assertEqual(response.status_code, 401, response.get_json())
+
 
 if __name__ == "__main__":
     unittest.main()

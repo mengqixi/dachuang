@@ -1156,11 +1156,11 @@ function renderPrivacySamplePreview(data, showPlain=false){
   const plaintext=maskPreviewRows(arr(data.plaintext));
   const encrypted=arr(data.encrypted);
   const algorithm=data.algorithm||data.encryption_method||data.encryption_algorithm||obj(encrypted[0]).algorithm||'Paillier';
-  const note=String(algorithm).toLowerCase().includes('mock')?'Paillier 初始化不可用，当前显示模拟密态片段。':'当前显示 Paillier 密文片段；密文较长，表格仅截取前段用于验证字段已进入密态展示流程。';
+  const note=String(algorithm).toLowerCase().includes('mock')?'Paillier 初始化不可用，当前显示模拟密态结果。':'当前已生成 Paillier 密文；表格使用省略样式展示长密文，可横向滚动核验字段。';
   if(showPlain){
     plainPreview.innerHTML=`<div class="small-text text-muted p-2">隐私样本只用于密态字段展示，不直接作为攻击检测原因。当前仅预览前 20 条，手机号、收入、信用分等字段会脱敏或加密显示。</div>`+table(plaintext.slice(0,20),privacyPlainCols(plaintext[0]));
   }
-  encryptedPreview.innerHTML=`<div class="small-text text-muted p-2"><span class="mini-badge">${esc(algorithm)}</span> ${esc(note)} 当前仅预览前 20 条，完整密文字段保留在返回数据中。</div>`+table(encrypted.slice(0,20),privacyCipherCols(encrypted[0]));
+  encryptedPreview.innerHTML=`<div class="small-text text-muted p-2"><span class="mini-badge">${esc(algorithm)}</span> ${esc(note)} 本功能最多生成 20 条密态预览，返回对象保留这些记录的完整密文。</div>`+table(encrypted.slice(0,20),privacyCipherCols(encrypted[0]));
 }
 async function generateCombinedSamplesImpl(){
   const count=Math.max(20,Math.min(parseInt(sampleCount.value||200),5000));

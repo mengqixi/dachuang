@@ -589,6 +589,8 @@ class ExternalAdvisorApiTests(unittest.TestCase):
                     "recommended_action": "优先复核。",
                 }]), "usage": {"total_tokens": 12}}
 
+        with self.client.session_transaction() as session:
+            session[self.app_module.USER_SUBMISSION_SESSION_KEY] = ["sub-unit"]
         with patch.object(self.app_module._external_ai_settings_store, "get_effective", return_value=_settings()), \
              patch.object(self.app_module, "_create_external_advisor_client", return_value=FakeClient()), \
              patch.object(self.app_module.user_submission_manager, "get_submission", return_value=submission), \

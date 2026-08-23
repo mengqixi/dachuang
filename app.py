@@ -544,6 +544,41 @@ def _admin_required_response():
     return jsonify(api_response(code=401, msg="请先登录管理端", data={"login_required": True})), 401
 
 
+USER_SUBMISSION_SESSION_KEY = "owned_submission_ids"
+MAX_USER_SUBMISSIONS_PER_SESSION = 24
+
+
+def _remember_user_submission(submission_id):
+    """Bind a newly created submission to this signed browser session."""
+    submission_id = str(submission_id or "").strip()
+    if not submission_id:
+        return
+    current = session.get(USER_SUBMISSION_SESSION_KEY, [])
+    if not isinstance(current, list):
+        current = []
+    owned = [
+        str(item) for item in current
+        if item and str(item) != submission_id
+    ]
+    owned.append(submission_id)
+    session[USER_SUBMISSION_SESSION_KEY] = owned[-MAX_USER_SUBMISSIONS_PER_SESSION:]
+    session.permanent = True
+    session.modified = True
+
+
+def _user_owns_submission(submission_id):
+    owned = session.get(USER_SUBMISSION_SESSION_KEY, [])
+    if not isinstance(owned, list):
+        return False
+    return str(submission_id or "") in {str(item) for item in owned if item}
+
+
+def _user_submission_forbidden_response():
+    # Use the same response for unknown and foreign IDs to avoid exposing
+    # whether a private submission exists.
+    return jsonify(api_response(code=403, msg="无权访问该提交记录，请在原上传会话中操作。")), 403
+
+
 ADMIN_PROTECTED_LEGACY_PREFIXES = (
     "/api/datasets/",
     "/api/model/",
@@ -555,6 +590,13 @@ ADMIN_PROTECTED_LEGACY_PREFIXES = (
     "/api/experiment/",
 )
 ADMIN_PROTECTED_LEGACY_PATHS = {
+    "/upload",
+    "/api/generate_dataset",
+    "/api/save_sample",
+    "/api/compare_encryption",
+    "/api/detection/analyze",
+    "/api/detection/real",
+    "/api/ensemble/detect",
     "/api/train_fate",
     "/api/train_plaintext",
     "/api/dataset/add",
@@ -1673,6 +1715,18 @@ def generate_login_security_dataset(n_records=100):
     return rows
 
 
+PRIVACY_PREVIEW_MAX_ROWS = 20
+
+
+def _privacy_preview_count(raw_value, default=PRIVACY_PREVIEW_MAX_ROWS):
+    try:
+        requested = int(raw_value)
+    except (TypeError, ValueError):
+        requested = int(default)
+    requested = max(1, min(requested, 5000))
+    return requested, min(requested, PRIVACY_PREVIEW_MAX_ROWS)
+
+
 def _encrypt_privacy_rows(dataset):
     p = get_paillier()
     if p is not None:
@@ -1681,9 +1735,9 @@ def _encrypt_privacy_rows(dataset):
             for record in dataset:
                 encrypted.append({
                     "id": record["id"],
-                    "phone_encrypted": str(p.encrypt(int(record["phone"][-8:])))[:40],
-                    "salary_encrypted": str(p.encrypt(record["salary"]))[:40],
-                    "credit_score_encrypted": str(p.encrypt(record["credit_score"]))[:40],
+                    "phone_encrypted": str(p.encrypt(int(record["phone"][-8:]))),
+                    "salary_encrypted": str(p.encrypt(record["salary"])),
+                    "credit_score_encrypted": str(p.encrypt(record["credit_score"])),
                     "algorithm": "Paillier-1024",
                 })
             return encrypted, "Paillier-1024"
@@ -1848,11 +1902,7 @@ def get_stats():
 @app.route("/api/generate_dataset", methods=["POST"])
 def api_generate_dataset():
     data = request.get_json() or {}
-    try:
-        n_records = int(data.get("n_records", 100))
-    except Exception:
-        n_records = 100
-    n_records = max(10, min(n_records, 5000))
+    requested_records, n_records = _privacy_preview_count(data.get("n_records", 20))
     logger.info("生成数据集: n_records=%d" % n_records)
     dataset = generate_sensitive_dataset(n_records)
 
@@ -1862,13 +1912,19 @@ def api_generate_dataset():
         "plaintext": dataset,
         "encrypted": encrypted,
         "n_records": n_records,
+        "requested_records": requested_records,
+        "preview_limit": PRIVACY_PREVIEW_MAX_ROWS,
+        "preview_only": True,
         "encryption_method": method,
     }))
 
 
 @app.route("/api/generate_login_security_dataset", methods=["POST"])
 def api_generate_login_security_dataset():
-    data = request.get_json() or {}
+    data = request.get_json(silent=True)
+    if data is not None and not isinstance(data, dict):
+        return jsonify(api_response(code=400, msg="请求体必须是 JSON 对象。")), 400
+    data = data or {}
     try:
         n_records = int(data.get("n_records", 200))
     except Exception:
@@ -1886,18 +1942,20 @@ def api_generate_login_security_dataset():
 
 @app.route("/api/generate_privacy_dataset", methods=["POST"])
 def api_generate_privacy_dataset():
-    data = request.get_json() or {}
-    try:
-        n_records = int(data.get("n_records", 200))
-    except Exception:
-        n_records = 200
-    n_records = max(10, min(n_records, 5000))
+    data = request.get_json(silent=True)
+    if data is not None and not isinstance(data, dict):
+        return jsonify(api_response(code=400, msg="请求体必须是 JSON 对象。")), 400
+    data = data or {}
+    requested_records, n_records = _privacy_preview_count(data.get("n_records", PRIVACY_PREVIEW_MAX_ROWS))
     rows = generate_sensitive_dataset(n_records)
     encrypted, method = _encrypt_privacy_rows(rows)
     return jsonify(api_response(data={
         "plaintext": rows,
         "encrypted": encrypted,
         "n_records": len(rows),
+        "requested_records": requested_records,
+        "preview_limit": PRIVACY_PREVIEW_MAX_ROWS,
+        "preview_only": True,
         "encryption_method": method,
         "dataset_type": "privacy_encryption",
         "description": "隐私字段密态展示样本，不直接作为攻击检测输入",
@@ -2569,7 +2627,13 @@ def user_dataset_upload():
     if ext not in ("csv", "json"):
         return jsonify(api_response(code=400, msg="仅支持 CSV/JSON 格式"))
 
-    temp_name = "user_%s_%s" % (datetime.now().strftime("%Y%m%d%H%M%S"), os.path.basename(file.filename))
+    # Never derive a writable path from an untrusted multipart filename.  The
+    # original name is passed to the submission manager only as metadata.
+    temp_name = "user_%s_%s.%s" % (
+        datetime.now().strftime("%Y%m%d%H%M%S"),
+        secrets.token_hex(8),
+        ext,
+    )
     temp_path = os.path.join(app.config["UPLOAD_FOLDER"], temp_name)
     try:
         file.save(temp_path)
@@ -2579,6 +2643,7 @@ def user_dataset_upload():
             db.upsert_user_submission(info)
         except Exception as persist_error:
             logger.warning("Persist user submission failed: {}", persist_error)
+        _remember_user_submission(info.get("id"))
         _clear_submission_related_caches()
         return jsonify(api_response(msg="上传成功，文件已加密归档", data=info))
     except UploadValidationError as e:
@@ -2596,6 +2661,8 @@ def user_dataset_upload():
 
 def _submission_analysis_response(submission_id, actor="user"):
     """Run the shared lightweight analysis workflow for user or admin APIs."""
+    if actor != "admin" and not _user_owns_submission(submission_id):
+        return _user_submission_forbidden_response()
     if not _analysis_operation_lock.acquire(blocking=False):
         return jsonify(api_response(
             code=409,
@@ -2659,6 +2726,8 @@ def user_dataset_analyze(submission_id):
 
 def _external_analysis_response(submission_id, actor="user"):
     """Interpret a completed local analysis using aggregate-only provider input."""
+    if actor != "admin" and not _user_owns_submission(submission_id):
+        return _user_submission_forbidden_response()
     try:
         settings = _external_ai_settings_store.get_effective(require_ready=True)
     except ExternalAdvisorDisabledError:
@@ -2772,6 +2841,8 @@ def user_dataset_external_analysis(submission_id):
 
 @app.route("/api/user/reports/<submission_id>", methods=["GET"])
 def user_report_get(submission_id):
+    if not _user_owns_submission(submission_id):
+        return _user_submission_forbidden_response()
     report = user_submission_manager.get_report(submission_id)
     if report is None:
         return jsonify(api_response(code=404, msg="报告不存在"))
@@ -5086,10 +5157,21 @@ def ensemble_detect_from_dataset():
         return jsonify(api_response(code=400, msg="请先在数据处理页面处理数据集"))
 
     req = request.get_json(silent=True) or {}
-    limit = max(1, min(int(req.get("limit") or 50), 500))
-    has_offset = "offset" in req
-    offset = max(0, int(req.get("offset") or 0))
-    seed = req.get("seed")
+    if not isinstance(req, dict):
+        return jsonify(api_response(code=400, msg="请求体必须是 JSON 对象。")), 400
+    try:
+        raw_limit = int(req.get("limit") or 50)
+        has_offset = "offset" in req
+        offset = int(req.get("offset") or 0)
+        seed = int(req["seed"]) if req.get("seed") is not None else None
+        if raw_limit <= 0 or offset < 0 or (seed is not None and not 0 <= seed <= 0xFFFFFFFF):
+            raise ValueError("numeric parameter out of range")
+        limit = min(raw_limit, 500)
+    except (TypeError, ValueError):
+        return jsonify(api_response(
+            code=400,
+            msg="limit、offset 和 seed 必须是有效的非负整数。",
+        )), 400
 
     try:
         X, y, metadata = _load_prepared_arrays()
@@ -5106,7 +5188,7 @@ def ensemble_detect_from_dataset():
     elif len(X) <= limit:
         indices = np.arange(len(X))
     else:
-        rng = np.random.default_rng(int(seed)) if seed is not None else np.random.default_rng()
+        rng = np.random.default_rng(seed) if seed is not None else np.random.default_rng()
         indices = np.sort(rng.choice(len(X), size=limit, replace=False)).astype(np.int64)
     sample_x = X[indices]
     sample_y = y[indices]
