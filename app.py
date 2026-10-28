@@ -597,6 +597,7 @@ ADMIN_PROTECTED_LEGACY_PATHS = {
     "/api/detection/analyze",
     "/api/detection/real",
     "/api/ensemble/detect",
+    "/api/ensemble/detect_from_dataset",
     "/api/train_fate",
     "/api/train_plaintext",
     "/api/dataset/add",
@@ -1058,6 +1059,7 @@ def _model_inventory():
             "ready": bool(runtime_status.get("ready")),
             "version": runtime_status.get("version"),
             "preprocessing_version": runtime_status.get("preprocessing_version"),
+            "training_context": runtime_status.get("training_context") or {},
             "files": runtime_files,
             "used_by": "用户端风险检测",
         },
@@ -5196,11 +5198,25 @@ def ensemble_detect_from_dataset():
     if not _ensure_runtime_ensemble_ready():
         return jsonify(api_response(code=503, msg="运行时检测模型尚未就绪，请稍后重试。")), 503
 
+    model_status = ensemble_detector.status()
+    training_context = model_status.get("training_context") or {}
+    prepared_id = str(metadata.get("preparation_id") or "")
+    model_prepared_id = str(training_context.get("preparation_id") or "")
+    if prepared_id and model_prepared_id != prepared_id:
+        return jsonify(api_response(
+            code=409,
+            msg="当前检测模型尚未使用这版数据训练，请先在训练中心更新检测模型后再评估。",
+            data={
+                "preparation_id": prepared_id,
+                "model_preparation_id": model_prepared_id or None,
+                "model_version": model_status.get("version") or "unavailable",
+            },
+        )), 409
+
     detection_started = time.perf_counter()
     preds, scores, risk_levels = ensemble_detector.predict(sample_x)
     total_detection_ms = (time.perf_counter() - detection_started) * 1000.0
     per_sample_detection_ms = round(total_detection_ms / max(1, len(sample_x)), 4)
-    model_status = ensemble_detector.status()
     risk_names = {0: "low", 1: "medium", 2: "high", 3: "critical"}
     action_suggestions = {
         "low": "观察",

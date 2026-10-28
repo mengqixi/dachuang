@@ -71,74 +71,136 @@ body{margin:0;background:#F4F6F8;color:#263238;font-family:-apple-system,BlinkMa
 @media(max-width:980px){.two-col,.three-col{grid-template-columns:1fr}.training-compact,.result-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.navbar .container-fluid{align-items:flex-start}.navbar-nav{overflow-x:auto;max-width:100%;padding-bottom:3px}.training-action-card{align-items:stretch;flex-direction:column}.aggregation-picker{min-width:0}.aggregation-picker .form-select{max-width:none}.aggregation-status-strip{align-items:flex-start;flex-direction:column}.aggregation-timing{text-align:left;white-space:normal}.model-version-meta{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:720px){main.container-fluid{padding-left:10px!important;padding-right:10px!important}.panel-head,.panel-body{padding-left:12px;padding-right:12px}.navbar .container-fluid{display:block}.navbar-brand{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.navbar-nav{width:100%;margin-top:8px;margin-left:0!important}.nav-link{margin-left:0;margin-right:4px;white-space:nowrap}.metric-grid,.node-grid,.training-compact,.version-summary-grid,.result-grid,.compare-cards,.model-version-meta,.training-flow,.aggregation-flow{grid-template-columns:1fr}.ai-settings-grid{grid-template-columns:1fr}.ai-settings-grid .wide{grid-column:auto}.ai-decision-row{grid-template-columns:1fr}.hint-panel{position:fixed;left:12px!important;right:12px!important;top:auto;width:auto;max-width:none}.chart-fallback-row{grid-template-columns:84px minmax(0,1fr) 52px}.chart-fallback-row>*:nth-child(n+4){display:none}.detail-kv{grid-template-columns:92px minmax(0,1fr)}.mini-modal{padding:8px}.mini-modal-head,.mini-modal-body,.mini-modal-foot{padding-left:12px;padding-right:12px}.training-secondary .hint{margin-left:0}.toastx{left:10px;right:10px;top:72px;text-align:center}}
 
-/* 轻量科技感主题：保留原有结构，只增强层次、状态和交互反馈。 */
+/* 轻量科技感主题：保留原有结构，减少高饱和色、阴影和视觉噪音。 */
 body{
-  --app-accent:#1677d2;
-  --app-accent-2:#00a6c8;
-  --app-accent-rgb:22,119,210;
-  --app-ink:#17324d;
-  --app-line:#d9e6f1;
+  --app-accent:#527faa;
+  --app-accent-2:#8cacc9;
+  --app-accent-rgb:82,127,170;
+  --app-ink:#24394a;
+  --app-line:#e3e9ee;
   min-height:100vh;
-  background-color:#f3f7fb;
-  background-image:
-    radial-gradient(circle at 8% 0%,rgba(var(--app-accent-rgb),.09),transparent 26rem),
-    linear-gradient(rgba(59,104,145,.025) 1px,transparent 1px),
-    linear-gradient(90deg,rgba(59,104,145,.025) 1px,transparent 1px);
-  background-size:auto,28px 28px,28px 28px;
+  background-color:#f6f8fa;
+  background-image:radial-gradient(circle at 8% 0%,rgba(var(--app-accent-rgb),.045),transparent 30rem);
 }
-body[data-app-mode="admin"]{--app-accent:#315fda;--app-accent-2:#6659df;--app-accent-rgb:49,95,218}
+/* User and admin intentionally inherit the same palette. */
+body{--bs-primary:#527faa;--bs-primary-rgb:82,127,170}
+.text-primary{color:var(--app-accent)!important}
 .navbar{
-  background:rgba(255,255,255,.94);
-  border-bottom:1px solid rgba(var(--app-accent-rgb),.2);
-  box-shadow:0 7px 24px rgba(21,53,84,.08);
-  backdrop-filter:blur(12px);
-  -webkit-backdrop-filter:blur(12px);
+  background:rgba(255,255,255,.98);
+  border-bottom:1px solid #e4e9ee;
+  box-shadow:0 2px 8px rgba(35,55,72,.035);
   position:sticky;
 }
-.navbar:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;background:linear-gradient(90deg,transparent,var(--app-accent),var(--app-accent-2),transparent);opacity:.7}
-.navbar-brand{color:var(--app-ink)!important;letter-spacing:.1px}.navbar-brand i{color:var(--app-accent);filter:drop-shadow(0 2px 5px rgba(var(--app-accent-rgb),.22))}
+.navbar:after{display:none}
+.navbar-brand{color:var(--app-ink)!important;letter-spacing:.1px}.navbar-brand i{color:var(--app-accent);filter:none}
 .nav-link{color:#506579;border-color:transparent;transition:background-color .18s ease,border-color .18s ease,color .18s ease,box-shadow .18s ease}
-.nav-link:hover{background:rgba(var(--app-accent-rgb),.07);color:var(--app-accent);border-color:rgba(var(--app-accent-rgb),.12)}
-.navbar .nav-link.active{background:linear-gradient(135deg,rgba(var(--app-accent-rgb),.13),rgba(var(--app-accent-rgb),.06));color:var(--app-accent)!important;border-color:rgba(var(--app-accent-rgb),.28);box-shadow:0 4px 12px rgba(var(--app-accent-rgb),.12)}
+.nav-link:hover{background:rgba(var(--app-accent-rgb),.055);color:var(--app-accent);border-color:transparent}
+.navbar .nav-link.active{background:rgba(var(--app-accent-rgb),.09);color:var(--app-accent)!important;border-color:rgba(var(--app-accent-rgb),.18);box-shadow:none}
 main.container-fluid{max-width:1600px;margin:0 auto}
-.panel{position:relative;background:rgba(255,255,255,.94);border-color:rgba(120,157,190,.25);border-radius:14px;box-shadow:0 8px 24px rgba(27,60,91,.07);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
-.panel:before{content:"";position:absolute;left:16px;right:16px;top:-1px;height:2px;border-radius:999px;background:linear-gradient(90deg,var(--app-accent),var(--app-accent-2),transparent 78%);opacity:.58;pointer-events:none}
-.panel-head{background:linear-gradient(90deg,rgba(var(--app-accent-rgb),.045),rgba(255,255,255,.35));border-bottom-color:#e6eef5;color:#20364b;letter-spacing:.05px}
-.panel-head>i{color:var(--app-accent)!important;filter:drop-shadow(0 2px 5px rgba(var(--app-accent-rgb),.18))}
-.btn-main{background:linear-gradient(135deg,var(--app-accent),var(--app-accent-2));box-shadow:0 6px 15px rgba(var(--app-accent-rgb),.2);transition:transform .16s ease,box-shadow .16s ease,filter .16s ease}
-.btn-main:hover{background:linear-gradient(135deg,var(--app-accent),var(--app-accent-2));transform:translateY(-1px);box-shadow:0 9px 20px rgba(var(--app-accent-rgb),.27);filter:saturate(1.08)}
-.btn-main:active{transform:translateY(0)}
-.btn-lightx{background:linear-gradient(180deg,#fff,#f5f8fb);color:#29445d;border:1px solid #dde8f1;box-shadow:0 2px 7px rgba(28,64,97,.05);transition:border-color .16s ease,color .16s ease,box-shadow .16s ease,transform .16s ease}
-.btn-lightx:hover{color:var(--app-accent);border-color:rgba(var(--app-accent-rgb),.35);box-shadow:0 5px 12px rgba(var(--app-accent-rgb),.1);transform:translateY(-1px)}
-.metric{position:relative;overflow:hidden;background:linear-gradient(145deg,#fff,#f7fbff);border-color:#dfeaf3;box-shadow:0 5px 14px rgba(32,67,99,.045);transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}
-.metric:before{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:linear-gradient(90deg,var(--app-accent),var(--app-accent-2));opacity:.48}
-.metric:hover{border-color:rgba(var(--app-accent-rgb),.3);box-shadow:0 8px 18px rgba(var(--app-accent-rgb),.09);transform:translateY(-1px)}
-.metric-value{color:var(--app-accent);background:linear-gradient(135deg,var(--app-accent),var(--app-accent-2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.panel{position:relative;background:#fff;border-color:#e3e9ee;border-radius:12px;box-shadow:0 2px 9px rgba(35,55,72,.035)}
+.panel:before{display:none}
+.panel-head{background:#fff;border-bottom-color:#edf0f3;color:#263b4d;letter-spacing:0}
+.panel-head>i{color:var(--app-accent)!important;filter:none}
+.btn-main{background:var(--app-accent);box-shadow:none;transition:background-color .16s ease}
+.btn-main:hover{background:#506f99;transform:none;box-shadow:none;filter:none}
+.btn-main:active{transform:none}
+.btn-lightx{background:#f7f9fb;color:#3b5062;border:1px solid #e1e7ec;box-shadow:none;transition:border-color .16s ease,color .16s ease,background-color .16s ease}
+.btn-lightx:hover{color:var(--app-accent);background:#fff;border-color:rgba(var(--app-accent-rgb),.28);box-shadow:none;transform:none}
+.metric{position:relative;overflow:hidden;background:#fbfcfd;border-color:#e5eaee;box-shadow:none;transition:border-color .18s ease}
+.metric:before{display:none}
+.metric:hover{border-color:#d8e1e8;box-shadow:none;transform:none}
+.metric-value{color:var(--app-accent);background:none;-webkit-text-fill-color:currentColor}
 .metric-label{color:#708294;letter-spacing:.1px}
 .form-control,.form-select,.input-group-text{border-color:#d8e4ee;background-color:rgba(255,255,255,.94)}
 .form-control:focus,.form-select:focus{border-color:rgba(var(--app-accent-rgb),.58);box-shadow:0 0 0 .2rem rgba(var(--app-accent-rgb),.11)}
 .form-control[type="file"]::file-selector-button{border:0;border-right:1px solid #d8e4ee;background:#f2f7fb;color:#29445d;padding:.45rem .8rem;margin:-.375rem .75rem -.375rem -.75rem}
-.notice,.preview-card,.report-note{background:linear-gradient(135deg,#f9fbfd,#f4f8fc);border-color:#cfdeea;color:#506579}
+.notice,.preview-card,.report-note{background:#f8fafb;border-color:#e1e7ec;color:#506579}
 .info-icon{border-color:rgba(var(--app-accent-rgb),.28);background:rgba(var(--app-accent-rgb),.08);color:var(--app-accent);transition:box-shadow .16s ease,background-color .16s ease}
 .info-icon:hover,.info-icon:focus{background:rgba(var(--app-accent-rgb),.14);box-shadow:0 0 0 4px rgba(var(--app-accent-rgb),.07)}
 .mini-badge{background:rgba(var(--app-accent-rgb),.075);color:var(--app-accent);border-color:rgba(var(--app-accent-rgb),.2)}
-.chain span{background:linear-gradient(135deg,rgba(var(--app-accent-rgb),.09),rgba(var(--app-accent-rgb),.045));border-color:rgba(var(--app-accent-rgb),.2);color:var(--app-accent)}
+.chain span{background:#f5f8fa;border-color:#e0e7ec;color:#526b80}
 .scroll-box{border-color:#d9e5ef;background:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.8)}
 .scroll-box thead th{position:sticky;top:0;z-index:3;background:#f4f8fc;border-bottom:1px solid #d8e5ef;color:#425a70}
 .scroll-box tbody tr{transition:background-color .14s ease}.scroll-box tbody tr:hover{background:rgba(var(--app-accent-rgb),.035)}
 .table-sm>:not(caption)>*>*{border-bottom-color:#e7eef4}
-.chart-card,.training-compare,.compare-box,.result-card,.model-version-card,.node-card{border-color:#dce8f1;box-shadow:0 5px 16px rgba(28,64,97,.05)}
-.chart-card,.training-compare{background:linear-gradient(145deg,#fff,#f9fcff)}
+.chart-card,.training-compare,.compare-box,.result-card,.model-version-card,.node-card{border-color:#e1e7ec;box-shadow:none}
+.chart-card,.training-compare{background:#fff}
 .compare-head b,.compare-box h6,.result-card .title,.model-version-card h6{color:var(--app-accent)}
 .bar-fill{background:linear-gradient(90deg,var(--app-accent-2),var(--app-accent))}
-.training-action-card,.aggregation-status-strip{border-color:rgba(var(--app-accent-rgb),.18);background:linear-gradient(135deg,rgba(var(--app-accent-rgb),.055),rgba(255,255,255,.9))}
+.training-action-card,.aggregation-status-strip{border-color:#e1e7ec;background:#f8fafb}
 .aggregation-status-icon{background:rgba(var(--app-accent-rgb),.1);color:var(--app-accent)}
-.ai-assist-card{border-color:rgba(var(--app-accent-rgb),.25);background:linear-gradient(135deg,rgba(var(--app-accent-rgb),.065),rgba(255,255,255,.92))}
+.ai-assist-card{border-color:#e1e7ec;background:#f8fafb}
 .ai-assist-card .ai-title,.mini-modal-head{color:var(--app-accent)}
 .ai-local-primary{background:rgba(var(--app-accent-rgb),.055);border-color:rgba(var(--app-accent-rgb),.16);color:#385b78}
 .mini-modal-card{border-color:rgba(var(--app-accent-rgb),.2);box-shadow:0 24px 70px rgba(10,35,60,.3)}
 .loading-spinner{border-color:#d9e6f0;border-top-color:var(--app-accent)}.loading-box{color:var(--app-accent);border-color:rgba(var(--app-accent-rgb),.2)}
 #pg-upload>.panel:first-child .panel-body>.two-col>div{padding:14px;border:1px solid #e1ebf3;border-radius:12px;background:linear-gradient(145deg,#fff,#f8fbfe)}
+.compact-details{margin-top:12px;border-top:1px solid #edf0f3;padding-top:10px}
+.compact-details>summary{display:inline-flex;align-items:center;gap:6px;color:#647586;font-size:13px;cursor:pointer;list-style:none}
+.compact-details>summary::-webkit-details-marker{display:none}
+.compact-details>summary:before{content:"+";display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#f0f3f6;color:#657789}
+.compact-details[open]>summary:before{content:"−"}
+.compact-details-content{padding-top:10px}
+/* Submission summaries stay readable without horizontal table scrolling. */
+.submission-list{max-height:none;overflow:visible;border:0}
+.submission-list .submission-table{width:100%;table-layout:fixed;white-space:normal}
+.submission-table th:nth-child(1){width:27%}.submission-table th:nth-child(2){width:10%}.submission-table th:nth-child(3){width:14%}.submission-table th:nth-child(4){width:23%}.submission-table th:nth-child(5){width:26%}
+.submission-table th,.submission-table td{padding:12px 10px;overflow-wrap:anywhere;vertical-align:middle}
+.submission-file{font-weight:650;color:#30465a;line-height:1.6}
+.submission-meta{font-size:12px;color:#748294;margin-top:4px;line-height:1.6}
+.submission-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.submission-actions button{padding:6px 10px;font-size:12px;white-space:nowrap;margin:0!important}
+.submission-review-actions{margin-bottom:6px}.submission-actions .submission-reject{color:#b45353}
+.submission-risk{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px}
+.submission-detail-grid{display:grid;grid-template-columns:100px minmax(0,1fr);gap:12px;font-size:13px;line-height:1.7}
+.submission-detail-grid dt{color:#718096;font-weight:500}.submission-detail-grid dd{margin:0;overflow-wrap:anywhere}
+/* Compact source and audit views share a single, readable content column. */
+.workspace-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.workspace-toolbar .toolbar-end{margin-left:auto}.workspace-table-wrap{max-height:none;overflow:visible}
+.workspace-table{table-layout:fixed;width:100%;white-space:normal!important;min-width:0!important}
+.workspace-table th,.workspace-table td{white-space:normal!important;overflow-wrap:anywhere;padding:12px 10px;vertical-align:middle}
+.source-table th:nth-child(1){width:32%}.source-table th:nth-child(2){width:13%}.source-table th:nth-child(3){width:21%}.source-table th:nth-child(4){width:12%}.source-table th:nth-child(5){width:22%}
+.source-table tr[data-current="true"]{background:#f5f9fd}.source-table .mini-badge{font-weight:500}
+.source-metrics .metric:first-child .metric-value{font-size:19px;line-height:1.5;word-break:normal;overflow-wrap:anywhere}
+.audit-toolbar{display:grid;grid-template-columns:minmax(140px,1fr) minmax(180px,2fr) auto;gap:12px;align-items:end}
+.audit-toolbar label,.audit-advanced label{font-size:12px;color:#708090;margin-bottom:5px}
+.audit-advanced{display:grid;grid-template-columns:1fr 2fr 1fr;gap:12px;margin-top:12px}
+.audit-tabs{display:flex;gap:8px;align-items:center;margin-bottom:16px}
+.audit-tab{border:1px solid #e1e8ef;background:#fff;color:#647586;padding:8px 15px;border-radius:8px;font-size:14px}
+.audit-tab[aria-selected="true"]{color:#315e98;background:#edf4fc;border-color:#c4d7ed;font-weight:650}
+.audit-log[hidden]{display:none!important}.audit-ip-panel>summary{padding:15px 18px;cursor:pointer;font-weight:600;color:#425b72}
+.audit-log>.panel-body{padding:0}
+.audit-log-table th:nth-child(1){width:15%}.audit-log-table th:nth-child(2){width:15%}.audit-log-table th:nth-child(3){width:20%}.audit-log-table th:nth-child(4){width:39%}.audit-log-table th:nth-child(5){width:11%}
+.audit-raw{margin-top:16px}.audit-raw summary{font-size:12px;color:#718096;cursor:pointer}
+#pg-training .two-col.training-layout{align-items:start}#pg-training .two-col.training-layout>.panel{height:auto}
+#pg-training .chart-card{min-height:0}#pg-training .result-item b{overflow-wrap:anywhere;font-size:15px}
+.training-metric-table{width:100%;font-size:13px}.training-metric-table th,.training-metric-table td{padding:12px 8px;border-bottom:1px solid #edf1f5;text-align:right}
+.training-metric-table th:first-child,.training-metric-table td:first-child{text-align:left}.training-metric-table th{font-size:12px;color:#708090;font-weight:500}.training-metric-table td{font-weight:650;color:#365775}
+.comparison-bars{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin:20px 0}.comparison-bar-pair{height:150px;display:flex;gap:12px;justify-content:center;align-items:flex-end;border-bottom:1px solid #dce5ed;padding-top:25px}.comparison-bar{height:100%;width:45px;display:flex;justify-content:flex-end;flex-direction:column;align-items:center}.comparison-bar b{font-size:11px;white-space:nowrap;margin-bottom:4px;color:#475569}.comparison-bar span{display:block;width:100%;border-radius:5px 5px 0 0;background:#6486b5;min-height:0}.comparison-bar.fed span{background:#75a58e}.comparison-bar-title{text-align:center;font-size:12px;margin-top:8px;color:#586c7d}.chart-legend{display:flex;gap:16px;font-size:12px;justify-content:center;color:#647586}.chart-legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px}.compact-ai-summary{font-size:12px;color:#526c84;line-height:1.6;white-space:normal;margin-top:6px;overflow-wrap:anywhere}.report-charts{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px}.sample-detail-link{border:0;background:none;color:#326fa4;padding:0;text-decoration:underline;text-underline-offset:3px;cursor:pointer}.detail-paragraph{font-size:13px;line-height:1.8;overflow-wrap:anywhere;margin-top:14px}.report-section-title{font-size:15px;font-weight:650;margin:20px 0 10px}.report-note{overflow-wrap:anywhere}.risk-source-table th:nth-child(1){width:8%}.risk-source-table th:nth-child(2){width:24%}.risk-source-table th:nth-child(3){width:15%}.risk-source-table th:nth-child(4){width:23%}.risk-source-table th:nth-child(5){width:20%}.risk-source-table th:nth-child(6){width:10%}
+@media(max-width:720px){.report-charts{grid-template-columns:1fr}.comparison-bars{gap:10px}.comparison-bar{width:30px}.risk-source-table td:nth-child(2),.risk-source-table td:nth-child(4),.risk-source-table td:nth-child(5){grid-column:1/-1}}
+.risk-source-table .btn-lightx{white-space:nowrap;padding:6px 10px}
+.workspace-modal .detail-kv{font-size:13px;line-height:1.7}.workspace-modal .detail-kv>div{overflow-wrap:anywhere;white-space:normal}
+@media(max-width:720px){
+  .audit-toolbar,.audit-advanced{grid-template-columns:1fr}.audit-toolbar .btn-main{width:100%}
+  #systemDataMetrics,#auditMetrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .workspace-table thead{display:none}.workspace-table,.workspace-table tbody{display:block}
+  .workspace-table tbody tr{display:grid;grid-template-columns:1fr 1fr;border:1px solid #e1e8ef;border-radius:10px;padding:10px;margin-bottom:10px}
+  .workspace-table td{display:block;width:auto!important;border:0;padding:6px;background:transparent}
+  .workspace-table td:before{content:attr(data-label);display:block;color:#81909f;font-size:11px;margin-bottom:5px}
+  .workspace-table td:first-child,.workspace-table td:last-child,.workspace-table td[colspan],.audit-log-table td:nth-child(4){grid-column:1/-1}
+  .workspace-table td:first-child:before,.workspace-table td:last-child:before{display:none}
+  .workspace-toolbar .toolbar-end{margin-left:0}.audit-tabs{gap:5px}.audit-tab{padding:8px 11px}
+}
+@media(max-width:720px){
+  #submissionRiskMetrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .submission-table thead{display:none}.submission-table,.submission-table tbody{display:block}
+  .submission-table tbody tr{display:grid;grid-template-columns:1fr 1fr;border:1px solid #e3e9ef;border-radius:10px;padding:12px;margin-bottom:12px;background:#fff}
+  .submission-table td{display:block;width:auto;border:0;padding:6px;background:transparent}
+  .submission-table td:before{content:attr(data-label);display:block;font-size:11px;color:#7a8795;margin-bottom:5px}
+  .submission-table td:first-child,.submission-table td:nth-child(4),.submission-table td:last-child{grid-column:1/-1}
+  .submission-table td:first-child:before,.submission-table td:last-child:before{display:none}
+  .submission-table td[colspan]{grid-column:1/-1}.submission-detail-grid{grid-template-columns:80px minmax(0,1fr)}
+}
 .toastx{backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 *{scrollbar-width:thin;scrollbar-color:rgba(var(--app-accent-rgb),.35) transparent}
 *::-webkit-scrollbar{width:8px;height:8px}*::-webkit-scrollbar-track{background:transparent}*::-webkit-scrollbar-thumb{background:rgba(var(--app-accent-rgb),.28);border-radius:999px}*::-webkit-scrollbar-thumb:hover{background:rgba(var(--app-accent-rgb),.42)}
@@ -238,10 +300,10 @@ main.container-fluid{max-width:1600px;margin:0 auto}
     <div class="panel">
         <div class="panel-head">需关注样本排名</div>
         <div class="panel-body">
-          <div class="scroll-box">
-          <table class="table table-sm">
-            <thead><tr><th>排名</th><th>样本编号</th><th>用户</th><th>IP</th><th>本地风险</th><th>风险分数</th><th>攻击类型</th><th>主要因素</th><th>AI / 综合判定</th><th>建议</th></tr></thead>
-            <tbody id="reasonTable"><tr><td colspan="10" class="text-muted">暂无检测结果</td></tr></tbody>
+          <div class="scroll-box workspace-table-wrap">
+          <table class="table table-sm workspace-table risk-source-table">
+            <thead><tr><th>排名</th><th>IP / 样本</th><th>本地风险</th><th>主要因素</th><th>AI / 综合判定</th><th>操作</th></tr></thead>
+            <tbody id="reasonTable"><tr><td colspan="6" class="text-muted">暂无检测结果</td></tr></tbody>
           </table>
           </div>
           <button class="btn-lightx mt-3" id="riskMoreButton" type="button" onclick="showMoreRiskRows()" hidden>显示更多</button>
@@ -254,8 +316,7 @@ main.container-fluid{max-width:1600px;margin:0 auto}
       <div class="panel-head"><i class="fas fa-file-lines text-primary"></i> 分析报告 - 结果留存</div>
       <div class="panel-body">
         <button class="btn-main me-2" onclick="loadReport()">加载报告</button>
-        <button class="btn-lightx me-2" onclick="runUserAiAssist(event)"><i class="fas fa-wand-magic-sparkles"></i> 使用 AI 辅助判定</button>
-        <button class="btn-lightx" onclick="downloadReport()">下载 Markdown 报告</button>
+        <button class="btn-lightx" onclick="downloadReport()">下载完整报告</button>
         <div class="metric-grid mt-3" id="reportMetrics">
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">总样本</div></div>
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">高风险</div></div>
@@ -272,25 +333,27 @@ main.container-fluid{max-width:1600px;margin:0 auto}
             <ul id="reportSuggestionList" class="small-text mb-0 text-muted"><li>完成风险检测后显示建议。</li></ul>
           </div>
         </div>
+        <div id="reportCharts" class="report-charts"></div>
+        <div class="ai-assist-card" id="externalAnalysisBoxReport">
+          <div class="ai-title"><span><i class="fas fa-wand-magic-sparkles"></i> AI 复核结论</span><span class="mini-badge">可选</span></div>
+          <div class="ai-local-primary">尚未使用 AI；如需辅助判断，请到风险检测页发起。此处同步展示结果。</div>
+        </div>
         <div class="panel mt-3 mb-0">
           <div class="panel-head">需关注样本摘要</div>
           <div class="panel-body">
-            <div class="scroll-box">
-              <table class="table table-sm">
-                <thead><tr><th>排序</th><th>样本</th><th>用户</th><th>IP</th><th>风险</th><th>分数</th><th>主要因素</th><th>建议</th></tr></thead>
-                <tbody id="reportTopTable"><tr><td colspan="8" class="text-muted">暂无报告数据</td></tr></tbody>
+            <div class="scroll-box workspace-table-wrap">
+              <table class="table table-sm workspace-table risk-source-table">
+                <thead><tr><th>排名</th><th>IP / 样本</th><th>本地风险</th><th>主要因素</th><th>AI / 综合判定</th><th>操作</th></tr></thead>
+                <tbody id="reportTopTable"><tr><td colspan="6" class="text-muted">暂无报告数据</td></tr></tbody>
               </table>
             </div>
           </div>
         </div>
-        <div class="subtle-note mt-3"><i class="fas fa-circle-info text-primary"></i> 报告内容来自当前提交的密码攻击风险检测结果，可下载为 Markdown。</div>
-        <div class="ai-assist-card" id="externalAnalysisBoxReport">
-          <div class="ai-title"><span><i class="fas fa-wand-magic-sparkles"></i> AI 辅助判定</span><span class="mini-badge">可选</span></div>
-          <div class="ai-local-primary">主动调用后，这里显示本地模型与 AI 第二判定的综合结果；默认报告仍完全来自本地模型。</div>
-        </div>
+        <div class="subtle-note mt-3">报告同步本次检测与已有 AI 结论；查看、下载均不会再次调用 AI。</div>
         <details class="mt-3">
           <summary class="btn-lightx">查看完整 Markdown 内容</summary>
           <div class="report-box empty mt-2" id="reportBox">完成风险检测后可查看报告。</div>
+          <button class="btn-lightx mt-2" onclick="downloadReport('markdown')">下载 Markdown</button>
         </details>
       </div>
     </div>
@@ -313,10 +376,10 @@ main.container-fluid{max-width:1600px;margin:0 auto}
     <div class="panel">
       <div class="panel-head">用户提交记录</div>
       <div class="panel-body">
-        <div class="scroll-box">
-          <table class="table table-sm">
-            <thead><tr><th>时间</th><th>文件</th><th>样本</th><th>字段</th><th>安全字段</th><th>加密</th><th>审核状态</th><th>训练状态</th><th>最近操作</th><th>风险摘要</th><th>操作</th></tr></thead>
-            <tbody id="submissionTable"><tr><td colspan="11" class="text-muted">暂无用户提交</td></tr></tbody>
+        <div class="scroll-box submission-list">
+          <table class="table table-sm submission-table">
+            <thead><tr><th>文件 / 提交时间</th><th>数据量</th><th>状态</th><th>风险概览</th><th>操作</th></tr></thead>
+            <tbody id="submissionTable"><tr><td colspan="5" class="text-muted">暂无用户提交</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -327,28 +390,35 @@ main.container-fluid{max-width:1600px;margin:0 auto}
     <div class="panel">
       <div class="panel-head"><i class="fas fa-database text-primary"></i> 数据处理 - 训练数据源与四节点准备</div>
       <div class="panel-body">
-        <div class="chain mb-3">
-          <span>训练数据源</span><i class="fas fa-arrow-right muted"></i><span>统一字段</span><i class="fas fa-arrow-right muted"></i><span>分层切分</span><i class="fas fa-arrow-right muted"></i><span>四节点数据</span><i class="fas fa-arrow-right muted"></i><span>训练入口</span>
-        </div>
-        <button class="btn-main me-2" onclick="loadDataProcessPage(true,event)">刷新数据源</button>
-        <button class="btn-lightx" onclick="processSystemDataset(event)">同步当前源到四节点</button>
+        <div class="workspace-toolbar">
+        <button class="btn-main" onclick="processSystemDataset(event)">准备当前数据源</button>
+        <button class="btn-lightx" onclick="loadDataProcessPage(true,event)">刷新</button>
         <button class="btn-lightx ms-2" id="datasetSourceToggle" type="button" onclick="toggleDatasetSources()" hidden>显示全部数据源</button>
         <span class="ms-2 small-text text-muted" id="datasetSourceSummary"></span>
-        <div class="subtle-note mt-3" id="dataProcessPolicyBox">处理规则加载中。数据准备与模型训练是两个独立步骤。</div>
-        <div class="compare-split mt-3" id="dataProcessStructureBox">
-          <div class="compare-box"><h6>运行时检测模型</h6><div class="small-text text-muted">状态加载中</div></div>
-          <div class="compare-box"><h6>训练与节点关系</h6><div class="small-text text-muted">关系加载中</div></div>
         </div>
-        <div class="metric-grid mt-3" id="systemDataMetrics">
+        <details class="compact-details">
+          <summary>查看处理规则与模型关系</summary>
+          <div class="compact-details-content">
+            <div class="chain mb-3">
+              <span>训练数据源</span><i class="fas fa-arrow-right muted"></i><span>统一字段</span><i class="fas fa-arrow-right muted"></i><span>分层切分</span><i class="fas fa-arrow-right muted"></i><span>四节点数据</span><i class="fas fa-arrow-right muted"></i><span>训练入口</span>
+            </div>
+            <div class="subtle-note" id="dataProcessPolicyBox">处理规则加载中。数据准备与模型训练是两个独立步骤。</div>
+            <div class="compare-split mt-3" id="dataProcessStructureBox">
+              <div class="compare-box"><h6>运行时检测模型</h6><div class="small-text text-muted">状态加载中</div></div>
+              <div class="compare-box"><h6>训练与节点关系</h6><div class="small-text text-muted">关系加载中</div></div>
+            </div>
+          </div>
+        </details>
+        <div class="metric-grid source-metrics mt-3" id="systemDataMetrics">
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">当前数据源</div></div>
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">样本</div></div>
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">特征</div></div>
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">联邦节点</div></div>
         </div>
-        <div class="scroll-box mt-3">
-          <table class="table table-sm">
-            <thead><tr><th>数据源</th><th>类型</th><th>样本</th><th>特征</th><th>标签列</th><th>标签分布</th><th>攻击类型</th><th>状态</th><th>用途说明</th><th>操作</th></tr></thead>
-            <tbody id="datasetSourceTable"><tr><td colspan="10" class="text-muted">暂无数据源记录</td></tr></tbody>
+        <div class="scroll-box workspace-table-wrap mt-3">
+          <table class="table table-sm workspace-table source-table">
+            <thead><tr><th>数据源</th><th>数据量</th><th>标签分布</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody id="datasetSourceTable"><tr><td colspan="5" class="text-muted">暂无数据源记录</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -393,7 +463,6 @@ main.container-fluid{max-width:1600px;margin:0 auto}
           <div class="training-secondary">
             <button class="btn-lightx" onclick="runAdminLocalTrain()"><i class="fas fa-shield-halved"></i> 更新检测模型</button>
             <button class="btn-lightx" onclick="loadTrainingPage()"><i class="fas fa-rotate"></i> 刷新数据</button>
-            <button class="btn-lightx" onclick="runTrainingAiComparison(event)"><i class="fas fa-wand-magic-sparkles"></i> AI 辅助选择模型</button>
             <span class="hint"><button class="info-icon" type="button" aria-label="查看聚合方式说明"><i class="fas fa-info"></i></button><span class="hint-panel right">FedAvg 响应更快；Paillier 会增加计算时间并保护聚合过程。</span></span>
           </div>
           <div class="node-grid mt-3" id="fedNodes"></div>
@@ -408,8 +477,8 @@ main.container-fluid{max-width:1600px;margin:0 auto}
             <div class="text-muted small-text">完成训练后显示核心指标。</div>
           </div>
           <div class="chart-card">
-            <div class="compare-head"><b>准确率与损失</b><span class="mini-badge">统一评测</span></div>
-            <div class="chart-canvas-wrap"><canvas id="trainingCompareChart"></canvas></div>
+            <div class="compare-head"><b>核心指标</b><button class="btn-lightx" onclick="showTrainingDetails()">查看对比明细</button></div>
+            <div class="chart-canvas-wrap" hidden><canvas id="trainingCompareChart"></canvas></div>
             <div class="chart-fallback" id="trainingCompareFallback"></div>
           </div>
           <div class="aggregation-status-strip" id="aggregationVisualBox">
@@ -464,47 +533,41 @@ main.container-fluid{max-width:1600px;margin:0 auto}
         <span class="hint"><button class="info-icon" type="button"><i class="fas fa-info"></i></button><span class="hint-panel">系统审计记录平台访问、安全事件和慢接口等运行信息；用户数据风险检测与系统审计分开统计。</span></span>
       </div>
       <div class="panel-body">
-        <div class="row g-2 align-items-end">
-          <div class="col-md-2"><label class="form-label">风险等级</label><select class="form-select" id="auditRiskFilter"><option value="">全部</option><option value="critical">严重</option><option value="high">高</option><option value="medium">中</option><option value="low">低</option><option value="info">信息</option></select></div>
-          <div class="col-md-2"><label class="form-label">事件类型</label><select class="form-select" id="auditTypeFilter"><option value="">全部类型</option><option value="site_visit">页面访问</option><option value="slow_api_detected">慢接口</option><option value="rate_limit_triggered">限流</option></select></div>
-          <div class="col-md-2"><label class="form-label">IP 搜索</label><input class="form-control" id="auditIpFilter" placeholder="例如 127.0"></div>
-          <div class="col-md-3"><label class="form-label">请求路径</label><input class="form-control" id="auditPathFilter" placeholder="例如 /api"></div>
-          <div class="col-md-1"><label class="form-label">条数</label><select class="form-select" id="auditLimit"><option>50</option><option selected>100</option><option>200</option></select></div>
-          <div class="col-md-2"><button class="btn-main w-100" onclick="resetAuditAndLoad()">刷新审计</button></div>
+        <div class="audit-toolbar">
+          <div><label class="form-label" for="auditRiskFilter">风险等级</label><select class="form-select" id="auditRiskFilter"><option value="">全部</option><option value="critical">严重</option><option value="high">高</option><option value="medium">中</option><option value="low">低</option><option value="info">信息</option></select></div>
+          <div><label class="form-label" for="auditIpFilter">来源 IP</label><input class="form-control" id="auditIpFilter" placeholder="输入 IP 筛选"></div>
+          <button class="btn-main" onclick="resetAuditAndLoad()">查询记录</button>
         </div>
-        <div class="small-text text-muted mt-2" id="auditFilterSummary">默认展示最近 100 条审计记录</div>
+        <details class="compact-details"><summary>更多筛选</summary><div class="audit-advanced">
+          <div><label class="form-label" for="auditTypeFilter">事件类型</label><select class="form-select" id="auditTypeFilter"><option value="">全部类型</option><option value="slow_api_detected">慢接口</option><option value="rate_limit_triggered">限流</option></select></div>
+          <div><label class="form-label" for="auditPathFilter">请求路径</label><input class="form-control" id="auditPathFilter" placeholder="例如 /api"></div>
+          <div><label class="form-label" for="auditLimit">每页条数</label><select class="form-select" id="auditLimit"><option selected>20</option><option>50</option><option>100</option></select></div>
+        </div></details>
+        <div class="small-text text-muted mt-2" id="auditFilterSummary">正在读取审计记录</div>
         <div class="metric-grid mt-3" id="auditMetrics"></div>
       </div>
     </div>
     <div class="panel">
-      <div class="panel-head">可疑 IP 聚合</div>
       <div class="panel-body">
-        <div class="subtle-note mb-2"><i class="fas fa-circle-info text-primary"></i> IP 汇总用于快速查看访问频率、路径数量和风险权重。</div>
-        <div class="scroll-box"><table class="table table-sm"><thead><tr><th>IP</th><th>次数</th><th>路径数</th><th>风险权重</th><th>最近时间</th><th>主要路径</th></tr></thead><tbody id="suspiciousIpTable"><tr><td colspan="6" class="text-muted">暂无聚合记录</td></tr></tbody></table></div>
-      </div>
-    </div>
-    <div class="two-col">
-      <div class="panel">
-        <div class="panel-head">安全事件</div>
+        <div class="audit-tabs" role="tablist" aria-label="审计记录类型"><button class="audit-tab" role="tab" id="auditEventsTab" aria-controls="auditEventsPane" aria-selected="true" onclick="selectAuditTab('events')">安全事件</button><button class="audit-tab" role="tab" id="auditVisitsTab" aria-controls="auditVisitsPane" aria-selected="false" onclick="selectAuditTab('visits')">访问记录</button></div>
+      <div class="audit-log" id="auditEventsPane" role="tabpanel" aria-labelledby="auditEventsTab">
         <div class="panel-body">
-          <div class="small-text text-muted mb-2">记录慢接口、限流和安全异常等事件，展示风险等级、原因、建议和 TraceId。</div>
-          <div class="scroll-box"><table class="table table-sm audit-table"><thead><tr><th class="audit-time">时间</th><th class="audit-risk">风险</th><th class="audit-type">类型</th><th class="audit-path">路径</th><th class="audit-reason">原因摘要</th><th class="audit-advice">建议摘要</th><th class="audit-action">详情</th></tr></thead><tbody id="eventTable"></tbody></table></div>
+          <div class="scroll-box workspace-table-wrap"><table class="table table-sm workspace-table audit-log-table"><thead><tr><th>时间</th><th>风险</th><th>来源 IP</th><th>事件 / 路径</th><th>操作</th></tr></thead><tbody id="eventTable"></tbody></table></div>
           <div class="d-flex justify-content-between align-items-center mt-2"><button class="btn-lightx" id="eventPrevButton" onclick="pageAudit(-1,'events')">上一页</button><span class="small-text text-muted" id="eventPageInfo">第 0/0 页</span><button class="btn-lightx" id="eventNextButton" onclick="pageAudit(1,'events')">下一页</button></div>
         </div>
       </div>
-      <div class="panel">
-        <div class="panel-head">最近访问记录</div>
+      <div class="audit-log" id="auditVisitsPane" role="tabpanel" aria-labelledby="auditVisitsTab" hidden>
         <div class="panel-body">
-          <div class="small-text text-muted mb-2">记录页面访问流水，包含 IP、归属地、设备、系统、浏览器、端口、路径和 TraceId。</div>
-          <div class="scroll-box"><table class="table table-sm visit-table"><thead><tr><th class="visit-time">时间</th><th class="visit-ip">IP</th><th class="visit-geo">归属地</th><th class="visit-small">设备</th><th class="visit-small">系统</th><th class="visit-small">浏览器</th><th class="visit-small">方法</th><th class="visit-small">端口</th><th class="visit-path">路径</th><th class="audit-action">详情</th></tr></thead><tbody id="visitTable"></tbody></table></div>
+          <div class="scroll-box workspace-table-wrap"><table class="table table-sm workspace-table audit-log-table"><thead><tr><th>时间</th><th>来源 IP</th><th>设备 / 浏览器</th><th>访问路径</th><th>操作</th></tr></thead><tbody id="visitTable"></tbody></table></div>
           <div class="d-flex justify-content-between align-items-center mt-2"><button class="btn-lightx" id="visitPrevButton" onclick="pageAudit(-1,'visits')">上一页</button><span class="small-text text-muted" id="visitPageInfo">第 0/0 页</span><button class="btn-lightx" id="visitNextButton" onclick="pageAudit(1,'visits')">下一页</button></div>
         </div>
       </div>
     </div>
-    <div class="panel">
-      <div class="panel-head">审计详情</div>
-      <div class="panel-body"><div id="auditDetailBox" class="preview-card text-muted">点击安全事件或访问记录查看详情。</div></div>
     </div>
+    <details class="panel audit-ip-panel"><summary>查看来源 IP 汇总</summary><div class="panel-body">
+      <div class="subtle-note mb-2">基于当前筛选下最近记录汇总，最多读取各 200 条事件和访问记录。</div>
+      <div class="scroll-box workspace-table-wrap"><table class="table table-sm workspace-table"><thead><tr><th>来源 IP</th><th>记录数</th><th>关注事件</th><th>最近时间</th></tr></thead><tbody id="suspiciousIpTable"></tbody></table></div>
+    </div></details>
   </section>
 
   <section class="page" id="pg-login">
@@ -568,6 +631,20 @@ main.container-fluid{max-width:1600px;margin:0 auto}
   </div>
 </div>
 
+<div class="mini-modal" id="submissionDetailModal" hidden role="dialog" aria-modal="true" aria-labelledby="submissionDetailTitle" onkeydown="if(event.key==='Escape')closeMiniModal('submissionDetailModal')">
+  <div class="mini-modal-card">
+    <div class="mini-modal-head"><span id="submissionDetailTitle">提交详情</span><button class="mini-close" type="button" onclick="closeMiniModal('submissionDetailModal')" aria-label="关闭提交详情">×</button></div>
+    <div class="mini-modal-body" id="submissionDetailBody"></div>
+    <div class="mini-modal-foot"><button class="btn-lightx" type="button" onclick="closeMiniModal('submissionDetailModal')">关闭</button></div>
+  </div>
+</div>
+
+<div class="mini-modal workspace-modal" id="workspaceDetailModal" hidden role="dialog" aria-modal="true" aria-labelledby="workspaceDetailTitle" onkeydown="if(event.key==='Escape')closeMiniModal('workspaceDetailModal')"><div class="mini-modal-card">
+  <div class="mini-modal-head"><span id="workspaceDetailTitle">详情</span><button class="mini-close" type="button" onclick="closeMiniModal('workspaceDetailModal')" aria-label="关闭详情">×</button></div>
+  <div class="mini-modal-body" id="auditDetailBox"></div>
+  <div class="mini-modal-foot"><button class="btn-lightx" type="button" onclick="closeMiniModal('workspaceDetailModal')">关闭</button></div>
+</div></div>
+
 <div class="mini-modal" id="externalAiResultModal" hidden role="dialog" aria-modal="true" aria-labelledby="externalAiResultTitle">
   <div class="mini-modal-card">
     <div class="mini-modal-head">
@@ -599,6 +676,7 @@ let riskRowsVisible = 20;
 let datasetSourcesExpanded = false;
 let currentAnalysis = null;
 let currentExternalAnalysis = null;
+let currentReportPayload = null;
 let currentTrainingAiComparison = null;
 let currentDatasetSourceId = '';
 const ADMIN_CURRENT_DATASET_SOURCE_KEY = 'adminCurrentDatasetSourceId';
@@ -657,6 +735,7 @@ function sortDatasetSourcesForDisplay(sources){
 }
 let currentDatasetSource = null;
 let currentPreparation = {};
+let currentRuntimeMatchesPreparation = false;
 let auditState = {eventOffset:0, visitOffset:0, events:[], visits:[], totalEvents:0, totalVisits:0, suspiciousKey:'', suspiciousEvents:[], suspiciousVisits:[]};
 let trainingCompareState = {local:null, federated:null};
 let trainingCompareChartObj = null;
@@ -866,10 +945,11 @@ function aiDatasetResultHtml(result){
       <span class="mini-badge">冲突 ${esc(summary.conflicts||0)}</span>
     </div>
     ${decisionRows?`<div class="mt-3"><b>重点样本双模型判定</b>${decisionRows}</div>`:'<div class="notice mt-3">AI 未返回可映射的样本二次判定，本地结果保持不变。</div>'}
+    ${aiListHtml('隐私安全判断',advice.privacy_findings)}
     ${aiListHtml('安全性判断',advice.security_findings)}
     ${aiListHtml('攻击风险判断',advice.attack_findings)}
     ${aiListHtml('处理建议',advice.recommended_actions)}
-    <div class="ai-status-line mt-3">模型：${esc(data.model||'-')} · ${data.cache_reused?'已复用缓存，本次未重复调用':'本次已调用 AI'} · ${esc(advice.confidence_note||'AI 仅作辅助判定。')}</div>`;
+    <div class="ai-status-line mt-3">模型：${esc(data.model||'-')} · 已保存的复核结论${data.generated_at?' · '+esc(data.generated_at):''} · ${esc(advice.confidence_note||'AI 仅作辅助判定。')}</div>`;
 }
 function aiTrainingResultHtml(result){
   const data=obj(result), advice=obj(data.advice), facts=obj(data.comparison_facts);
@@ -899,7 +979,10 @@ function renderExternalAiResult(result,kind='dataset'){
     const target=document.getElementById('trainingAiComparisonBox');
     if(target)target.innerHTML=`<div class="ai-title"><span><i class="fas fa-wand-magic-sparkles"></i> AI 训练方案辅助判定</span><span class="mini-badge">本地主链路</span></div>${html}`;
   }else{
-    ['externalAnalysisBoxDetect','externalAnalysisBoxReport'].forEach(id=>{const target=document.getElementById(id);if(target)target.innerHTML=`<div class="ai-title"><span><i class="fas fa-wand-magic-sparkles"></i> AI 辅助判定</span><span class="mini-badge">双模型复核</span></div>${html}`;});
+    const target=document.getElementById('externalAnalysisBoxDetect');
+    if(target)target.innerHTML=`<div class="ai-title"><span><i class="fas fa-wand-magic-sparkles"></i> AI 辅助判定</span><span class="mini-badge">双模型复核</span></div>${html}`;
+    const reportTarget=document.getElementById('externalAnalysisBoxReport'),data=obj(result);
+    if(reportTarget)reportTarget.innerHTML=`<div class="ai-title"><span>AI 复核结论</span><span class="mini-badge">已同步</span></div><p class="detail-paragraph">${esc(obj(data.advice).summary||'AI 已完成辅助复核。')}</p><div class="subtle-note">${esc(data.model||'-')} · ${esc(data.generated_at||'-')} · 查看不产生调用</div><details class="compact-details"><summary>查看复核依据与样本结论</summary>${html}</details>`;
   }
   return html;
 }
@@ -912,7 +995,7 @@ function resetExternalAiDatasetResult(){
   currentExternalAnalysis=null;
   ['externalAnalysisBoxDetect','externalAnalysisBoxReport'].forEach(id=>{
     const target=document.getElementById(id);
-    if(target)target.innerHTML='<div class="ai-title"><span><i class="fas fa-wand-magic-sparkles"></i> AI 辅助判定</span><span class="mini-badge">按需调用</span></div><div class="ai-local-primary">本地模型是默认主判定。只有主动点击按钮时才调用 AI；不使用 AI 时平台全部功能照常运行。</div>';
+    if(target)target.innerHTML='<div class="ai-title"><span>AI 辅助判定</span><span class="mini-badge">未使用</span></div><div class="ai-local-primary">'+(id==='externalAnalysisBoxReport'?'如需 AI 辅助，请在风险检测页发起；报告自动同步已有结论。':'可按需点击“使用 AI 辅助判定”，本地模型结果始终保留。')+'</div>';
   });
 }
 function parseJsonObject(value){
@@ -1012,6 +1095,49 @@ function submissionActionButtons(row){
   if(actions.includes('reject'))buttons.push(`<button class="btn-lightx" onclick="rejectSubmission('${id}')">拒绝</button>`);
   return buttons.join('')||'<span class="text-muted">无操作</span>';
 }
+let submissionRows=[];
+function submissionAiSummary(row){
+  const result=obj(row.external_analysis),advice=obj(result.advice);
+  return advice.summary?`<div class="compact-ai-summary"><span class="status-pill info">AI 已复核</span> ${esc(shortText(advice.summary,56))}</div>`:'<div class="submission-meta">AI 未使用</div>';
+}
+function submissionReviewButtons(row,index){
+  const actions=arr(row.allowed_actions),buttons=[];
+  if(actions.includes('archive'))buttons.push(`<button class="btn-lightx" onclick="archiveSubmission(submissionRows[${index}].id)">归档</button>`);
+  if(actions.includes('mark_trainable'))buttons.push(`<button class="btn-lightx" onclick="markTrainable(submissionRows[${index}].id)">可训练</button>`);
+  if(actions.includes('reject'))buttons.push(`<button class="btn-lightx submission-reject" onclick="rejectSubmission(submissionRows[${index}].id)">拒绝</button>`);
+  return buttons.length?`<div class="submission-actions submission-review-actions">${buttons.join('')}</div>`:'';
+}
+function renderSubmissionRows(rows){
+  submissionRows=rows;
+  return rows.length?rows.map((r,index)=>`<tr>
+    <td data-label="文件"><div class="submission-file">${esc(r.filename||'未命名文件')}</div><div class="submission-meta">${esc(fmtTime(r.upload_time))}</div></td>
+    <td data-label="数据量"><b>${esc(r.row_count??0)}</b> 条<div class="submission-meta">${esc(r.column_count??0)} 个字段</div></td>
+    <td data-label="状态">${reviewStatusBadge(r)}<div class="submission-meta">${r.encrypted?'已加密归档':'未加密归档'}${r.training_runs?` · 训练 ${esc(r.training_runs)} 次`:''}</div></td>
+    <td data-label="风险概览"><div class="submission-risk">${riskSummaryTags(r.risk_summary)}</div>${privacyRiskBadge(r.privacy_risk)}${submissionAiSummary(r)}</td>
+    <td data-label="操作">${submissionReviewButtons(r,index)}<div class="submission-actions"><button class="btn-lightx" onclick="analyzeSubmission(submissionRows[${index}].id)">分析</button><button class="btn-lightx" onclick="runAdminSubmissionAi(submissionRows[${index}].id,event)">AI 辅助</button><button class="btn-lightx" onclick="showSubmissionDetail(${index})">详情</button></div></td>
+  </tr>`).join(''):'<tr><td colspan="5" class="text-muted">暂无用户提交</td></tr>';
+}
+function showSubmissionDetail(index){
+  const r=submissionRows[index];
+  if(!r)return;
+  const modal=document.getElementById('submissionDetailModal');
+  modal.dataset.submissionId=r.id;
+  document.getElementById('submissionDetailBody').innerHTML=`
+    <dl class="submission-detail-grid">
+      <dt>文件</dt><dd>${esc(r.filename||'-')}</dd>
+      <dt>提交编号</dt><dd>${esc(r.id)}</dd>
+      <dt>提交时间</dt><dd>${esc(fmtTime(r.upload_time))}</dd>
+      <dt>数据量</dt><dd>${esc(r.row_count??0)} 条 · ${esc(r.column_count??0)} 个字段</dd>
+      <dt>归档</dt><dd>${r.encrypted?'AES 加密归档':'未加密'}</dd>
+      <dt>安全字段</dt><dd>${submissionSecurityFields(r)}</dd>
+      <dt>审核状态</dt><dd>${reviewStatusBadge(r)}<div class="submission-meta">${esc(r.review_status_note||'')}</div></dd>
+      <dt>训练状态</dt><dd>${lifecycleBadge(r)}</dd>
+      <dt>最近操作</dt><dd>${esc(fmtTime(r.recent_operation_time||r.upload_time))}</dd>
+      <dt>风险摘要</dt><dd>${riskSummaryTags(r.risk_summary)}<div class="mt-2">${privacyRiskBadge(r.privacy_risk)}</div></dd>
+    </dl>${obj(obj(r.external_analysis).advice).summary?`<div class="detail-paragraph"><b>用户已保存的 AI 复核结论</b>${aiDatasetResultHtml(r.external_analysis)}</div>`:'<div class="submission-meta">该提交尚未使用 AI 复核。</div>'}`;
+  openMiniModal('submissionDetailModal');
+  modal.querySelector('.mini-close').focus();
+}
 function submissionSecurityFields(row){
   const preview=arr(row.masked_preview);
   const columns=[...new Set([...(arr(row.columns)||[]),...Object.keys(obj(preview[0]))])].map(x=>String(x));
@@ -1062,10 +1188,12 @@ async function runPageLoader(pageId,loaders,text){
   }
 }
 async function showPage(id){
+  const previousPage=document.querySelector('.page.active')?.id;
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-link').forEach(a=>a.classList.toggle('active',a.dataset.page===id));
   const pageId = id==='submissions' ? 'dataAdmin' : id;
   const el=document.getElementById('pg-'+pageId); if(el)el.classList.add('active');
+  if(el&&previousPage!==el.id)window.scrollTo({top:0,behavior:'instant'});
   if(pageLoaded.has(id))return;
   const markLoaded=ok=>{if(ok)pageLoaded.add(id);return ok};
   if(id==='detect')return loadCurrentModelHint().then(markLoaded);
@@ -1209,6 +1337,9 @@ async function analyzeCurrentSubmission(){
   if(!res.ok){toast(res.error,'bad');return}
   resetExternalAiDatasetResult();
   renderAnalysis(res.data); toast('风险检测完成','ok');
+  pageLoaded.delete('report');
+  const saved=await api(`/api/user/reports/${encodeURIComponent(currentSubmissionId)}`);
+  if(saved.ok&&obj(obj(saved.data).external_analysis).advice){currentExternalAnalysis=obj(saved.data.external_analysis);renderExternalAiResult(currentExternalAnalysis,'dataset');renderAnalysis(currentAnalysis);}
 }
 async function runUserAiAssist(ev){
   if(!currentSubmissionId){toast('请先上传数据并完成本地检测','bad');return}
@@ -1226,6 +1357,8 @@ async function runUserAiAssist(ev){
     currentExternalAnalysis=obj(res.data);
     renderExternalAiResult(currentExternalAnalysis,'dataset');
     renderAnalysis(currentAnalysis);
+    pageLoaded.delete('report');
+    if(currentReportPayload&&obj(currentReportPayload.submission).id===currentSubmissionId){currentReportPayload.external_analysis=currentExternalAnalysis;renderReportStructured(currentReportPayload);}
     toast(currentExternalAnalysis.cache_reused?'已复用 AI 判定缓存':'AI 辅助判定完成','ok');
   }finally{
     if(btn){btn.disabled=false;btn.innerHTML=oldHtml;}
@@ -1323,25 +1456,29 @@ function renderRiskStatsBoard(d){
     renderCountBars('主要触发因素',d.trigger_feature_stats),
   ].join('');
 }
-function riskRowHtml(r){
+function riskRowHtml(r,index){
   const ai=aiDecisionForRisk(r);
   return `<tr>
-    <td>${esc(r.rank||'-')}</td>
-    <td>${esc(r.id)}</td>
-    <td>${esc(r.username||'-')}</td>
-    <td>${esc(r.ip||'-')}</td>
-    <td class="risk-${esc(r.risk_level)}">${esc(r.risk_level_zh||riskLevelText(r.risk_level))}</td>
-    <td>${esc(r.risk_score)}</td>
-    <td>${esc(r.attack_type||'-')}</td>
-    <td>${esc(r.dominant_factor||arr(r.trigger_features)[0]||'-')}</td>
-    <td class="ai-judgement">${ai?`<span class="status-pill ${ai.needs_manual_review?'warn':'info'}">综合 ${esc(riskLevelText(ai.combined_risk_level))}</span><div>AI ${esc(riskLevelText(ai.ai_risk_level))} · ${esc(Math.round(Number(ai.ai_confidence||0)*100))}%</div><div class="text-muted">${esc(ai.needs_manual_review?'需人工复核':'与本地结果一致')}</div>`:'<span class="text-muted">未使用 AI</span>'}</td>
-    <td>${esc(r.suggestion)}</td>
+    <td data-label="排名">${esc(r.rank||'-')}</td>
+    <td data-label="IP / 样本"><button class="sample-detail-link" onclick="showRiskDetail(${index})">${esc(r.ip||'查看样本')}</button><div class="submission-meta">样本 ${esc(r.id)} · ${esc(r.username||'-')}</div></td>
+    <td data-label="本地风险" class="risk-${esc(r.risk_level)}">${esc(r.risk_level_zh||riskLevelText(r.risk_level))}<div class="submission-meta">${esc(r.risk_score??'--')}</div></td>
+    <td data-label="主要因素">${esc(r.dominant_factor||arr(r.trigger_features)[0]||'-')}<div class="submission-meta">${esc(r.attack_type||'-')}</div></td>
+    <td data-label="AI / 综合判定">${ai?`<span class="status-pill ${ai.needs_manual_review?'warn':'info'}">综合 ${esc(riskLevelText(ai.combined_risk_level))}</span><div class="submission-meta">AI ${esc(riskLevelText(ai.ai_risk_level))}${ai.needs_manual_review?' · 待复核':''}</div>`:'<span class="text-muted">未使用 AI</span>'}</td>
+    <td data-label="操作"><button class="btn-lightx" onclick="showRiskDetail(${index})">详情</button></td>
   </tr>`;
+}
+function triggerLabel(key){return ({failed_attempts:'失败登录',request_frequency:'请求频率',unusual_time:'异常时间',response_time:'响应时间',device_ip:'设备 / IP',password_strength:'密码强度',model:'模型信号'})[key]||key}
+function showRiskDetail(index){
+  const rows=arr(obj(currentAnalysis).risk_ranking||obj(currentAnalysis).high_risk_reasons||lastRiskReasons),r=rows[index];if(!r)return;
+  const peers=r.ip&&r.ip!=='-'?rows.filter(row=>row.ip===r.ip):[r],ai=aiDecisionForRisk(r),breakdown=obj(r.score_breakdown);
+  const values=[['IP',r.ip||'未提供'],['样本编号',r.id],['用户（脱敏）',r.username||'-'],['本地判断',r.risk_level_zh||riskLevelText(r.risk_level)],['风险分数',r.risk_score??'--'],['风险类型',r.attack_type||'-'],['主要因素',r.dominant_factor||'-'],['模型版本',r.model_version||obj(obj(currentAnalysis).analysis_trace).model_version||'-']];
+  const scores=Object.fromEntries(Object.entries(breakdown).filter(([key,value])=>typeof value==='number'&&key.endsWith('_score')&&!['final_score','model_score'].includes(key)).map(([key,value])=>[triggerLabel(key.replace(/_score$/,'')),value]));
+  openWorkspaceDetail('IP / 样本风险详情',`<dl class="submission-detail-grid">${values.map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl><div class="detail-paragraph"><b>判断依据</b><div>${esc(r.reason||'模型未提供额外说明。')}</div><div class="mt-2"><b>建议</b> ${esc(r.suggestion||r.action_suggestion||'结合业务复核。')}</div></div>${Object.keys(scores).length?renderCountBars('风险信号分量（非概率）',scores):''}<div class="detail-paragraph"><b>AI / 综合结论</b><div>${ai?`AI ${esc(riskLevelText(ai.ai_risk_level))}；综合 ${esc(riskLevelText(ai.combined_risk_level))}。${esc(ai.reason||ai.recommended_action||'')}`:'当前样本尚无可映射的 AI 复核结论。'}</div></div><details class="compact-details"><summary>同 IP 需关注记录（${peers.length} 条）</summary><div class="subtle-note mt-2">仅汇总本次返回的风险排名，最多 100 条，不代表该 IP 的全部访问历史。</div><table class="training-metric-table"><thead><tr><th>样本</th><th>风险</th><th>分数</th></tr></thead><tbody>${peers.map(row=>`<tr><td>${esc(row.id)}</td><td>${esc(riskLevelText(row.risk_level))}</td><td>${esc(row.risk_score)}</td></tr>`).join('')}</tbody></table></details>`);
 }
 function renderRiskRows(){
   const rows=arr(lastRiskReasons);
   const visible=rows.slice(0,riskRowsVisible);
-  reasonTable.innerHTML=visible.length?visible.map(riskRowHtml).join(''):'<tr><td colspan="10" class="text-muted">暂无需优先关注的样本</td></tr>';
+  reasonTable.innerHTML=visible.length?visible.map(riskRowHtml).join(''):'<tr><td colspan="6" class="text-muted">暂无需优先关注的样本</td></tr>';
   const button=document.getElementById('riskMoreButton');
   if(button){
     button.hidden=visible.length>=rows.length;
@@ -1361,9 +1498,8 @@ function renderAnalysis(d){
     ['中风险',s.medium||0],
     ['低风险',s.low||0],
     ['平均风险分',d.average_risk_score??'--'],
-    ['隐私暴露',obj(d.privacy_risk).score??'--'],
-    ['当前检测模型',arr(d.current_model_versions).length?arr(d.current_model_versions)[0].version||'runtime':'runtime']
-  ].map(x=>`<div class="metric"><div class="metric-value">${x[1]}</div><div class="metric-label">${x[0]}</div></div>`).join('');
+    ['隐私暴露',obj(d.privacy_risk).score??'--']
+  ].map(x=>`<div class="metric"><div class="metric-value">${esc(x[1])}</div><div class="metric-label">${x[0]}</div></div>`).join('');
   renderRiskStatsBoard(d);
   const rows=arr(d.risk_ranking || d.high_risk_reasons);
   lastRiskReasons=rows;
@@ -1375,6 +1511,7 @@ function renderAnalysis(d){
 }
 function renderReportStructured(payload){
   const data=obj(payload);
+  currentReportPayload=data;
   const analysis=obj(data.analysis || currentAnalysis);
   const submission=obj(data.submission);
   const summary=riskSummaryCounts(analysis.risk_summary || submission.risk_summary);
@@ -1397,12 +1534,11 @@ function renderReportStructured(payload){
     <div class="mb-2"><b>文件名称：</b>${esc(submission.filename || '--')}</div>
     <div class="mb-2"><b>风险分布：</b>${riskSummaryTags(analysis.risk_summary || submission.risk_summary)}</div>
     <div class="mb-2"><b>主要风险类型：</b>${attackTypeText}</div>
-    <div class="mb-2"><b>检测模型：</b>${esc(currentModelText(analysis.current_model_versions).replace(/^当前(?:启用|检测)?模型：/,'').trim())}</div>
-    <div class="mb-2"><b>标签列：</b>${esc(analysis.label_column || submission.label_column || '未识别')}</div>
     <div class="mb-2"><b>隐私暴露：</b>${esc(privacy.level_zh||'未评估')} ${privacy.score!==undefined?'('+esc(privacy.score)+')':''}；${esc(dual.recommended_action||privacy.recommendation||'')}</div>
     <div class="mb-2"><b>敏感字段：</b>${sensitive.length?sensitive.map(x=>`<span class="status-pill warn me-1">${esc(x)}</span>`).join(''):'未识别到常见敏感字段'}</div>
-    <div><b>版本追踪：</b>数据 ${esc(trace.data_revision?String(trace.data_revision).slice(0,12):'-')} / 预处理 ${esc(trace.preprocessing_version||'-')} / 模型 ${esc(trace.model_version||'-')} / 策略 ${esc(trace.analysis_policy_version||'-')}</div>
+    <details class="compact-details"><summary>检测范围与版本追踪</summary><div class="submission-meta">已分析 ${esc(trace.analyzed_rows??total)} / ${esc(trace.source_rows??total)} 条；标签 ${esc(analysis.label_column||submission.label_column||'未识别')}<br>数据 ${esc(trace.data_revision||'-')}<br>预处理 ${esc(trace.preprocessing_version||'-')}<br>模型 ${esc(trace.model_version||'-')}<br>策略 ${esc(trace.analysis_policy_version||'-')}</div></details>
   `;
+  document.getElementById('reportCharts').innerHTML=renderCountBars('风险等级分布',{'高风险':summary.high,'中风险':summary.medium,'低风险':summary.low})+renderCountBars('主要触发因素',analysis.trigger_feature_stats);
 
   const suggestions=arr(analysis.suggestions);
   reportSuggestionList.innerHTML=suggestions.length
@@ -1410,16 +1546,7 @@ function renderReportStructured(payload){
     : '<li>暂无处理建议，请先执行风险检测。</li>';
 
   const rows=arr(analysis.risk_ranking || analysis.high_risk_reasons).slice(0,10);
-  reportTopTable.innerHTML=rows.length?rows.map(r=>`<tr>
-    <td>${esc(r.rank||'-')}</td>
-    <td>${esc(r.id||'-')}</td>
-    <td>${esc(r.username||'-')}</td>
-    <td>${esc(r.ip||'-')}</td>
-    <td class="risk-${esc(r.risk_level)}">${esc(r.risk_level_zh||riskLevelText(r.risk_level))}</td>
-    <td>${esc(r.risk_score||'-')}</td>
-    <td>${esc(r.dominant_factor||arr(r.trigger_features)[0]||'-')}</td>
-    <td>${esc(r.suggestion||'-')}</td>
-  </tr>`).join(''):'<tr><td colspan="8" class="text-muted">暂无需要优先关注的样本</td></tr>';
+  reportTopTable.innerHTML=rows.length?rows.map(riskRowHtml).join(''):'<tr><td colspan="6" class="text-muted">暂无需要优先关注的样本</td></tr>';
 }
 
 async function loadReport(){
@@ -1436,7 +1563,19 @@ async function loadReport(){
   reportBox.classList.toggle('empty', !res.data.report_markdown);
   return true;
 }
-function downloadReport(){if(!currentReport){toast('请先加载报告','bad');return}const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([currentReport],{type:'text/markdown;charset=utf-8'}));a.download='risk-report.md';a.click();}
+function buildReportDocument(payload){
+  const data=obj(payload),a=obj(data.analysis),s=obj(data.submission),trace=obj(a.analysis_trace),privacy=obj(a.privacy_risk),attack=obj(a.attack_risk),ai=obj(data.external_analysis||s.external_analysis),advice=obj(ai.advice),counts=riskSummaryCounts(a.risk_summary),rows=arr(a.risk_ranking||a.high_risk_reasons),decisions=arr(ai.assisted_decisions);
+  const meta=[['文件',s.filename||'-'],['提交编号',s.id||'-'],['分析时间',a.analyzed_at||trace.created_at||s.last_analysis_at||'-'],['分析范围',`${trace.analyzed_rows??a.total??0} / ${trace.source_rows??s.row_count??0} 条`],['归档',s.encrypted?(s.encryption||'AES 加密'):'未记录']];
+  const list=items=>arr(items).map(item=>`<li>${esc(item)}</li>`).join('');
+  const charts=renderCountBars('风险等级（条）',{'高风险':counts.high,'中风险':counts.medium,'低风险':counts.low})+renderCountBars('主要触发因素（条）',a.trigger_feature_stats);
+  const cases=rows.map(r=>{const decision=decisions.find(d=>String(d.sample_id)===String(r.id));return `<details class="case"><summary>样本 ${esc(r.id)} · ${esc(r.ip||'未提供 IP')} · ${esc(r.risk_level_zh||riskLevelText(r.risk_level))} · ${esc(r.risk_score)}</summary><p><b>用户：</b>${esc(r.username||'-')}　<b>类型：</b>${esc(r.attack_type||'-')}</p><p><b>判断依据：</b>${esc(r.reason||r.dominant_factor||'-')}</p><p><b>处理建议：</b>${esc(r.suggestion||r.action_suggestion||'-')}</p><p><b>AI / 综合判断：</b>${decision?`${esc(riskLevelText(decision.ai_risk_level))} / ${esc(riskLevelText(decision.combined_risk_level))}；${esc(decision.reason||decision.recommended_action||'')}`:'该样本无 AI 复核结论'}</p></details>`}).join('');
+  return `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>隐私与攻击风险分析报告</title><style>body{font:14px/1.8 system-ui,"Microsoft YaHei",sans-serif;color:#31445a;background:#f3f6fa;margin:0}main{max-width:1020px;margin:28px auto;padding:28px;background:white;border-radius:14px}h1{font-size:26px;line-height:1.5;margin:0}h2{font-size:18px;margin-top:28px;border-bottom:1px solid #e1e8ef;padding-bottom:8px}h3,.title{font-size:15px;font-weight:650}.subtitle{color:#75879a}dl{display:grid;grid-template-columns:100px 1fr;gap:5px}dt{color:#75879a}dd{margin:0;overflow-wrap:anywhere}.metrics,.charts{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.metrics div,.result-card,.case{padding:15px;border:1px solid #e1e8ef;border-radius:10px}.metrics b{display:block;font-size:25px;color:#4779a7}.charts{grid-template-columns:1fr 1fr}.compare-row{display:grid;grid-template-columns:100px 1fr 42px;align-items:center;gap:10px;margin:12px 0;font-size:12px}.bar-track{height:12px;background:#edf2f7;border-radius:6px;overflow:hidden}.bar-fill{height:100%;background:#608db6;border-radius:6px}.case{margin:8px 0}.case summary{cursor:pointer;font-weight:600}p{overflow-wrap:anywhere}.note{background:#f5f8fb;padding:14px;border-radius:8px;color:#607589}.two{display:grid;grid-template-columns:1fr 1fr;gap:20px}table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:9px 6px;border-bottom:1px solid #e4ebf2;text-align:left;overflow-wrap:anywhere}footer{margin-top:28px;color:#8191a1;font-size:12px}@media(max-width:650px){main{margin:0;padding:18px;border-radius:0}.charts,.two{grid-template-columns:1fr}h1{font-size:22px}.metrics{gap:6px}.metrics b{font-size:21px}}@media print{body{background:white}main{margin:0;padding:0;max-width:none}.case{break-inside:avoid}details::details-content{content-visibility:visible}h2{break-after:avoid}}</style></head><body><main><h1>隐私暴露与攻击风险分析报告</h1><p class="subtitle">本地检测结果 · ${advice.summary?'含已有 AI 复核结论':'未使用 AI'}</p><dl>${meta.map(([k,v])=>`<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl><div class="metrics"><div><b>${esc(a.total??0)}</b>已检测样本</div><div><b>${counts.high}</b>高风险样本</div><div><b>${counts.medium}</b>中风险样本</div></div><h2>一、结论概览</h2><div class="two"><section><h3>隐私暴露风险：${esc(privacy.level_zh||'未评估')}</h3><p>分数 ${esc(privacy.score??'--')}，来自字段规则评估。</p><p>${esc(privacy.recommendation||'未记录处理建议。')}</p></section><section><h3>攻击风险：${esc(attack.level_zh||attack.level||'未评估')}</h3><p>聚合分数 ${esc(attack.score??a.average_risk_score??'--')}；高风险占比 ${a.total?((counts.high/a.total)*100).toFixed(1):'0'}%。</p><p>${esc(obj(a.dual_risk).recommended_action||'优先复核高风险样本，再结合业务处理。')}</p></section></div><h2>二、风险分布与信号</h2><div class="charts">${charts}</div><h2>三、处理建议</h2><ol>${list(a.suggestions)||'<li>请结合业务核实高风险记录。</li>'}</ol><h2>四、AI 复核结论</h2>${advice.summary?`<p><b>${esc(advice.summary)}</b></p><p class="subtitle">模型 ${esc(ai.model||'-')} · ${esc(ai.generated_at||'-')}</p><ul>${list(advice.privacy_findings)}${list(advice.attack_findings)}${list(advice.recommended_actions)}</ul><p>${esc(advice.confidence_note||'AI 为辅助判断，本地分数保持不变。')}</p>`:'<p class="note">本次未使用 AI，以上结论均来自本地检测；查看和下载报告不产生 AI 调用。</p>'}<h2>五、重点 IP / 样本明细</h2><p class="subtitle">按风险排名展示 ${rows.length} 条返回记录，最多 100 条；同 IP 的记录不代表完整历史。展开可查看具体依据和建议。</p>${cases||'<p>暂无需优先关注的样本。</p>'}<h2>六、数据与模型追溯</h2><dl>${[['数据修订',trace.data_revision],['检测模型',trace.model_version],['预处理版本',trace.preprocessing_version],['策略版本',trace.analysis_policy_version]].map(([k,v])=>`<dt>${k}</dt><dd>${esc(v||'-')}</dd>`).join('')}</dl><footer>本报告依据本次提交可见数据生成。模型风险类型为辅助判断，应结合实际业务复核。下载文件可离线查看，也可通过浏览器打印保存 PDF。</footer></main></body></html>`;
+}
+function downloadReport(format='html'){
+  if(!currentReportPayload){toast('请先加载报告','bad');return}
+  const markdown=format==='markdown',content=markdown?currentReport:buildReportDocument(currentReportPayload),url=URL.createObjectURL(new Blob([content],{type:markdown?'text/markdown;charset=utf-8':'text/html;charset=utf-8'})),a=document.createElement('a');
+  a.href=url;a.download=markdown?'risk-report.md':'risk-report.html';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
 
 function renderDistTags(value,labelMap={}){
   const entries=Object.entries(obj(value))
@@ -1534,6 +1673,24 @@ async function adminLogout(){await api('/api/admin/logout',{method:'POST'});loca
 async function loadAdminData(force=false){
   await Promise.allSettled([loadDatasetSourcesData(force), loadSubmissionsData(force)]);
 }
+let compactDatasetRows=[];
+function datasetDisplayName(source){
+  const s=obj(source),name=String(s.name||s.source_type||'数据源'),file=String(s.source||'').toLowerCase();
+  if(s.source_type==='UNSW-NB15')return 'UNSW-NB15 '+(file.includes('training')?'训练集':file.includes('testing')?'测试集':'数据集');
+  if(s.source_type==='CSE-CIC-IDS2018')return 'CSE-CIC-IDS2018 · '+String(s.source||'').split(/[\\/]/).pop().replace(/\.csv$/i,'');
+  return name;
+}
+function openWorkspaceDetail(title,html){
+  document.getElementById('workspaceDetailTitle').textContent=title;
+  document.getElementById('auditDetailBox').innerHTML=html;
+  openMiniModal('workspaceDetailModal');
+  document.querySelector('#workspaceDetailModal .mini-close').focus();
+}
+function showDatasetDetail(index){
+  const s=compactDatasetRows[index];if(!s)return;
+  const rows=[['数据源',datasetDisplayName(s)],['来源',s.source||'-'],['类型',s.source_type||'-'],['样本',s.samples??0],['原始字段',s.features??0],['标签列',s.label_column||'未识别'],['用途',s.description||'-']];
+  openWorkspaceDetail('数据源详情',`<dl class="submission-detail-grid">${rows.map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}<dt>标签分布</dt><dd>${renderDistTags(s.label_distribution,{'0':'正常','1':'风险'})}${distributionScopeNote(s)}</dd><dt>攻击类型</dt><dd>${renderDistTags(s.attack_type_distribution)}</dd></dl>`);
+}
 function renderDataProcessStructure(data){
   const d=obj(data);
   const models=obj(d.model_inventory);
@@ -1541,6 +1698,8 @@ function renderDataProcessStructure(data){
   const fed=obj(models.federated_training);
   const paillier=obj(models.paillier);
   const prep=obj(d.processed);
+  const runtimeContext=obj(runtime.training_context);
+  const runtimeMatches=Boolean(prep.preparation_id&&runtimeContext.preparation_id===prep.preparation_id);
   const policyBox=document.getElementById('dataProcessPolicyBox');
   const structureBox=document.getElementById('dataProcessStructureBox');
   if(policyBox){
@@ -1561,12 +1720,14 @@ function renderDataProcessStructure(data){
       </div>`;
   }
 }
-function updateDataProcessReadyState(ready){
+function updateDataProcessReadyState(ready,runtimeMatches=false){
   const title=document.getElementById('dataProcessReadyTitle');
   const text=document.getElementById('dataProcessReadyText');
   const button=document.getElementById('dataProcessTrainButton');
   if(title)title.textContent=ready?'数据准备完成':'数据尚未准备';
-  if(text)text.textContent=ready?'可进入训练中心执行普通集中式与四节点联邦对比。':'请先选择数据源并同步到四节点。';
+  if(text)text.textContent=!ready
+    ?'请先选择数据源并同步到四节点。'
+    :'训练数据已准备，可进入训练中心。';
   if(button)button.disabled=!ready;
 }
 async function loadDatasetSourcesData(force=false){
@@ -1581,7 +1742,7 @@ async function loadDatasetSourcesData(force=false){
     const st=stRes.status==='fulfilled'?stRes.value:{ok:false,data:{}};
     const sourcesRes=sourcesApiRes.status==='fulfilled'?sourcesApiRes.value:{ok:false,data:{sources:[]}};
     if(!st.ok && !sourcesRes.ok){
-      datasetSourceTable.innerHTML=`<tr><td colspan="10" class="text-muted">训练数据源加载失败：${esc(st.error||sourcesRes.error||'请刷新后重试')}</td></tr>`;
+      datasetSourceTable.innerHTML=`<tr><td colspan="5" class="text-muted">训练数据源加载失败：${esc(st.error||sourcesRes.error||'请刷新后重试')}</td></tr>`;
       pageLoaded.delete('dataProcess');
       return false;
     }
@@ -1599,10 +1760,10 @@ async function loadDatasetSourcesData(force=false){
     const preparedCount=sources.filter(s=>s.prepared_for_federated).length;
     renderDataProcessStructure(sourcesData);
     systemDataMetrics.innerHTML=[
-      ['当前训练源',currentDatasetSource.source_type||currentDatasetSource.source||sd.source_type||'未检测'],
+      ['当前训练源',datasetDisplayName(currentDatasetSource)],
       ['当前源样本',currentDatasetSource.samples||sd.samples||0],
       ['可用数据源',availableSources.length],
-      ['已生成节点源',preparedCount]
+      ['准备状态',currentDatasetSource.prepared_for_federated?'4 / 4 节点':'待准备']
     ].map(x=>`<div class="metric"><div class="metric-value">${esc(x[1])}</div><div class="metric-label">${x[0]}</div></div>`).join('');
     // Once a managed source is selected, only that source may decide whether
     // the training entry is ready.  The legacy dataset status can describe a
@@ -1610,7 +1771,9 @@ async function loadDatasetSourcesData(force=false){
     const trainingReady=Boolean(currentDatasetSourceId
       ? currentDatasetSource.prepared_for_federated
       : sd.ready_for_federated);
-    updateDataProcessReadyState(trainingReady);
+    const runtimeContext=obj(obj(obj(sourcesData.model_inventory).runtime_detector).training_context);
+    currentRuntimeMatchesPreparation=Boolean(currentPreparation.preparation_id&&runtimeContext.preparation_id===currentPreparation.preparation_id);
+    updateDataProcessReadyState(trainingReady,currentRuntimeMatchesPreparation);
     const sourceToggle=document.getElementById('datasetSourceToggle');
     const sourceSummary=document.getElementById('datasetSourceSummary');
     if(sourceToggle){
@@ -1621,30 +1784,26 @@ async function loadDatasetSourcesData(force=false){
       const hidden=Math.max(0,displaySources.length-visibleSources.length);
       sourceSummary.textContent=datasetSourcesExpanded
         ? `已显示全部 ${displaySources.length} 个数据源`
-        : `优先显示 ${visibleSources.length} 个可用数据源${hidden?`，其余 ${hidden} 个已收起`:''}`;
+        : `显示 ${visibleSources.length} / ${displaySources.length} 个数据源`;
     }
     if(typeof trainingSourceBox!=='undefined')trainingSourceBox.innerHTML=`<div class="d-flex align-items-center flex-wrap gap-2"><b>${esc(currentDatasetSource.name||currentDatasetSource.source||sd.source||'未检测')}</b><span class="mini-badge">${esc(currentDatasetSource.source_type||sd.source_type||'-')}</span><span class="status-pill ${trainingReady?'ok':'warn'}">${trainingReady?'已准备':'待同步'}</span></div>`;
     if(typeof trainDataMetric!=='undefined')trainDataMetric.textContent=currentDatasetSource.samples||sd.samples||0;
     if(typeof trainFeatureMetric!=='undefined')trainFeatureMetric.textContent=(currentDatasetSource.samples||sd.samples)?18:0;
     if(typeof trainNodeMetric!=='undefined')trainNodeMetric.textContent=trainingReady?'4 / 4':'待同步';
     if(typeof datasetSourceTable!=='undefined'){
-      datasetSourceTable.innerHTML=visibleSources.length?visibleSources.map(s=>`<tr>
-        <td>${esc(s.name||s.source||'-')}<div class="small-text text-muted">${esc(s.source||'-')}</div></td>
-        <td>${esc(s.source_type||'-')}</td>
-        <td>${esc(s.samples||0)}</td>
-        <td>${esc(s.features||0)}</td>
-        <td>${esc(s.label_column||'-')}</td>
-        <td>${renderDistTags(s.label_distribution, {'0':'正常','1':'风险'})}${distributionScopeNote(s)}</td>
-        <td>${renderDistTags(s.attack_type_distribution)}</td>
-        <td>${s.exists===false?'<span class="status-pill warn">未配置</span>':(s.prepared_for_federated?'<span class="status-pill ok">已生成节点</span>':'<span class="status-pill warn">待处理</span>')}</td>
-        <td class="small-text">${esc(s.description||'-')}</td>
-        <td>${datasetSourceActions(s)}</td>
-      </tr>`).join(''):'<tr><td colspan="10" class="text-muted">未检测到可用训练数据源</td></tr>';
+      compactDatasetRows=visibleSources;
+      datasetSourceTable.innerHTML=visibleSources.length?visibleSources.map(s=>`<tr data-current="${String(s.id)===String(currentDatasetSourceId)}">
+        <td data-label="数据源"><b>${esc(datasetDisplayName(s))}</b>${String(s.id)===String(currentDatasetSourceId)?'<div class="submission-meta">当前数据源</div>':''}</td>
+        <td data-label="数据量">${esc(Number(s.samples||0).toLocaleString())} 条<div class="submission-meta">${esc(s.features||0)} 个原始字段</div></td>
+        <td data-label="标签分布">${renderDistTags(s.label_distribution, {'0':'正常','1':'风险'})}${distributionScopeNote(s)}</td>
+        <td data-label="状态">${s.exists===false?'<span class="status-pill warn">未导入</span>':s.prepared_for_federated?'<span class="status-pill ok">已准备</span>':'<span class="status-pill warn">待准备</span>'}</td>
+        <td data-label="操作"><div class="submission-actions">${datasetSourceActions(s)}</div></td>
+      </tr>`).join(''):'<tr><td colspan="5" class="text-muted">未检测到可用训练数据源</td></tr>';
     }
     return true;
   }catch(err){
     console.error('loadDatasetSourcesData failed',err);
-    if(typeof datasetSourceTable!=='undefined')datasetSourceTable.innerHTML='<tr><td colspan="10" class="text-muted">训练数据源加载失败</td></tr>';
+    if(typeof datasetSourceTable!=='undefined')datasetSourceTable.innerHTML='<tr><td colspan="5" class="text-muted">训练数据源加载失败</td></tr>';
     toast('训练数据源加载失败','bad');
     pageLoaded.delete('dataProcess');
     return false;
@@ -1659,7 +1818,7 @@ async function loadSubmissionsData(force=false){
       submissionRiskMetrics.innerHTML=[
         ['用户提交',0],['高风险样本',0],['中风险样本',0],['可训练提交',0]
       ].map(x=>`<div class="metric"><div class="metric-value">${esc(x[1])}</div><div class="metric-label">${x[0]}</div></div>`).join('');
-      submissionTable.innerHTML=`<tr><td colspan="11" class="text-muted">用户提交加载失败：${esc(subs.error||'请刷新或重新登录管理端')}</td></tr>`;
+      submissionTable.innerHTML=`<tr><td colspan="5" class="text-muted">用户提交加载失败：${esc(subs.error||'请刷新或重新登录管理端')}</td></tr>`;
       pageLoaded.delete('submissions');
       return false;
     }
@@ -1671,26 +1830,19 @@ async function loadSubmissionsData(force=false){
     submissionRiskMetrics.innerHTML=[
       ['用户提交',totals.total],['高风险样本',totals.high],['中风险样本',totals.medium],['可训练提交',totals.trainable]
     ].map(x=>`<div class="metric"><div class="metric-value">${esc(x[1])}</div><div class="metric-label">${x[0]}</div></div>`).join('');
-    submissionTable.innerHTML=rows.length?rows.map(r=>`<tr>
-      <td>${esc(fmtTime(r.upload_time))}</td>
-      <td>${esc(r.filename)}</td>
-      <td>${esc(r.row_count)}</td>
-      <td>${esc(r.column_count)}</td>
-      <td>${submissionSecurityFields(r)}</td>
-      <td>${r.encrypted?'AES':'-'}</td>
-      <td>${reviewStatusBadge(r)}<div class="small-text text-muted mt-1">${esc(r.review_status_note||'')}</div></td>
-      <td>${lifecycleBadge(r)}</td>
-      <td>${esc(fmtTime(r.recent_operation_time||r.upload_time))}</td>
-      <td>${privacyRiskBadge(r.privacy_risk)}<div class="mt-1">${riskSummaryTags(r.risk_summary)}</div></td>
-      <td>${submissionActionButtons(r)}</td>
-    </tr>`).join(''):`<tr><td colspan="11" class="text-muted">${subs.ok?'暂无用户提交':'用户提交加载失败，请刷新或检查登录状态'}</td></tr>`;
+    submissionTable.innerHTML=renderSubmissionRows(rows);
+    const detailModal=document.getElementById('submissionDetailModal');
+    if(detailModal&&!detailModal.hidden){
+      const index=rows.findIndex(r=>r.id===detailModal.dataset.submissionId);
+      if(index>=0)showSubmissionDetail(index);else closeMiniModal('submissionDetailModal');
+    }
     return true;
   }catch(err){
     console.error('loadSubmissionsData failed',err);
     submissionRiskMetrics.innerHTML=[
       ['用户提交',0],['高风险样本',0],['中风险样本',0],['可训练提交',0]
     ].map(x=>`<div class="metric"><div class="metric-value">${esc(x[1])}</div><div class="metric-label">${x[0]}</div></div>`).join('');
-    submissionTable.innerHTML='<tr><td colspan="11" class="text-muted">用户提交加载失败，请刷新页面或重新登录管理端。</td></tr>';
+    submissionTable.innerHTML='<tr><td colspan="5" class="text-muted">用户提交加载失败，请刷新页面或重新登录管理端。</td></tr>';
     toast('用户提交加载失败','bad');
     pageLoaded.delete('submissions');
     return false;
@@ -1698,13 +1850,15 @@ async function loadSubmissionsData(force=false){
 }
 function datasetSourceActions(s){
   const id=String(obj(s).id||'');
-  if(!obj(s).exists)return '<span class="text-muted">-</span>';
-  if(Number(obj(s).samples||0)<=0)return '<span class="text-muted">无样本</span>';
+  const index=compactDatasetRows.findIndex(row=>row.id===s.id);
+  const detail=`<button class="btn-lightx" onclick="showDatasetDetail(${index})">详情</button>`;
+  if(!obj(s).exists)return detail;
+  if(Number(obj(s).samples||0)<=0)return detail;
   if(obj(s).source_type==='user_submission' && !obj(s).trainable){
-    return '<span class="small-text text-muted">先标记可训练</span>';
+    return `<span class="small-text text-muted">待审核</span>${detail}`;
   }
-  const label=obj(s).prepared_for_federated?'检查更新并同步':'同步到四节点';
-  return `<button class="btn-lightx btn-sm" onclick="prepareDatasetSource('${esc(id)}',event)">${label}</button>`;
+  const label=obj(s).prepared_for_federated?'检查更新':'准备';
+  return `<button class="btn-lightx" onclick="prepareDatasetSource('${esc(id)}',event)">${label}</button>${detail}`;
 }
 function refreshDataProcessAfterPrepare(){
   clearAdminCache();
@@ -1812,7 +1966,7 @@ async function loadNodes(force=false){
     || !preparation.preparation_id
     || String(preparation.preparation_id)===String(obj(currentPreparation).preparation_id);
   const currentNodeBundleReady=Boolean(preparationReady&&sourcePrepared&&sourceMatches&&revisionMatches);
-  updateDataProcessReadyState(currentNodeBundleReady);
+  updateDataProcessReadyState(currentNodeBundleReady,currentRuntimeMatchesPreparation);
   if(typeof trainNodeMetric!=='undefined')trainNodeMetric.textContent=currentNodeBundleReady?'4 / 4':'待同步';
   const html=nodes.length?nodes.map(n=>{
     const labels=obj(n.label_distribution);
@@ -1824,11 +1978,11 @@ async function loadNodes(force=false){
     return `<div class="node-card">
       <div class="node-card-head"><i class="fas fa-building"></i><b title="${esc(n.name)}">${esc(federatedNodeLabel(n.name))}</b><span class="node-card-state ${nodeReady?'ok':''}" title="${nodeReady?'就绪':'待同步'}" aria-label="${nodeReady?'就绪':'待同步'}"><i class="fas ${nodeReady?'fa-check':'fa-clock'}"></i></span></div>
       <div class="node-card-stats">
-        <span><b>${esc(n.samples||0)}</b>样本</span>
-        <span><b>${esc(normal)}</b>正常</span>
-        <span><b>${esc(attack)}</b>风险</span>
+        <span><b>${nodeReady?esc(n.samples||0):'--'}</b>样本</span>
+        <span><b>${nodeReady?esc(normal):'--'}</b>正常</span>
+        <span><b>${nodeReady?esc(attack):'--'}</b>风险</span>
       </div>
-      <div class="small-text text-muted mt-2">攻击占比 ${Number.isFinite(attackRate)?esc((attackRate*100).toFixed(1)+'%'):'--'} · 数据质量 ${Number.isFinite(quality)?esc(quality.toFixed(0)):'--'}</div>
+      <div class="small-text text-muted mt-2">${nodeReady?`攻击占比 ${Number.isFinite(attackRate)?esc((attackRate*100).toFixed(1)+'%'):'--'}`:'等待准备当前数据源'}</div>
     </div>`;
   }).join(''):'<div class="text-muted">暂无节点数据</div>';
   if(typeof fedNodes!=='undefined')fedNodes.innerHTML=html;
@@ -2011,63 +2165,15 @@ function renderFederatedTrainingDetails(fed={}){
   }).join('');
 }
 function renderCompareChartCore(canvas,fallback,local={},fed={},chartRef){
-  const hasLocal=Number(local.accuracy)>0 || Number(local.samples)>0 || Number(local.loss)>0;
-  const hasFed=Number(fed.accuracy)>0 || Number(fed.samples)>0 || Number(fed.loss)>0;
-  const lAcc=pctValue(local.accuracy);
-  const fAcc=pctValue(fed.accuracy);
-  const lLoss=Number(local.loss)||0;
-  const fLoss=Number(fed.loss)||0;
-  const maxSamples=Math.max(Number(local.samples)||0,Number(fed.samples)||0,1);
-  const lSamples=(Number(local.samples)||0)/maxSamples*100;
-  const fSamples=(Number(fed.samples)||0)/maxSamples*100;
-  const lossScore=(v)=>v>0?Math.max(0,100-Math.min(100,v*100)):0;
-  const lLossScore=lossScore(lLoss);
-  const fLossScore=lossScore(fLoss);
-  if(fallback){
-    const safeWidth=(v)=>Math.max(2,Math.min(100,Number(v)||0));
-    const row=(name,lv,fv,ls,fs)=>`
-      <div class="chart-fallback-row">
-        <span class="name">${esc(name)}</span>
-        <div class="bar-track"><div class="bar-fill" style="width:${safeWidth(lv)}%"></div></div>
-        <span class="value">${esc(ls)}</span>
-        <div class="bar-track"><div class="bar-fill fed" style="width:${safeWidth(fv)}%"></div></div>
-        <span class="value">${esc(fs)}</span>
-      </div>`;
-    fallback.innerHTML=!hasLocal&&!hasFed
-      ? '<div class="notice mb-0">暂无训练对比数据。请先执行普通集中式基线和四节点联邦训练。</div>'
-      : `
-      <div class="chart-fallback-row small-text text-muted">
-        <span></span><b>普通集中式</b><span></span><b>四节点联邦</b><span></span>
-      </div>
-      ${row('准确率',lAcc,fAcc,metricDisplay(local.accuracy),metricDisplay(fed.accuracy))}
-      ${row('损失',lLossScore,fLossScore,lossDisplay(local.loss),lossDisplay(fed.loss))}
-      ${row('样本',lSamples,fSamples,local.samples||'--',fed.samples||'--')}
-      ${!hasFed?'<div class="small-text text-muted mt-2">当前只有普通集中式基线记录，四节点联邦训练完成后会自动加入对比。</div>':''}
-      ${!hasLocal?'<div class="small-text text-muted mt-2">当前只有联邦训练记录，普通集中式基线完成后会自动加入对比。</div>':''}`;
-  }
-  if(!canvas || typeof Chart==='undefined')return;
   const oldChart=chartRef&&chartRef.get?chartRef.get():null;
   if(oldChart)oldChart.destroy();
-  const datasets=[];
-  if(hasLocal)datasets.push({label:'普通集中式',data:[lAcc,lLossScore,lSamples],backgroundColor:'#4F83C2'});
-  if(hasFed)datasets.push({label:'四节点联邦',data:[fAcc,fLossScore,fSamples],backgroundColor:'#73A942'});
-  if(!datasets.length){canvas.style.display='none';return}
-  canvas.style.display='block';
-  const chart=new Chart(canvas,{
-    type:'bar',
-    data:{
-      labels:['准确率','损失表现','样本覆盖'],
-      datasets
-    },
-    options:{
-      responsive:true,
-      maintainAspectRatio:false,
-      plugins:{legend:{position:'bottom'}},
-      scales:{y:{beginAtZero:true,max:100,ticks:{callback:v=>v+'%'}}}
-    }
-  });
-  if(fallback)fallback.innerHTML='';
-  if(chartRef&&chartRef.set)chartRef.set(chart);
+  if(chartRef&&chartRef.set)chartRef.set(null);
+  if(canvas){canvas.style.display='none';if(canvas.parentElement)canvas.parentElement.hidden=true;}
+  if(!fallback)return;
+  const hasLocal=Object.keys(local).length>0,hasFed=Object.keys(fed).length>0;
+  fallback.innerHTML=!hasLocal&&!hasFed
+    ?'<div class="subtle-note">当前数据版本暂无对比结果。</div>'
+    :`<table class="training-metric-table"><thead><tr><th>指标</th><th>普通集中式</th><th>四节点联邦</th></tr></thead><tbody>${[['准确率','accuracy'],['风险召回率','recall'],['F1','f1']].map(([label,key])=>`<tr><td>${label}</td><td>${optionalMetricDisplay(local[key])}</td><td>${optionalMetricDisplay(fed[key])}</td></tr>`).join('')}</tbody></table>${!hasLocal||!hasFed?'<div class="subtle-note mt-2">另一种训练方式完成后显示完整对比。</div>':''}`;
 }
 function renderTrainingCompare(){
   const local=trainingCompareState.local||{};
@@ -2083,7 +2189,9 @@ function renderTrainingCompare(){
     status.textContent=`准备版本 ${obj(currentPreparation).preparation_id||'-'}；本地：${localVersion}；联邦：${fedVersion}`;
   }
   if(typeof trainingCompareBox==='undefined')return;
-  const lp=pctValue(local.accuracy), fp=pctValue(fed.accuracy);
+  const hasLocal=Object.keys(local).length>0,hasFed=Object.keys(fed).length>0;
+  trainingCompareBox.hidden=!hasLocal&&!hasFed;
+  if(trainingCompareBox.hidden)return;
   const directlyComparable=String(local.metric_scope||'')==='shared_holdout_validation'
     && String(fed.metric_scope||'')==='shared_holdout_validation'
     && !!local.validation_id
@@ -2093,10 +2201,6 @@ function renderTrainingCompare(){
     && local.optimizer===fed.optimizer
     && Number(local.epochs)>0
     && Number(local.epochs)===Number(fed.epochs);
-  const maxSamples=Math.max(Number(local.samples)||0,Number(fed.samples)||0,1);
-  const lsp=sampleBarValue(local.samples,maxSamples), fsp=sampleBarValue(fed.samples,maxSamples);
-  const maxLoss=Math.max(Number(local.loss)||0,Number(fed.loss)||0,1);
-  const llp=sampleBarValue(local.loss,maxLoss), flp=sampleBarValue(fed.loss,maxLoss);
   const hasBothMetrics=Number.isFinite(Number(local.accuracy))&&Number.isFinite(Number(fed.accuracy));
   const gap=(directlyComparable&&hasBothMetrics)
     ? ((Number(fed.accuracy)-Number(local.accuracy))*100).toFixed(2)+' 个百分点'
@@ -2111,26 +2215,8 @@ function renderTrainingCompare(){
   const compareState=directlyComparable?(qualityWarning?'指标可比 · 质量告警':'可直接对比'):hasBothMetrics?'评测口径不同':'等待训练';
   trainingCompareBox.innerHTML=`
     <div class="compare-head">
-      <b>普通集中式 vs 四节点联邦训练</b>
+      <b>评测结论</b>
       <span class="mini-badge">${compareState}</span>
-    </div>
-    <div class="compare-split">
-      <div class="compare-box">
-        <h6>普通集中式</h6>
-        <div class="compare-row"><span>准确率</span><div class="bar-track"><div class="bar-fill" style="width:${lp}%"></div></div><b>${metricDisplay(local.accuracy)}</b></div>
-        <div class="compare-row"><span>风险召回率</span><div class="bar-track"><div class="bar-fill" style="width:${pctValue(local.recall)}%"></div></div><b>${optionalMetricDisplay(local.recall)}</b></div>
-        <div class="compare-row"><span>F1</span><div class="bar-track"><div class="bar-fill" style="width:${pctValue(local.f1)}%"></div></div><b>${optionalMetricDisplay(local.f1)}</b></div>
-        <div class="compare-row"><span>样本数</span><div class="bar-track"><div class="bar-fill" style="width:${lsp}%"></div></div><b>${esc(local.samples||'--')}</b></div>
-        <div class="compare-row"><span>损失</span><div class="bar-track"><div class="bar-fill loss" style="width:${llp}%"></div></div><b>${lossDisplay(local.loss)}</b></div>
-      </div>
-      <div class="compare-box">
-        <h6>四节点联邦</h6>
-        <div class="compare-row"><span>准确率</span><div class="bar-track"><div class="bar-fill fed" style="width:${fp}%"></div></div><b>${metricDisplay(fed.accuracy)}</b></div>
-        <div class="compare-row"><span>风险召回率</span><div class="bar-track"><div class="bar-fill fed" style="width:${pctValue(fed.recall)}%"></div></div><b>${optionalMetricDisplay(fed.recall)}</b></div>
-        <div class="compare-row"><span>F1</span><div class="bar-track"><div class="bar-fill fed" style="width:${pctValue(fed.f1)}%"></div></div><b>${optionalMetricDisplay(fed.f1)}</b></div>
-        <div class="compare-row"><span>样本数</span><div class="bar-track"><div class="bar-fill fed" style="width:${fsp}%"></div></div><b>${esc(fed.samples||'--')}</b></div>
-        <div class="compare-row"><span>损失</span><div class="bar-track"><div class="bar-fill loss" style="width:${flp}%"></div></div><b>${lossDisplay(fed.loss)}</b></div>
-      </div>
     </div>
     <div class="comparison-summary ${directlyComparable&&!qualityWarning?'ok':'warn'}">
       <i class="fas ${directlyComparable&&!qualityWarning?'fa-circle-check':'fa-triangle-exclamation'}"></i>
@@ -2142,6 +2228,18 @@ function renderTrainingCompare(){
 function trainLimit(){
   const n=Number(currentDatasetSource?.samples||0);
   return Math.max(100,Math.min(50000,n||10000));
+}
+function trainingComparisonBars(local,fed){
+  const metrics=[['准确率','accuracy'],['风险召回率','recall'],['F1','f1']];
+  const bar=(row,key,cls)=>{const value=row[key],valid=value!==null&&value!==undefined&&Number.isFinite(Number(value));return `<div class="comparison-bar ${cls}"><b>${valid?optionalMetricDisplay(value):'未完成'}</b><span style="height:${valid?Math.max(0,Math.min(100,Number(value)*100)):0}%"></span></div>`};
+  return `<div class="chart-legend"><span><i style="background:#6486b5"></i>普通集中式</span><span><i style="background:#75a58e"></i>四节点联邦</span></div><div class="comparison-bars" role="img" aria-label="两种训练方式的准确率、风险召回率和F1百分比柱状图">${metrics.map(([label,key])=>`<div><div class="comparison-bar-pair">${bar(local,key,'')}${bar(fed,key,'fed')}</div><div class="comparison-bar-title">${label}</div></div>`).join('')}</div>`;
+}
+function showTrainingDetails(){
+  const local=obj(trainingCompareState.local),fed=obj(trainingCompareState.federated);
+  if(!Object.keys(local).length&&!Object.keys(fed).length){toast('当前数据版本尚无训练结果','info');return}
+  const rows=[['准确率',optionalMetricDisplay(local.accuracy),optionalMetricDisplay(fed.accuracy)],['精确率',optionalMetricDisplay(local.precision),optionalMetricDisplay(fed.precision)],['风险召回率',optionalMetricDisplay(local.recall),optionalMetricDisplay(fed.recall)],['F1',optionalMetricDisplay(local.f1),optionalMetricDisplay(fed.f1)],['训练样本',local.samples??'--',fed.samples??'--'],['验证样本',local.validation_samples??'--',fed.validation_samples??'--'],['损失',lossDisplay(local.loss),lossDisplay(fed.loss)],['有效轮数',local.epochs??'--',fed.epochs??'--']];
+  const nodes=arr(fed.clients),crypto=obj(fed.paillier),ai=obj(currentTrainingAiComparison);
+  openWorkspaceDetail('训练对比明细',`${trainingComparisonBars(local,fed)}<table class="training-metric-table"><thead><tr><th>指标</th><th>普通集中式</th><th>四节点联邦</th></tr></thead><tbody>${rows.map(([k,l,f])=>`<tr><td>${esc(k)}</td><td>${esc(l)}</td><td>${esc(f)}</td></tr>`).join('')}</tbody></table><details class="compact-details"><summary>数据、模型与评测版本</summary><dl class="submission-detail-grid mt-3">${[['数据源',datasetDisplayName(currentDatasetSource)],['准备版本',obj(currentPreparation).preparation_id||'-'],['普通模型',local.version||'-'],['联邦模型',fed.version||'-'],['共享验证集',local.validation_id&&local.validation_id===fed.validation_id?local.validation_id:'不一致或尚未完成'],['聚合方式',aggregationMethodLabel(fed.method,crypto.secure_aggregation===true)]].map(([k,v])=>`<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl></details>${nodes.length?`<details class="compact-details"><summary>节点训练明细</summary><table class="training-metric-table"><thead><tr><th>节点</th><th>样本</th><th>本地诊断准确率</th></tr></thead><tbody>${nodes.map(node=>`<tr><td>${esc(federatedNodeLabel(node.name))}</td><td>${esc(node.samples)}</td><td>${optionalMetricDisplay(node.accuracy)}</td></tr>`).join('')}</tbody></table><div class="subtle-note mt-2">节点诊断值与上方共享留出集指标口径不同。</div></details>`:''}<div class="detail-paragraph"><b>AI 对比解读</b><div class="mt-2">${obj(ai.advice).summary?esc(ai.advice.summary):'可按需解读本次指标和安全聚合结果。'}</div><button class="btn-lightx mt-2" onclick="runTrainingAiComparison(event)" ${!Object.keys(local).length||!Object.keys(fed).length?'disabled':''}>AI 解读本次对比</button></div>`);
 }
 async function ensureTrainingSource(){
   if(!currentDatasetSourceId)await loadDatasetSourcesData(false);
@@ -2206,7 +2304,7 @@ async function runAdminFullTraining(){
     const prepared=await processSystemDatasetImpl(false);
     if(!prepared.ok)return;
     currentPreparation=obj(prepared.data);
-    await loadDatasetSourcesData(false);
+    await loadDatasetSourcesData(true);
     const local=await runAdminCentralizedTrain(false);
     if(!local.ok)return;
     const fed=await runAdminFederatedTrain(false);
@@ -2266,6 +2364,22 @@ async function loadTrainingRecords(force=false, withVersions=true){
   trainingCompareState={local:null,federated:null};
   if(latestLocal)trainingCompareState.local=trainingRecordToCompare(latestLocal);
   if(latestFed)trainingCompareState.federated=trainingRecordToCompare(latestFed);
+  const latestResult=latestFed
+    ? {label:'四节点联邦',data:trainingCompareState.federated}
+    : latestLocal
+      ? {label:'普通集中式',data:trainingCompareState.local}
+      : null;
+  if(latestResult&&typeof trainingResultSummary!=='undefined'){
+    const item=obj(latestResult.data);
+    trainingResultSummary.innerHTML=`
+      <div class="title">最近结果 · ${esc(latestResult.label)}</div>
+      <div class="result-grid">
+        <div class="result-item"><b>${esc(item.version||'-')}</b><span class="small-text text-muted">模型版本</span></div>
+        <div class="result-item"><b>${metricDisplay(item.accuracy)}</b><span class="small-text text-muted">共享留出集准确率</span></div>
+        <div class="result-item"><b>${esc(item.samples||'-')}</b><span class="small-text text-muted">训练样本</span></div>
+      </div>`;
+  }
+  if(!latestResult&&typeof trainingResultSummary!=='undefined')trainingResultSummary.innerHTML='<div class="title">当前数据版本尚无训练结果</div><div class="subtle-note">准备数据后点击“开始对比训练”。历史结果可在模型版本页查看。</div>';
   renderTrainingCompare();
   const displayRows=[...queueRows,...rows];
   trainingTable.innerHTML=displayRows.length?displayRows.map(x=>{
@@ -2487,6 +2601,14 @@ async function activateModelVersion(id){
   toast(r.ok?(r.msg||'模型版本状态已更新'):r.error,r.ok?'ok':'bad');
   loadModelVersions(true);
 }
+function selectAuditTab(kind){
+  const visits=kind==='visits';
+  document.getElementById('auditEventsPane').hidden=visits;
+  document.getElementById('auditVisitsPane').hidden=!visits;
+  document.getElementById('auditEventsTab').setAttribute('aria-selected',String(!visits));
+  document.getElementById('auditVisitsTab').setAttribute('aria-selected',String(visits));
+}
+function auditEventName(value){return ({site_visit:'页面访问',slow_api_detected:'接口响应慢',rate_limit_triggered:'访问限流',unauthorized_access:'未授权访问',path_scan:'路径扫描'})[value]||value||'安全事件'}
 function eventExtra(e){return obj(e.extra)}
 function eventEvidence(e){
   const ex=eventExtra(e), t=e.event_type||'';
@@ -2559,8 +2681,8 @@ function renderSuspiciousIps(events,visits){
   });
   const rows=[...map.values()].sort((a,b)=>b.risk-a.risk||b.count-a.count).slice(0,10);
   suspiciousIpTable.innerHTML=rows.length?rows.map(r=>`<tr>
-    <td>${esc(r.ip)}</td><td>${r.count}</td><td>${r.paths.size}</td><td>${r.risk}</td><td>${auditTimeCell(r.last)}</td><td title="${esc(r.topPath||'-')}">${esc(shortText(r.topPath,42))}</td>
-  </tr>`).join(''):'<tr><td colspan="6" class="text-muted">暂无聚合记录</td></tr>';
+    <td data-label="来源 IP">${esc(r.ip)}</td><td data-label="记录数">${r.count}</td><td data-label="关注事件">${r.risk}</td><td data-label="最近时间">${auditTimeCell(r.last)}</td>
+  </tr>`).join(''):'<tr><td colspan="4" class="text-muted">暂无聚合记录</td></tr>';
 }
 function renderAuditDetail(e,kind){
   const ex=obj(e.extra),g=obj(ex.geo);
@@ -2571,13 +2693,10 @@ function renderAuditDetail(e,kind){
     ['Host',ex.host],['端口',ex.server_port],['来源页',ex.referer],['判断依据',eventEvidence(e)],['原因',eventReason(e)],['建议',eventAdvice(e)]
   ];
   const extraText=JSON.stringify(ex,null,2);
-  auditDetailBox.classList.remove('text-muted');
-  auditDetailBox.innerHTML=`
+  openWorkspaceDetail(kind==='visit'?'访问详情':'安全事件详情',`
     <div class="detail-kv mb-3">${rows.map(x=>`<b>${esc(x[0])}</b><div>${esc(x[1]||'-')}</div>`).join('')}</div>
-    <div class="fw-bold mb-2">原始扩展信息</div>
-    <div class="audit-detail-json">${esc(extraText)}</div>
-  `;
-  auditDetailBox.scrollIntoView({behavior:'smooth',block:'center'});
+    <details class="audit-raw"><summary>原始扩展信息</summary><div class="audit-detail-json mt-2">${esc(extraText)}</div></details>
+  `);
 }
 function auditTimeCell(value){
   return `<span title="${esc(fmtTime(value))}">${esc(fmtCompactTime(value))}</span>`;
@@ -2614,9 +2733,9 @@ async function loadAudit(){
   const totalEvents=obj(all.data).total??events.length, totalVisits=obj(visit.data).total??visits.length;
   auditState={...auditState,events,visits,totalEvents,totalVisits};
   const high=events.filter(e=>['high','critical'].includes(e.risk_level)).length, med=events.filter(e=>e.risk_level==='medium').length, low=events.filter(e=>['low','info'].includes(e.risk_level)).length;
-  auditMetrics.innerHTML=[['安全事件',events.length],['高风险事件',high],['中风险事件',med],['低风险/信息',low]].map(x=>`<div class="metric"><div class="metric-value">${x[1]}</div><div class="metric-label">${x[0]}</div></div>`).join('');
+  auditMetrics.innerHTML=[['安全事件总数',totalEvents],['本页高风险',high],['本页中风险',med],['访问记录总数',totalVisits]].map(x=>`<div class="metric"><div class="metric-value">${x[1]}</div><div class="metric-label">${x[0]}</div></div>`).join('');
   const pageLimit=Number(auditLimit?.value||100)||100;
-  auditFilterSummary.textContent=`当前筛选：安全事件 ${totalEvents} 条，访问记录 ${totalVisits} 条`;
+  auditFilterSummary.textContent=`本页安全事件 ${events.length} 条、访问记录 ${visits.length} 条；风险数量按本页统计。`;
   eventPageInfo.textContent=auditPageText(auditState.eventOffset,events.length,totalEvents,pageLimit);
   visitPageInfo.textContent=auditPageText(auditState.visitOffset,visits.length,totalVisits,pageLimit);
   if(typeof eventPrevButton!=='undefined')eventPrevButton.disabled=auditState.eventOffset<=0;
@@ -2625,11 +2744,11 @@ async function loadAudit(){
   if(typeof visitNextButton!=='undefined')visitNextButton.disabled=auditState.visitOffset+visits.length>=totalVisits;
   renderSuspiciousIps(auditState.suspiciousEvents||events,auditState.suspiciousVisits||visits);
   eventTable.innerHTML=events.length?events.map((e,i)=>`<tr>
-    <td>${auditTimeCell(e.timestamp)}</td><td class="risk-${esc(e.risk_level)}">${esc(e.risk_level||'-')}</td><td title="${esc(e.event_type||'-')}">${esc(shortText(e.event_type,18))}</td><td title="${esc(e.path||'-')}">${esc(shortText(e.path,28))}</td><td class="short-cell" title="${esc(eventReason(e))}">${esc(shortText(eventReason(e),46))}</td><td class="short-cell" title="${esc(eventAdvice(e))}">${esc(shortText(eventAdvice(e),46))}</td><td><button class="btn-lightx" onclick="renderAuditDetail(auditState.events[${i}],'event')">详情</button></td>
-  </tr>`).join(''):'<tr><td colspan="7" class="text-muted">暂无安全事件</td></tr>';
+    <td data-label="时间">${auditTimeCell(e.timestamp)}</td><td data-label="风险" class="risk-${esc(e.risk_level)}">${esc(riskLevelText(e.risk_level))}</td><td data-label="来源 IP">${esc(e.ip||'-')}</td><td data-label="事件 / 路径"><b>${esc(auditEventName(e.event_type))}</b><div class="submission-meta">${esc(e.path||'-')}</div></td><td data-label="操作"><button class="btn-lightx" onclick="renderAuditDetail(auditState.events[${i}],'event')">详情</button></td>
+  </tr>`).join(''):'<tr><td colspan="5" class="text-muted">当前筛选下暂无安全事件</td></tr>';
   visitTable.innerHTML=visits.length?visits.map((e,i)=>{const ex=obj(e.extra);return`<tr>
-    <td>${auditTimeCell(e.timestamp)}</td><td>${esc(e.ip)}</td><td title="${esc(geoText(e))}">${esc(shortText(geoText(e),16))}</td><td>${esc(ex.device_type||'-')}</td><td>${esc(shortText(ex.os||'-',10))}</td><td>${esc(shortText(ex.browser||'-',10))}</td><td>${esc(e.method||'-')}</td><td>${esc(ex.server_port||'-')}</td><td title="${esc(e.path||'-')}">${esc(shortText(e.path,24))}</td><td><button class="btn-lightx" onclick="renderAuditDetail(auditState.visits[${i}],'visit')">详情</button></td>
-  </tr>`}).join(''):'<tr><td colspan="10" class="text-muted">暂无访问记录，刷新页面后会自动产生记录</td></tr>';
+    <td data-label="时间">${auditTimeCell(e.timestamp)}</td><td data-label="来源 IP">${esc(e.ip||'-')}</td><td data-label="设备 / 浏览器">${esc(ex.device_type||'未知设备')}<div class="submission-meta">${esc(ex.browser||'-')}</div></td><td data-label="访问路径">${esc(e.path||'-')}</td><td data-label="操作"><button class="btn-lightx" onclick="renderAuditDetail(auditState.visits[${i}],'visit')">详情</button></td>
+  </tr>`}).join(''):'<tr><td colspan="5" class="text-muted">当前筛选下暂无访问记录</td></tr>';
 }
 
 // Compatibility names kept for older inline checks.

@@ -51,7 +51,8 @@ data/system.db
 data/system.db-shm
 data/system.db-wal
 data/datasets/processed/
-data/federated/**/*.npy
+data/datasets/UNSW-NB15/
+data/federated/
 data/models/
 data/user_submissions/
 data/training_records.json
@@ -63,6 +64,8 @@ logs/
 .claude/settings.local.json
 .playwright-cli/
 .tmp_*/
+artifacts/ui-check/
+output/playwright/
 tools_inspect_plan.py
 
 # 操作系统

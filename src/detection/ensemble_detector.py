@@ -420,6 +420,7 @@ class EnsembleDetector:
 
     def status(self) -> Dict:
         with self._lock:
+            metadata = self._manifest.get("metadata") or {}
             return {
                 "ready": self._is_ready,
                 "is_ready": self._is_ready,
@@ -433,6 +434,17 @@ class EnsembleDetector:
                 "components": self._manifest.get("components") or {},
                 "model_count": sum(1 for enabled in (self._manifest.get("components") or {}).values() if enabled),
                 "artifact_dir": CURRENT_DIR,
+                # Keep the public context deliberately small: it is enough for
+                # the admin UI to detect a stale cross-source model without
+                # exposing submission IDs or local file paths.
+                "training_context": {
+                    "source_type": metadata.get("source_type") or metadata.get("source"),
+                    "preparation_id": metadata.get("preparation_id"),
+                    "dataset_revision": metadata.get("dataset_revision"),
+                    "samples": metadata.get("samples"),
+                    "validation_available": bool(metadata.get("validation_available")),
+                    "validation_samples": int(metadata.get("validation_samples") or 0),
+                },
             }
 
     def is_ready(self) -> bool:

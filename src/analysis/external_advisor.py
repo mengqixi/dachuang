@@ -28,7 +28,7 @@ from src.utils.atomic_files import atomic_write_bytes, atomic_write_json
 
 EXTERNAL_ADVISOR_INPUT_VERSION = "external-advisor-input-v1"
 EXTERNAL_ADVISOR_RESULT_VERSION = "external-advisor-result-v1"
-EXTERNAL_ADVISOR_PROMPT_VERSION = "privacy-advisor-zh-v3"
+EXTERNAL_ADVISOR_PROMPT_VERSION = "privacy-advisor-zh-v4-compact"
 EXTERNAL_PAYLOAD_POLICY = "redacted_aggregates_only"
 MAX_RESPONSE_BYTES = 1024 * 1024
 DEFAULT_MODEL = "gpt-5.6-sol"
@@ -1134,7 +1134,7 @@ class ExternalAdvisorClient:
             task = "依据同构普通集中式基线与四节点 FedAvg 的实际训练记录，对判定能力、安全边界和适用性进行对比，给出当前平台应采用的方案判断。"
         else:
             task = "对本地检测模型的脱敏风险信号进行第二判定，帮助用户得到更可靠的综合风险结论，并解释隐私与攻击风险。"
-        user_input = json.dumps({
+        request_input = {
             "task": task,
             "output_schema": {
                 "summary": "string",
@@ -1161,21 +1161,40 @@ class ExternalAdvisorClient:
                 "confidence_note": "string",
             },
             "aggregate_analysis": payload,
-        }, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        }
+        # Keep all input evidence, but ask only for fields used by this task.
+        # validate_advice fills omitted optional fields for existing consumers.
+        wanted_fields = (
+            ("summary", "security_findings", "metric_findings", "federated_tradeoffs",
+             "recommended_actions", "training_readiness", "comparison_verdict",
+             "training_advice", "comparison_advice", "confidence_note")
+            if analysis_kind == "training_security_comparison" else
+            ("summary", "privacy_findings", "attack_findings", "recommended_actions",
+             "sample_reviews", "confidence_note")
+        )
+        request_input["output_schema"] = {
+            key: request_input["output_schema"][key] for key in wanted_fields
+        }
+        user_input = json.dumps(request_input, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        instructions = _SYSTEM_INSTRUCTIONS + (
+            " 按本次output_schema选择输出字段，未列字段省略。summary不超过80个中文字；"
+            "每类发现和建议最多2条，每条不超过40字；sample_reviews覆盖输入中的重点样本，"
+            "每项reason和recommended_action各不超过35字。只返回完整JSON，不输出推理过程或重复解释。"
+        )
         common = {
             "model": self.settings["model"],
             "store": False,
         }
         if self.settings["mode"] == "responses":
             common.update({
-                "instructions": _SYSTEM_INSTRUCTIONS,
+                "instructions": instructions,
                 "input": user_input,
                 "max_output_tokens": self.settings["max_output_tokens"],
             })
         else:
             common.update({
                 "messages": [
-                    {"role": "system", "content": _SYSTEM_INSTRUCTIONS},
+                    {"role": "system", "content": instructions},
                     {"role": "user", "content": user_input},
                 ],
                 "max_completion_tokens": self.settings["max_output_tokens"],

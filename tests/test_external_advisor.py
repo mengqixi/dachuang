@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -53,12 +54,22 @@ def _advice(**overrides):
 
 
 class RedactedPayloadTests(unittest.TestCase):
+    def test_report_reuses_ai_and_both_roles_share_the_palette(self):
+        with open("index.html", "r", encoding="utf-8") as stream:
+            html = stream.read()
+        report = re.search(r'<section class="page" id="pg-report">(.*?)</section>', html, re.S).group(1)
+        self.assertNotIn("runUserAiAssist", report)
+        self.assertEqual(report.count('id="externalAnalysisBoxReport"'), 1)
+        self.assertIn("下载完整报告", report)
+        self.assertIn("submissionAiSummary(r)", html)
+        self.assertNotRegex(html, r'body\[data-app-mode="(?:admin|user)"\]\s*\{[^}]*--app-accent')
+
     def test_frontend_uses_small_optional_controls_not_a_new_page(self):
         with open("index.html", "r", encoding="utf-8") as stream:
             html = stream.read()
         self.assertIn("AI 接口设置", html)
         self.assertIn("使用 AI 辅助判定", html)
-        self.assertIn("AI 辅助选择模型", html)
+        self.assertIn("AI 解读本次对比", html)
         self.assertIn("同一共享留出集", html)
         self.assertIn("shared_holdout_validation", html)
         self.assertIn("epochs:20", html)
@@ -525,6 +536,18 @@ class ExternalAdvisorApiTests(unittest.TestCase):
             self.app_module._external_analysis_call_times.clear()
         if self.app_module._external_analysis_operation_lock.locked():
             self.app_module._external_analysis_operation_lock.release()
+
+    def test_reading_report_returns_saved_ai_without_provider_call(self):
+        saved = {"model": "unit-model", "advice": _advice(summary="已保存的安全复核结论")}
+        report = {"submission": {"id": "sub-unit"}, "analysis": {}, "external_analysis": saved}
+        with self.client.session_transaction() as session:
+            session[self.app_module.USER_SUBMISSION_SESSION_KEY] = ["sub-unit"]
+        with patch.object(self.app_module.user_submission_manager, "get_report", return_value=report), \
+             patch.object(self.app_module, "_create_external_advisor_client") as provider:
+            response = self.client.get("/api/user/reports/sub-unit")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["data"]["external_analysis"], saved)
+        provider.assert_not_called()
 
     def test_health_reports_the_primary_runtime_model(self):
         runtime_status = {

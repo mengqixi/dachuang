@@ -7,6 +7,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import numpy as np
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 os.chdir(os.path.join(os.path.dirname(__file__), ".."))
 
@@ -47,6 +49,13 @@ class TestPracticalPlatformRoadmap(unittest.TestCase):
         cls.submission_module = submission_module
         cls.client = app_module.app.test_client()
 
+    def _admin_client(self):
+        client = self.app_module.app.test_client()
+        with client.session_transaction() as session:
+            session["admin_logged_in"] = True
+            session["admin_username"] = "root"
+        return client
+
     @classmethod
     def tearDownClass(cls):
         for patcher in reversed(cls._patchers):
@@ -65,7 +74,10 @@ class TestPracticalPlatformRoadmap(unittest.TestCase):
         self.assertIn("riskMoreButton", html)
         self.assertIn("dataProcessReadyTitle", html)
         self.assertIn("currentDatasetSourceId\n      ? currentDatasetSource.prepared_for_federated", html)
-        self.assertIn("updateDataProcessReadyState(currentNodeBundleReady)", html)
+        self.assertIn(
+            "updateDataProcessReadyState(currentNodeBundleReady,currentRuntimeMatchesPreparation)",
+            html,
+        )
         self.assertIn("指标可比 · 质量告警", html)
         self.assertIn("隐私暴露风险", html)
         self.assertIn("analyzeSubmission", html)
@@ -237,11 +249,37 @@ class TestPracticalPlatformRoadmap(unittest.TestCase):
 
     def test_dataset_detection_rejects_invalid_pagination_without_500(self):
         with patch.object(self.app_module, "_processed_dataset_ready", return_value=True):
-            invalid = self.app_module.app.test_client().post(
+            invalid = self._admin_client().post(
                 "/api/ensemble/detect_from_dataset",
                 json={"limit": "many", "offset": -1, "seed": -3},
             )
         self.assertEqual(invalid.status_code, 400, invalid.get_json())
+
+    def test_dataset_detection_requires_model_from_current_preparation(self):
+        fake_x = np.zeros((2, 18), dtype=np.float64)
+        fake_y = np.array([0, 1], dtype=np.int32)
+        fake_meta = {"preparation_id": "prep-current", "source": "test.csv"}
+
+        with (
+            patch.object(self.app_module, "_processed_dataset_ready", return_value=True),
+            patch.object(self.app_module, "_load_prepared_arrays", return_value=(fake_x, fake_y, fake_meta)),
+            patch.object(self.app_module, "_ensure_runtime_ensemble_ready", return_value=True),
+            patch(
+                "src.detection.ensemble_detector.ensemble_detector.status",
+                return_value={
+                    "ready": True,
+                    "version": "model-old",
+                    "training_context": {"preparation_id": "prep-old"},
+                },
+            ),
+        ):
+            response = self._admin_client().post(
+                "/api/ensemble/detect_from_dataset",
+                json={"limit": 2, "offset": 0},
+            )
+
+        self.assertEqual(response.status_code, 409, response.get_json())
+        self.assertEqual(response.get_json()["data"]["preparation_id"], "prep-current")
 
     def test_legacy_write_and_heavy_routes_require_admin_session(self):
         guest = self.app_module.app.test_client()
@@ -253,6 +291,7 @@ class TestPracticalPlatformRoadmap(unittest.TestCase):
             "/api/detection/analyze",
             "/api/detection/real",
             "/api/ensemble/detect",
+            "/api/ensemble/detect_from_dataset",
         ):
             with self.subTest(path=path):
                 response = guest.post(path, json={})
