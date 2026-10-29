@@ -118,3 +118,12 @@ acme.sh 客户端放在 `bin-local/`，所有账户密钥和证书位于忽略�
 运行状态和验证记录保存在 `data/muse_https/`，需要查看有效期和进程状态，不应把状态文件存在等同于服务仍在线。
 这个项目内进程并非宝塔托管或系统开机自启；服务器重启后须重新启动它。长期使用应另行明确选择托管和证书失败告警方式。
 `scripts/verify_muse_tunnel.py` 优先验证此直连入口，使用默认系统CA验证证书和IP，不跳过TLS验证。
+
+## 当前 Muse 连接器入口（域名 HTTPS）
+
+Muse 连接器注册要求公网 DNS 主机名，不接受裸 IP。用户已申请 `dachuang-muse.duckdns.org`，其 A 记录指向 `47.110.65.93`。
+当前正式基础地址为 `https://dachuang-muse.duckdns.org/api/integrations/muse/v1/`。
+上节的 IP 地址是历史过渡入口，不再用于 Muse 注册；现在的 `muse_direct_https.py` 加载域名证书，并为该域名执行 TLS-ALPN-01 自动续期。
+域名、IP 入口均不经过 Cloudflare。原有令牌、资源路径、参数和权限完全不变。
+不需要将 DuckDNS 账户 token 交给服务器或 Muse，也不需要部署动态DNS更新进程；只需保持域名 A 记录指向本服务器。
+请在 Muse 更新或重新注册连接器的主机白名单，再用原凭据验证 200/401。不能把平台端验证通过等同于连接器注册或微信端到端验证已完成。

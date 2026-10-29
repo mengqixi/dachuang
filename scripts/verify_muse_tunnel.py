@@ -20,7 +20,7 @@ def verify():
     state = json.loads(state_path.read_text())
     base = state['base_url']
     parts = urlsplit(base)
-    assert parts.scheme == 'https' and (parts.hostname == '47.110.65.93' or parts.hostname.endswith('.trycloudflare.com'))
+    assert parts.scheme == 'https' and (parts.hostname in ('dachuang-muse.duckdns.org', '47.110.65.93') or parts.hostname.endswith('.trycloudflare.com'))
     assert parts.path == '/api/integrations/muse/v1/' and not parts.query and not parts.fragment
     token = (ROOT / 'data/keys/muse_readonly.token').read_text().strip()
     opener = build_opener(NoRedirect())

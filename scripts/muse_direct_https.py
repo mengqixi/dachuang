@@ -1,4 +1,4 @@
-"""Project-only IP HTTPS gateway with bounded certificate renewal.
+"""Project-only domain HTTPS gateway with bounded certificate renewal.
 
 No Baota, Apache, Nginx, firewall or system service configuration changes.
 Only the existing six read-only routes are exposed; credentials stay upstream.
@@ -18,10 +18,10 @@ from pathlib import Path
 from muse_readonly_gateway import ReadOnlyGateway
 
 ROOT = Path(__file__).resolve().parents[1]
-IP = '47.110.65.93'
-CERT_DIR = ROOT / 'data/keys/muse_https' / (IP + '_ecc')
+HOSTNAME = 'dachuang-muse.duckdns.org'
+CERT_DIR = ROOT / 'data/keys/muse_https' / (HOSTNAME + '_ecc')
 CERT = CERT_DIR / 'fullchain.cer'
-KEY = CERT_DIR / (IP + '.key')
+KEY = CERT_DIR / (HOSTNAME + '.key')
 STATE_DIR = ROOT / 'data/muse_https'
 STOP = threading.Event()
 
@@ -59,7 +59,7 @@ def expiry_epoch():
 
 
 def write_state():
-    data = {'base_url': 'https://' + IP + '/api/integrations/muse/v1/',
+    data = {'base_url': 'https://' + HOSTNAME + '/api/integrations/muse/v1/',
             'pid': os.getpid(), 'certificate_not_after_utc': datetime.fromtimestamp(expiry_epoch(), timezone.utc).isoformat(),
             'renewal': 'check every 6 hours; renew with less than 48 hours remaining',
             'read_only': True, 'transport': 'direct_https'}
@@ -75,7 +75,7 @@ def renew_certificate(logger):
                '--cert-home', str(ROOT / 'data/keys/muse_https'),
                '--server', 'https://acme-v02.api.letsencrypt.org/directory',
                '--certificate-profile', 'shortlived', '--alpn', '--ecc',
-               '-d', IP, '--renew', '--force']
+               '-d', HOSTNAME, '--renew', '--force']
     with open(str(STATE_DIR / 'acme_renew.log'), 'wb') as output:
         result = subprocess.run(command, cwd=str(ROOT), stdout=output, stderr=output, timeout=180)
     if result.returncode:

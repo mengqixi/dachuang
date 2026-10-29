@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import logging
 import subprocess
 import sys
@@ -42,6 +43,15 @@ def test_renewal_uses_only_project_paths_and_alpn(tmp_path, monkeypatch):
     command, kwargs = received[0]
     assert '--alpn' in command and '--force' in command
     assert '--certificate-profile' in command and 'shortlived' in command
+    assert command[command.index('-d') + 1] == 'dachuang-muse.duckdns.org'
     assert '--http' not in command and '--install' not in command
     assert kwargs['timeout'] == 180
     assert kwargs['cwd'] == str(tmp_path)
+
+
+def test_state_uses_registered_dns_hostname(tmp_path, monkeypatch):
+    monkeypatch.setattr(direct, 'STATE_DIR', tmp_path)
+    monkeypatch.setattr(direct, 'expiry_epoch', lambda: 1793839500)
+    direct.write_state()
+    state = json.loads((tmp_path / 'state.json').read_text())
+    assert state['base_url'] == 'https://dachuang-muse.duckdns.org/api/integrations/muse/v1/'
