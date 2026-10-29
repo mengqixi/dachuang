@@ -15,10 +15,12 @@ class NoRedirect(HTTPRedirectHandler):
 
 
 def verify():
-    state = json.loads((ROOT / 'data/muse_tunnel/state.json').read_text())
+    direct = ROOT / 'data/muse_https/state.json'
+    state_path = direct if direct.is_file() else ROOT / 'data/muse_tunnel/state.json'
+    state = json.loads(state_path.read_text())
     base = state['base_url']
     parts = urlsplit(base)
-    assert parts.scheme == 'https' and parts.hostname.endswith('.trycloudflare.com')
+    assert parts.scheme == 'https' and (parts.hostname == '47.110.65.93' or parts.hostname.endswith('.trycloudflare.com'))
     assert parts.path == '/api/integrations/muse/v1/' and not parts.query and not parts.fragment
     token = (ROOT / 'data/keys/muse_readonly.token').read_text().strip()
     opener = build_opener(NoRedirect())
@@ -54,7 +56,7 @@ def verify():
         assert status == expected, (name, status, expected)
         results[name] = {'http': status}
     result = {'base_url': base, 'checks': results, 'verified_at_utc': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}
-    (ROOT / 'data/muse_tunnel/verification.json').write_text(json.dumps(result, sort_keys=True))
+    (state_path.parent / 'verification.json').write_text(json.dumps(result, sort_keys=True))
     print(json.dumps(result))
 
 

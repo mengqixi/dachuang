@@ -60,6 +60,7 @@ data/logs/
 logs/
 *.pid
 data/muse_tunnel/
+data/muse_https/
 bin-local/
 
 # Local assistant/check artifacts

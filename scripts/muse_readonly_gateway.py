@@ -22,10 +22,10 @@ class ReadOnlyGateway(ThreadingMixIn, HTTPServer):
     daemon_threads = True
     allow_reuse_address = True
 
-    def __init__(self, port=18561, upstream_port=5001):
+    def __init__(self, port=18561, upstream_port=5001, bind_host='127.0.0.1'):
         self.upstream_port = upstream_port
         self.slots = threading.BoundedSemaphore(4)
-        super().__init__(('127.0.0.1', port), GatewayHandler)
+        super().__init__((bind_host, port), GatewayHandler)
 
     def get_request(self):
         connection, address = super().get_request()
@@ -34,15 +34,7 @@ class ReadOnlyGateway(ThreadingMixIn, HTTPServer):
 
     def process_request(self, connection, address):
         if not self.slots.acquire(False):
-            try:
-                connection.sendall(b'HTTP/1.0 503 Service Unavailable\r\nContent-Length: 0\r\nConnection: close\r\n\r\n')
-                connection.shutdown(socket.SHUT_WR)
-                # Drain the initial request packet so an unread socket does
-                # not reset the response on Windows. Bound the accept delay.
-                connection.settimeout(.05)
-                connection.recv(8192)
-            except OSError:
-                pass
+            self.reject_connection(connection)
             self.shutdown_request(connection)
             return
         try:
@@ -50,6 +42,15 @@ class ReadOnlyGateway(ThreadingMixIn, HTTPServer):
         except Exception:
             self.slots.release()
             raise
+
+    def reject_connection(self, connection):
+        try:
+            connection.sendall(b'HTTP/1.0 503 Service Unavailable\r\nContent-Length: 0\r\nConnection: close\r\n\r\n')
+            connection.shutdown(socket.SHUT_WR)
+            connection.settimeout(.05)
+            connection.recv(8192)
+        except OSError:
+            pass
 
     def process_request_thread(self, connection, address):
         try:
