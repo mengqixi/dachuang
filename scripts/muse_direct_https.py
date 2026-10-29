@@ -8,6 +8,7 @@ import logging
 import os
 import signal
 import ssl
+import sys
 import subprocess
 import threading
 import time
@@ -19,7 +20,7 @@ from muse_readonly_gateway import ReadOnlyGateway
 
 ROOT = Path(__file__).resolve().parents[1]
 HOSTNAME = 'dachuang-muse.duckdns.org'
-CERT_DIR = ROOT / 'data/keys/muse_https' / (HOSTNAME + '_ecc')
+CERT_DIR = ROOT / 'data/keys/muse_https' / HOSTNAME
 CERT = CERT_DIR / 'fullchain.cer'
 KEY = CERT_DIR / (HOSTNAME + '.key')
 STATE_DIR = ROOT / 'data/muse_https'
@@ -43,9 +44,17 @@ class DirectTLSGateway(ReadOnlyGateway):
         try:
             connection = self.context.wrap_socket(connection, server_side=True, do_handshake_on_connect=False)
             return connection, address
-        except Exception:
+        except Exception as error:
+            logging.getLogger('muse.direct_https').warning('TLS socket setup failed: %s', type(error).__name__)
             connection.close()
             raise
+
+    def handle_error(self, connection, address):
+        error = sys.exc_info()[1]
+        reason = str(getattr(error, 'reason', '') or '')
+        reason = ''.join(c for c in reason if c.isupper() or c.isdigit() or c == '_')[:80]
+        # No peer IP, hostname, HTTP headers, request path or secret values.
+        logging.getLogger('muse.direct_https').warning('TLS/request failed: %s %s', type(error).__name__, reason)
 
     def reject_connection(self, connection):
         # Reject without a TLS handshake on the accept thread when saturated.
@@ -74,7 +83,7 @@ def renew_certificate(logger):
                '--config-home', str(ROOT / 'data/keys/muse_acme_production'),
                '--cert-home', str(ROOT / 'data/keys/muse_https'),
                '--server', 'https://acme-v02.api.letsencrypt.org/directory',
-               '--certificate-profile', 'shortlived', '--alpn', '--ecc',
+               '--certificate-profile', 'shortlived', '--alpn', '--keylength', '2048',
                '-d', HOSTNAME, '--renew', '--force']
     with open(str(STATE_DIR / 'acme_renew.log'), 'wb') as output:
         result = subprocess.run(command, cwd=str(ROOT), stdout=output, stderr=output, timeout=180)
@@ -92,6 +101,7 @@ def run():
     logger = logging.getLogger('muse.direct_https')
     logger.setLevel(logging.INFO)
     handler = RotatingFileHandler(str(STATE_DIR / 'service.log'), maxBytes=1024 * 1024, backupCount=1)
+    handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
     logger.addHandler(handler)
     for signum in (signal.SIGTERM, signal.SIGINT):
         signal.signal(signum, lambda *_args: STOP.set())

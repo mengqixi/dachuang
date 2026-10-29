@@ -127,3 +127,11 @@ Muse 连接器注册要求公网 DNS 主机名，不接受裸 IP。用户已申�
 域名、IP 入口均不经过 Cloudflare。原有令牌、资源路径、参数和权限完全不变。
 不需要将 DuckDNS 账户 token 交给服务器或 Muse，也不需要部署动态DNS更新进程；只需保持域名 A 记录指向本服务器。
 请在 Muse 更新或重新注册连接器的主机白名单，再用原凭据验证 200/401。不能把平台端验证通过等同于连接器注册或微信端到端验证已完成。
+
+### TLS 客户端兼容性
+
+当前域名入口使用 RSA-2048 证书（目录无 `_ecc` 后缀），续期显式指定 `--keylength 2048`，避免回到 ECC 证书。
+这一调整针对部分客户端出现的 `NO_SHARED_CIPHER`；不降低 TLS 1.2 下限、不关闭证书校验、不切换明文HTTP。
+复核应包含独立客户端，而不能只依赖服务器本机请求：至少检查 Windows Schannel 和 Node HTTPS 的无令牌401，以及带令牌200和错误令牌401。
+RSA 切换不表示所有客户端问题已解决；应保留各客户端实际测试结果。握手异常在 `data/muse_https/service.log` 中仅记录时间、阶段和错误类型，不记录凭据、请求头或访客IP。
+旧的 `muse_tunnel_control.py status` 仅描述已经停用的 Cloudflare 隧道，不能用来判断当前域名 HTTPS 网关是否存活；当前状态见 `data/muse_https/state.json`，并结合其中PID的实际工作目录、命令和真实HTTPS请求核验。
