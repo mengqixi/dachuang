@@ -54,6 +54,28 @@ def _advice(**overrides):
 
 
 class RedactedPayloadTests(unittest.TestCase):
+    def test_ai_settings_advanced_fields_are_collapsed_and_keys_stay_protected(self):
+        with open("index.html", "r", encoding="utf-8") as stream:
+            html = stream.read()
+        advanced = re.search(r'<details class="compact-details" id="externalAiAdvanced">(.*?)</details>',html,re.S)
+        self.assertIsNotNone(advanced)
+        for field in ("externalAiMode","externalAiEndpoint","externalAiTimeout"):
+            self.assertIn('id="'+field+'"', advanced.group(1))
+            self.assertEqual(html.count('id="'+field+'"'),1)
+        self.assertNotIn("externalAiApiKey",advanced.group(1))
+        self.assertIn("keyInput.disabled=d.secret_input_allowed===false",html)
+        self.assertIn("if(key)value.api_key=key",html)
+        self.assertIn("发送一次测试请求，可能产生费用",html)
+
+    def test_detection_omits_removed_explanatory_rows(self):
+        with open("index.html", "r", encoding="utf-8") as stream:
+            html = stream.read()
+        self.assertNotIn("riskTopHint", html)
+        self.assertNotIn("本地模型是默认主判定。只有主动点击", html)
+        self.assertNotIn("可按需点击“使用 AI 辅助判定”", html)
+        self.assertIn('id="currentModelHint"', html)
+        self.assertIn("renderRiskRows();", html)
+
     def test_report_reuses_ai_and_both_roles_share_the_palette(self):
         with open("index.html", "r", encoding="utf-8") as stream:
             html = stream.read()

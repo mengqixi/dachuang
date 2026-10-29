@@ -71,7 +71,10 @@ class TestPracticalPlatformRoadmap(unittest.TestCase):
         self.assertIn("分析报告", html)
         self.assertIn("需关注样本排名", html)
         self.assertIn("risk_ranking", html)
-        self.assertIn("riskMoreButton", html)
+        self.assertNotIn("riskMoreButton", html)
+        self.assertNotIn("riskRowsVisible", html)
+        self.assertNotIn("showMoreRiskRows", html)
+        self.assertIn("rows.map(riskRowHtml)", html)
         self.assertIn("dataProcessReadyTitle", html)
         self.assertIn("currentDatasetSourceId\n      ? currentDatasetSource.prepared_for_federated", html)
         self.assertIn(
@@ -84,6 +87,60 @@ class TestPracticalPlatformRoadmap(unittest.TestCase):
         self.assertNotIn("Top 20", html)
         self.assertNotIn("风险详情模块", html)
         self.assertNotIn("展开详情按钮", html)
+
+    def test_training_approval_is_one_step_and_rejection_keeps_archive(self):
+        upload = self.client.post('/api/user/datasets/upload',
+            data={'file':(io.BytesIO(b'username,failed_attempts,label\nalice,3,1\n'),'approval.csv')},
+            content_type='multipart/form-data').get_json()
+        self.assertEqual(upload['code'],200,upload)
+        pending=upload['data'];sid=pending['id']
+        self.assertTrue(pending['encrypted'])
+        self.assertFalse(pending['trainable'])
+        self.assertEqual(pending['allowed_actions'],['mark_trainable','reject'])
+        stored=lambda: next(x for x in self.submission_module._read_index()['submissions'] if x['id']==sid)
+        original=stored()
+        self.assertEqual(self.app_module.app.test_client().post(f'/api/admin/submissions/{sid}/mark-trainable').status_code,401)
+        admin=self._admin_client()
+        approved=admin.post(f'/api/admin/submissions/{sid}/mark-trainable').get_json()
+        self.assertEqual(approved['code'],200,approved)
+        self.assertTrue(approved['data']['trainable'])
+        self.assertEqual(approved['data']['allowed_actions'],['reject'])
+        self.assertEqual(approved['data']['training_runs'],0)
+        self.assertEqual(len(stored()['review_history']),1)
+        rejected=admin.post(f'/api/admin/submissions/{sid}/reject',json={}).get_json()
+        self.assertEqual(rejected['code'],200,rejected)
+        self.assertFalse(rejected['data']['trainable'])
+        self.assertTrue(rejected['data']['encrypted'])
+        self.assertEqual(rejected['data']['allowed_actions'],['mark_trainable'])
+        after=stored()
+        self.assertEqual(after['encrypted_path'],original['encrypted_path'])
+        self.assertTrue(Path(after['encrypted_path']).is_file())
+        restored=admin.post(f'/api/admin/submissions/{sid}/mark-trainable').get_json()
+        self.assertTrue(restored['data']['trainable'])
+
+    def test_legacy_archive_needs_only_training_approval(self):
+        summary=self.app_module.user_submission_manager.public_summary({
+            'id':'legacy','review_status':'已归档','trainable':False,'row_count':1})
+        self.assertEqual(summary['allowed_actions'],['mark_trainable','reject'])
+        with open('index.html',encoding='utf-8') as stream:
+            html=stream.read()
+        self.assertNotIn('archiveSubmission(',html)
+        self.assertIn('>允许训练</button>',html)
+
+    def test_score_explanation_uses_original_model_signal_for_both_fusion_paths(self):
+        module = self.submission_module
+        for row, model_score, expected in [
+            ({}, 0.9, 0.765),
+            ({"failed_attempts":20,"request_frequency":200,"response_time":3,"unusual_hour":1}, 0.2, 0.66),
+            ({"failed_attempts":200,"request_frequency":2000,"response_time_ms":30000}, 0.0, 0.53),
+        ]:
+            with self.subTest(row=row):
+                final = module._fusion_score(row, {"risk_score":model_score})
+                self.assertEqual(final, expected)
+                b = module._risk_breakdown(row, {"risk_score":final,"raw_model_score":model_score})
+                self.assertEqual(b["model_score"], model_score)
+                self.assertEqual(b["final_score"], expected)
+                self.assertEqual(module._clip_score(max(b["weighted_score"], b["model_floor"])), expected)
 
     def test_user_analysis_returns_unified_risk_schema_and_sorted_ranking(self):
         rows = [
@@ -139,6 +196,11 @@ class TestPracticalPlatformRoadmap(unittest.TestCase):
         for detection in data["detections"]:
             self.assertTrue(required.issubset(detection.keys()), detection)
             self.assertIsInstance(detection["score_breakdown"], dict)
+            parts = detection["score_breakdown"]
+            self.assertEqual(parts["calculation_version"], "fusion-score-explanation-v1")
+            self.assertEqual(parts["model_score"], self.submission_module._clip_score(detection["raw_model_score"]))
+            expected = self.submission_module._clip_score(max(parts["weighted_score"], parts["model_floor"]))
+            self.assertEqual(expected, detection["risk_score"])
 
         self.assertIn("risk_score_distribution", data)
         self.assertIn("trigger_feature_stats", data)

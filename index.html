@@ -157,6 +157,8 @@ main.container-fluid{max-width:1600px;margin:0 auto}
 /* Compact source and audit views share a single, readable content column. */
 .workspace-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
 .workspace-toolbar .toolbar-end{margin-left:auto}.workspace-table-wrap{max-height:none;overflow:visible}
+.source-category-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 10px}.source-context{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:16px;font-size:13px;color:#425b72}.source-model-status{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:#708090;margin-top:12px}.source-model-status span{overflow-wrap:anywhere}.source-model-status .btn-lightx{padding:4px 8px;font-size:12px}
+.source-category-tabs .audit-tab[aria-pressed="true"]{color:var(--app-accent);background:rgba(var(--app-accent-rgb),.08);border-color:rgba(var(--app-accent-rgb),.25);font-weight:650}
 .workspace-table{table-layout:fixed;width:100%;white-space:normal!important;min-width:0!important}
 .workspace-table th,.workspace-table td{white-space:normal!important;overflow-wrap:anywhere;padding:12px 10px;vertical-align:middle}
 .source-table th:nth-child(1){width:32%}.source-table th:nth-child(2){width:13%}.source-table th:nth-child(3){width:21%}.source-table th:nth-child(4){width:12%}.source-table th:nth-child(5){width:22%}
@@ -179,6 +181,9 @@ main.container-fluid{max-width:1600px;margin:0 auto}
 .comparison-bars{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin:20px 0}.comparison-bar-pair{height:150px;display:flex;gap:12px;justify-content:center;align-items:flex-end;border-bottom:1px solid #dce5ed;padding-top:25px}.comparison-bar{height:100%;width:45px;display:flex;justify-content:flex-end;flex-direction:column;align-items:center}.comparison-bar b{font-size:11px;white-space:nowrap;margin-bottom:4px;color:#475569}.comparison-bar span{display:block;width:100%;border-radius:5px 5px 0 0;background:#6486b5;min-height:0}.comparison-bar.fed span{background:#75a58e}.comparison-bar-title{text-align:center;font-size:12px;margin-top:8px;color:#586c7d}.chart-legend{display:flex;gap:16px;font-size:12px;justify-content:center;color:#647586}.chart-legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px}.compact-ai-summary{font-size:12px;color:#526c84;line-height:1.6;white-space:normal;margin-top:6px;overflow-wrap:anywhere}.report-charts{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px}.sample-detail-link{border:0;background:none;color:#326fa4;padding:0;text-decoration:underline;text-underline-offset:3px;cursor:pointer}.detail-paragraph{font-size:13px;line-height:1.8;overflow-wrap:anywhere;margin-top:14px}.report-section-title{font-size:15px;font-weight:650;margin:20px 0 10px}.report-note{overflow-wrap:anywhere}.risk-source-table th:nth-child(1){width:8%}.risk-source-table th:nth-child(2){width:24%}.risk-source-table th:nth-child(3){width:15%}.risk-source-table th:nth-child(4){width:23%}.risk-source-table th:nth-child(5){width:20%}.risk-source-table th:nth-child(6){width:10%}
 @media(max-width:720px){.report-charts{grid-template-columns:1fr}.comparison-bars{gap:10px}.comparison-bar{width:30px}.risk-source-table td:nth-child(2),.risk-source-table td:nth-child(4),.risk-source-table td:nth-child(5){grid-column:1/-1}}
 .risk-source-table .btn-lightx{white-space:nowrap;padding:6px 10px}
+#externalAiSettingsModal .mini-modal-card{width:min(640px,96vw)}
+#externalAiSettingsModal .form-label,#externalAiSettingsModal .form-check-label{font-size:13px}
+.score-info-button{display:inline-flex;align-items:center;justify-content:center;width:19px;height:19px;padding:0;margin-left:5px;border:1px solid #cad9e7;border-radius:50%;background:#f3f7fb;color:var(--app-accent);font-size:11px;vertical-align:middle;cursor:pointer}.score-info-button:focus-visible{outline:2px solid var(--app-accent);outline-offset:2px}.score-component-table td:last-child{font-weight:400;text-align:left}.score-component-table{font-size:12px}
 .workspace-modal .detail-kv{font-size:13px;line-height:1.7}.workspace-modal .detail-kv>div{overflow-wrap:anywhere;white-space:normal}
 @media(max-width:720px){
   .audit-toolbar,.audit-advanced{grid-template-columns:1fr}.audit-toolbar .btn-main{width:100%}
@@ -281,11 +286,9 @@ main.container-fluid{max-width:1600px;margin:0 auto}
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">中风险</div></div>
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">低风险</div></div>
         </div>
-        <div class="notice mt-3" id="riskTopHint">检测完成后按风险分数展示需优先关注的样本。</div>
         <div class="notice mt-2" id="currentModelHint">当前检测模型：加载中...</div>
         <div class="ai-assist-card" id="externalAnalysisBoxDetect">
           <div class="ai-title"><span><i class="fas fa-wand-magic-sparkles"></i> AI 辅助判定</span><span class="mini-badge">按需调用</span></div>
-          <div class="ai-local-primary">本地模型是默认主判定。只有主动点击上方按钮时才调用 AI；未配置或不使用 AI 时，本页全部功能照常运行。</div>
         </div>
       </div>
     </div>
@@ -306,7 +309,6 @@ main.container-fluid{max-width:1600px;margin:0 auto}
             <tbody id="reasonTable"><tr><td colspan="6" class="text-muted">暂无检测结果</td></tr></tbody>
           </table>
           </div>
-          <button class="btn-lightx mt-3" id="riskMoreButton" type="button" onclick="showMoreRiskRows()" hidden>显示更多</button>
         </div>
     </div>
   </section>
@@ -409,12 +411,15 @@ main.container-fluid{max-width:1600px;margin:0 auto}
             </div>
           </div>
         </details>
-        <div class="metric-grid source-metrics mt-3" id="systemDataMetrics">
-          <div class="metric"><div class="metric-value">--</div><div class="metric-label">当前数据源</div></div>
-          <div class="metric"><div class="metric-value">--</div><div class="metric-label">样本</div></div>
-          <div class="metric"><div class="metric-value">--</div><div class="metric-label">特征</div></div>
-          <div class="metric"><div class="metric-value">--</div><div class="metric-label">联邦节点</div></div>
+        <div class="source-context" id="datasetCurrentSourceLabel">当前数据源：加载中</div>
+        <div class="metric-grid mt-3" id="systemDataMetrics">
+          <div class="metric"><div class="metric-value">--</div><div class="metric-label">原始样本</div></div>
+          <div class="metric"><div class="metric-value">--</div><div class="metric-label">已准备样本</div></div>
+          <div class="metric"><div class="metric-value">--</div><div class="metric-label">训练分区</div></div>
+          <div class="metric"><div class="metric-value">--</div><div class="metric-label">验证分区</div></div>
         </div>
+        <div class="source-model-status" id="datasetModelStatus"></div>
+        <div class="source-category-tabs" id="datasetCategoryTabs" role="group" aria-label="数据源分类"></div>
         <div class="scroll-box workspace-table-wrap mt-3">
           <table class="table table-sm workspace-table source-table">
             <thead><tr><th>数据源</th><th>数据量</th><th>标签分布</th><th>状态</th><th>操作</th></tr></thead>
@@ -594,14 +599,22 @@ main.container-fluid{max-width:1600px;margin:0 auto}
       <button class="mini-close" type="button" onclick="closeMiniModal('externalAiSettingsModal')" aria-label="关闭">×</button>
     </div>
     <div class="mini-modal-body">
-      <div class="ai-local-primary mb-3">AI 是可选的第二判定服务，不会替代本地模型，也不会自动调用。发给 AI 的内容仅包含聚合统计和归一化风险信号，不含账号、IP 或原始字段值。</div>
       <div class="ai-settings-grid">
-        <label class="form-label mb-0">API Base URL
+        <label class="form-label mb-0">接口地址
           <input class="form-control mt-1" id="externalAiBaseUrl" placeholder="https://provider.example/v1" autocomplete="off">
         </label>
         <label class="form-label mb-0">模型名称
           <input class="form-control mt-1" id="externalAiModel" value="gpt-5.6-sol" autocomplete="off">
         </label>
+        <label class="form-label wide mb-0">API 密钥 <span class="subtle-note">留空不修改</span>
+          <input class="form-control mt-1" id="externalAiApiKey" type="password" autocomplete="new-password" placeholder="输入 API Key">
+        </label>
+        <label class="form-check wide mb-0"><input class="form-check-input" type="checkbox" id="externalAiEnabled"> <span class="form-check-label">启用 AI 复核</span></label>
+        <label class="form-check wide mb-0"><input class="form-check-input" type="checkbox" id="externalAiUserEnabled"> <span class="form-check-label">允许用户使用</span></label>
+      </div>
+      <details class="compact-details" id="externalAiAdvanced">
+        <summary>高级设置</summary>
+        <div class="ai-settings-grid mt-3">
         <label class="form-label mb-0">接口模式
           <select class="form-select mt-1" id="externalAiMode" onchange="updateExternalAiEndpointHint()">
             <option value="chat_completions">Chat Completions</option>
@@ -611,20 +624,18 @@ main.container-fluid{max-width:1600px;margin:0 auto}
         <label class="form-label mb-0">接口路径
           <input class="form-control mt-1" id="externalAiEndpoint" readonly value="/chat/completions">
         </label>
-        <label class="form-label mb-0">超时（秒，5–90）
+        <label class="form-label mb-0">超时（秒）
           <input class="form-control mt-1" id="externalAiTimeout" type="number" min="5" max="90" value="45">
         </label>
-        <label class="form-label mb-0">API Key（留空表示不修改）
-          <input class="form-control mt-1" id="externalAiApiKey" type="password" autocomplete="new-password" placeholder="已保存时只显示掩码">
-        </label>
-        <label class="form-check wide mb-0"><input class="form-check-input" type="checkbox" id="externalAiEnabled"> <span class="form-check-label">启用管理端 AI 辅助判定</span></label>
-        <label class="form-check wide mb-0"><input class="form-check-input" type="checkbox" id="externalAiUserEnabled"> <span class="form-check-label">允许用户主动选择 AI 辅助判定（仍不会自动调用）</span></label>
-      </div>
-      <div class="secret-note mt-3" id="externalAiSecretNote">API Key 由后端加密保存，页面和查询接口不会返回明文。公网配置密钥必须使用 HTTPS。</div>
-      <div class="config-status mt-2" id="externalAiConfigStatus">尚未读取配置。</div>
+        </div>
+        <div class="subtle-note mt-3" id="externalAiConfigMeta"></div>
+        <div class="subtle-note mt-2">仅手动调用，向 AI 发送脱敏统计，不发送原始账号或 IP。</div>
+      </details>
+      <div class="secret-note mt-3" id="externalAiSecretNote">密钥加密保存。</div>
+      <div class="subtle-note mt-2" id="externalAiConfigStatus" role="status" aria-live="polite">正在读取配置…</div>
     </div>
     <div class="mini-modal-foot">
-      <button class="btn-lightx" type="button" onclick="testExternalAiSettings(event)"><i class="fas fa-plug"></i> 测试（调用一次）</button>
+      <button class="btn-lightx" type="button" onclick="testExternalAiSettings(event)" title="发送一次测试请求，可能产生费用">测试连接</button>
       <button class="btn-lightx" type="button" onclick="closeMiniModal('externalAiSettingsModal')">取消</button>
       <button class="btn-main" type="button" onclick="saveExternalAiSettings(event)"><i class="fas fa-save"></i> 保存</button>
     </div>
@@ -672,8 +683,10 @@ let currentSubmissionId = localStorage.getItem('currentSubmissionId') || '';
 let currentReport = '';
 let adminLoggedIn = false;
 let lastRiskReasons = [];
-let riskRowsVisible = 20;
 let datasetSourcesExpanded = false;
+let datasetSourceCategory = 'all';
+let datasetSourceList = [];
+let datasetSourceContext = {};
 let currentAnalysis = null;
 let currentExternalAnalysis = null;
 let currentReportPayload = null;
@@ -914,7 +927,7 @@ function privacyRiskBadge(value){
 }
 function toggleDatasetSources(){
   datasetSourcesExpanded=!datasetSourcesExpanded;
-  loadDatasetSourcesData(false);
+  renderDatasetSourceList();
 }
 function closeMiniModal(id){const el=document.getElementById(id);if(el)el.hidden=true}
 function openMiniModal(id){const el=document.getElementById(id);if(el)el.hidden=false}
@@ -995,7 +1008,7 @@ function resetExternalAiDatasetResult(){
   currentExternalAnalysis=null;
   ['externalAnalysisBoxDetect','externalAnalysisBoxReport'].forEach(id=>{
     const target=document.getElementById(id);
-    if(target)target.innerHTML='<div class="ai-title"><span>AI 辅助判定</span><span class="mini-badge">未使用</span></div><div class="ai-local-primary">'+(id==='externalAnalysisBoxReport'?'如需 AI 辅助，请在风险检测页发起；报告自动同步已有结论。':'可按需点击“使用 AI 辅助判定”，本地模型结果始终保留。')+'</div>';
+    if(target)target.innerHTML='<div class="ai-title"><span>AI 辅助判定</span><span class="mini-badge">未使用</span></div>'+(id==='externalAnalysisBoxReport'?'<div class="ai-local-primary">如需 AI 辅助，请在风险检测页发起；报告自动同步已有结论。</div>':'');
   });
 }
 function parseJsonObject(value){
@@ -1072,8 +1085,9 @@ function trainingDataNote(metric){
 }
 function reviewStatusBadge(row){
   const status=row.review_status||'待审核';
-  const cls=status==='可训练'?'ok':status==='已拒绝'?'bad':status==='已归档'?'info':'warn';
-  return `<span class="status-pill ${cls}" title="${esc(row.review_status_note||'')}">${esc(status)}</span>`;
+  const label=row.trainable?'已允许训练':status==='已归档'?'待审核':status;
+  const cls=label==='已允许训练'?'ok':label==='已拒绝'?'bad':'warn';
+  return `<span class="status-pill ${cls}" title="${esc(row.review_status_note||'')}">${esc(label)}</span>`;
 }
 function lifecycleBadge(row){
   const status=row.lifecycle_status||'待审核';
@@ -1083,18 +1097,6 @@ function lifecycleBadge(row){
   if(row.last_model_version)meta.push(`版本 ${row.last_model_version}`);
   return `<span class="status-pill ${cls}">${esc(status)}</span>${meta.length?`<div class="small-text text-muted mt-1">${esc(meta.join(' / '))}</div>`:''}`;
 }
-function submissionActionButtons(row){
-  const id=esc(row.id);
-  const actions=arr(row.allowed_actions);
-  const buttons=[
-    `<button class="btn-lightx me-1" onclick="analyzeSubmission('${id}')">本地分析</button>`,
-    `<button class="btn-lightx me-1" onclick="runAdminSubmissionAi('${id}',event)">AI辅助</button>`
-  ];
-  if(actions.includes('archive'))buttons.push(`<button class="btn-lightx me-1" onclick="archiveSubmission('${id}')">归档</button>`);
-  if(actions.includes('mark_trainable'))buttons.push(`<button class="btn-lightx me-1" onclick="markTrainable('${id}')">可训练</button>`);
-  if(actions.includes('reject'))buttons.push(`<button class="btn-lightx" onclick="rejectSubmission('${id}')">拒绝</button>`);
-  return buttons.join('')||'<span class="text-muted">无操作</span>';
-}
 let submissionRows=[];
 function submissionAiSummary(row){
   const result=obj(row.external_analysis),advice=obj(result.advice);
@@ -1102,8 +1104,7 @@ function submissionAiSummary(row){
 }
 function submissionReviewButtons(row,index){
   const actions=arr(row.allowed_actions),buttons=[];
-  if(actions.includes('archive'))buttons.push(`<button class="btn-lightx" onclick="archiveSubmission(submissionRows[${index}].id)">归档</button>`);
-  if(actions.includes('mark_trainable'))buttons.push(`<button class="btn-lightx" onclick="markTrainable(submissionRows[${index}].id)">可训练</button>`);
+  if(actions.includes('mark_trainable'))buttons.push(`<button class="btn-lightx" onclick="markTrainable(submissionRows[${index}].id,event)">允许训练</button>`);
   if(actions.includes('reject'))buttons.push(`<button class="btn-lightx submission-reject" onclick="rejectSubmission(submissionRows[${index}].id)">拒绝</button>`);
   return buttons.length?`<div class="submission-actions submission-review-actions">${buttons.join('')}</div>`:'';
 }
@@ -1461,13 +1462,29 @@ function riskRowHtml(r,index){
   return `<tr>
     <td data-label="排名">${esc(r.rank||'-')}</td>
     <td data-label="IP / 样本"><button class="sample-detail-link" onclick="showRiskDetail(${index})">${esc(r.ip||'查看样本')}</button><div class="submission-meta">样本 ${esc(r.id)} · ${esc(r.username||'-')}</div></td>
-    <td data-label="本地风险" class="risk-${esc(r.risk_level)}">${esc(r.risk_level_zh||riskLevelText(r.risk_level))}<div class="submission-meta">${esc(r.risk_score??'--')}</div></td>
+    <td data-label="本地风险" class="risk-${esc(r.risk_level)}">${esc(r.risk_level_zh||riskLevelText(r.risk_level))}<div class="submission-meta">${esc(r.risk_score??'--')}<button class="score-info-button" type="button" title="查看分数计算过程" aria-label="查看样本 ${esc(r.id)} 的分数计算过程" onclick="showScoreCalculation(${index})">?</button></div></td>
     <td data-label="主要因素">${esc(r.dominant_factor||arr(r.trigger_features)[0]||'-')}<div class="submission-meta">${esc(r.attack_type||'-')}</div></td>
     <td data-label="AI / 综合判定">${ai?`<span class="status-pill ${ai.needs_manual_review?'warn':'info'}">综合 ${esc(riskLevelText(ai.combined_risk_level))}</span><div class="submission-meta">AI ${esc(riskLevelText(ai.ai_risk_level))}${ai.needs_manual_review?' · 待复核':''}</div>`:'<span class="text-muted">未使用 AI</span>'}</td>
     <td data-label="操作"><button class="btn-lightx" onclick="showRiskDetail(${index})">详情</button></td>
   </tr>`;
 }
 function triggerLabel(key){return ({failed_attempts:'失败登录',request_frequency:'请求频率',unusual_time:'异常时间',response_time:'响应时间',device_ip:'设备 / IP',password_strength:'密码强度',model:'模型信号'})[key]||key}
+function scoreCalculationHtml(row){
+  const r=obj(row),b=obj(r.score_breakdown),weights=obj(b.weights),rules=obj(b.component_rules);
+  const header=`<div class="detail-paragraph"><b>样本 ${esc(r.id??'-')} · 风险分数 ${esc(r.risk_score??'--')}</b></div>`;
+  const keys=['failed_attempts_score','request_frequency_score','unusual_time_score','response_time_score','device_ip_score','model_score'];
+  const valid=b.calculation_version==='fusion-score-explanation-v1'&&typeof b.final_score==='number'&&Number.isFinite(b.final_score)&&keys.every(k=>typeof b[k]==='number'&&Number.isFinite(b[k])&&typeof weights[k]==='number'&&Number.isFinite(weights[k]));
+  if(!valid)return header+'<div class="notice mt-3">这份结果未记录完整的评分计算过程。请重新执行“检测当前提交”，生成可追溯的分项及权重。</div>';
+  const fmt=n=>Number(n).toFixed(6).replace(/0+$/,'').replace(/\.$/,'');
+  const weighted=keys.reduce((s,k)=>s+b[k]*weights[k],0),floor=b.model_score*0.85;
+  const unrounded=Math.max(0,Math.min(1,Math.max(weighted,floor))),calculated=b.final_score;
+  const matches=Number.isFinite(Number(r.risk_score))&&Math.abs(calculated-Number(r.risk_score))<0.000001&&Math.abs(unrounded-calculated)<0.000051;
+  return header+`<div class="workspace-table-wrap"><table class="training-metric-table score-component-table"><thead><tr><th>分项</th><th>分值</th><th>权重</th><th>贡献</th></tr></thead><tbody>${keys.map(k=>`<tr><td>${esc(triggerLabel(k.replace(/_score$/,'')))}</td><td>${esc(fmt(b[k]))}</td><td>${esc(Math.round(weights[k]*100))}%</td><td>${esc(fmt(b[k]*weights[k]))}</td></tr>`).join('')}</tbody></table></div><div class="detail-paragraph"><b>加权合计：</b>${esc(fmt(weighted))}<br><b>模型保底：</b>${esc(fmt(b.model_score))} × 0.85 = ${esc(fmt(floor))}<br><b>最终评分：</b>取两者较大值，裁剪到 0～1，保留四位小数 = <b>${esc(calculated.toFixed(4))}</b></div>${matches?'':'<div class="notice mt-2">分项与保存的总分不一致，请重新检测；此处不会改写原分数。</div>'}<div class="subtle-note mt-2">低风险 &lt;0.35；中风险 [0.35,0.65)；高风险 [0.65,0.85)；严重风险 ≥0.85。风险评分不是校准概率，AI 不参与该分数计算。</div><details class="compact-details"><summary>各分项的计算规则与观测值</summary>${keys.map(k=>`<div class="detail-paragraph"><b>${esc(triggerLabel(k.replace(/_score$/,'')))}</b>：${esc(rules[k]||'未记录')}</div>`).join('')}<table class="training-metric-table"><thead><tr><th>观测项</th><th>数值</th></tr></thead><tbody>${arr(b.indicators).map(x=>`<tr><td>${esc(x.name)}</td><td>${esc(x.value??'--')}</td></tr>`).join('')}</tbody></table><div class="subtle-note mt-2">缺失数值字段按现有规则默认值计算，并不代表真实观测为零。各分项先裁剪并保留四位小数后参与加权。</div></details>`;
+}
+function showScoreCalculation(index){
+  const rows=arr(obj(currentAnalysis).risk_ranking||obj(currentAnalysis).high_risk_reasons||lastRiskReasons),r=rows[index];
+  if(r)openWorkspaceDetail('分数计算过程',scoreCalculationHtml(r));
+}
 function showRiskDetail(index){
   const rows=arr(obj(currentAnalysis).risk_ranking||obj(currentAnalysis).high_risk_reasons||lastRiskReasons),r=rows[index];if(!r)return;
   const peers=r.ip&&r.ip!=='-'?rows.filter(row=>row.ip===r.ip):[r],ai=aiDecisionForRisk(r),breakdown=obj(r.score_breakdown);
@@ -1477,17 +1494,7 @@ function showRiskDetail(index){
 }
 function renderRiskRows(){
   const rows=arr(lastRiskReasons);
-  const visible=rows.slice(0,riskRowsVisible);
-  reasonTable.innerHTML=visible.length?visible.map(riskRowHtml).join(''):'<tr><td colspan="6" class="text-muted">暂无需优先关注的样本</td></tr>';
-  const button=document.getElementById('riskMoreButton');
-  if(button){
-    button.hidden=visible.length>=rows.length;
-    button.textContent=`显示更多（${visible.length}/${rows.length}）`;
-  }
-}
-function showMoreRiskRows(){
-  riskRowsVisible+=20;
-  renderRiskRows();
+  reasonTable.innerHTML=rows.length?rows.map(riskRowHtml).join(''):'<tr><td colspan="6" class="text-muted">暂无需优先关注的样本</td></tr>';
 }
 function renderAnalysis(d){
   currentAnalysis = obj(d);
@@ -1503,10 +1510,6 @@ function renderAnalysis(d){
   renderRiskStatsBoard(d);
   const rows=arr(d.risk_ranking || d.high_risk_reasons);
   lastRiskReasons=rows;
-  riskRowsVisible=Math.min(20,rows.length);
-  riskTopHint.textContent=rows.length
-    ? `共检测 ${d.total||0} 条，当前显示前 ${Math.min(riskRowsVisible,rows.length)} 条需关注样本。`
-    : `本次检测未发现需要优先关注的样本，完整检测样本数 ${d.total||0}。`;
   renderRiskRows();
 }
 function renderReportStructured(payload){
@@ -1624,13 +1627,15 @@ function applyExternalAiSettings(data){
   keyInput.disabled=d.secret_input_allowed===false;
   updateExternalAiEndpointHint();
   const source=d.source==='environment'?'服务器环境变量':d.source==='admin_ui'?'管理端加密配置':'未配置';
-  document.getElementById('externalAiConfigStatus').innerHTML=`状态：<b>${d.ready?'已启用并可调用':d.configured?'已配置但未启用':'尚未完整配置'}</b> · 来源：${esc(source)} · 模型：${esc(d.model||'-')} · 每小时上限：${esc(d.calls_per_hour||20)} 次${arr(d.managed_fields).length?`<br>环境变量覆盖字段：${esc(arr(d.managed_fields).join('、'))}`:''}`;
+  document.getElementById('externalAiConfigStatus').textContent=d.ready?'已启用':d.configured?'已配置，未启用':'配置未完成';
+  document.getElementById('externalAiConfigMeta').innerHTML=`来源：${esc(source)} · 每小时上限 ${esc(d.calls_per_hour||20)} 次${arr(d.managed_fields).length?`<br>环境变量覆盖字段：${esc(arr(d.managed_fields).join('、'))}`:''}`;
   document.getElementById('externalAiSecretNote').textContent=d.secret_input_allowed===false
-    ? '当前管理端不是 HTTPS，页面禁止提交新密钥。请使用 HTTPS 或在服务器环境变量中配置 API Key。'
-    : 'API Key 由后端 AES-256-GCM 加密保存，页面和查询接口不会返回明文。';
+    ? 'HTTP 页面不能修改密钥，请使用 HTTPS 或服务器配置。'
+    : '密钥加密保存，留空不修改。';
 }
 async function openExternalAiSettings(){
   openMiniModal('externalAiSettingsModal');
+  document.getElementById('externalAiAdvanced').open=false;
   document.getElementById('externalAiConfigStatus').textContent='正在读取配置...';
   const res=await api('/api/admin/external-ai/settings');
   if(!res.ok){document.getElementById('externalAiConfigStatus').textContent=res.error||'配置读取失败';return}
@@ -1648,12 +1653,12 @@ async function saveExternalAiSettings(ev){
 async function testExternalAiSettings(ev){
   const btn=ev&&ev.currentTarget, oldHtml=btn?btn.innerHTML:'';
   if(btn){btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> 测试中';}
-  document.getElementById('externalAiConfigStatus').textContent='正在使用固定脱敏测试数据调用一次 AI...';
+  document.getElementById('externalAiConfigStatus').textContent='正在测试（调用一次 AI）…';
   try{
     const res=await apiWithTimeout('/api/admin/external-ai/settings/test',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(externalAiFormPayload())},100000);
     if(!res.ok){document.getElementById('externalAiConfigStatus').textContent=res.error||'接口测试失败';toast(res.error||'接口测试失败','bad');return}
     const d=obj(res.data);
-    document.getElementById('externalAiConfigStatus').textContent=`测试成功：${d.model||'-'} / ${d.mode||'-'} / ${d.latency_ms||'-'} ms；本小时剩余 ${d.remaining_calls_this_hour??'-'} 次。`;
+    document.getElementById('externalAiConfigStatus').textContent=`测试成功${Number.isFinite(Number(d.latency_ms))?' · '+(Number(d.latency_ms)/1000).toFixed(1)+' 秒':''}`;
     toast('AI 接口测试成功','ok');
   }finally{if(btn){btn.disabled=false;btn.innerHTML=oldHtml;}}
 }
@@ -1674,6 +1679,65 @@ async function loadAdminData(force=false){
   await Promise.allSettled([loadDatasetSourcesData(force), loadSubmissionsData(force)]);
 }
 let compactDatasetRows=[];
+function datasetSourceCategoryKey(source){
+  const s=obj(source),type=String(s.source_type||'').toLowerCase();
+  if(['user_submission','user_submission_pool'].includes(type)||String(s.id||'').startsWith('submission:')||s.id==='user_submission_pool')return 'user';
+  if(type==='local_generated')return 'system';
+  if(['unsw-nb15','cic-ids2017','cse-cic-ids2018','cic-ddos2019'].includes(type))return 'public';
+  return 'other';
+}
+function datasetSourceCategoryLabel(source){
+  const key=datasetSourceCategoryKey(source);
+  if(key==='user')return obj(source).source_type==='user_submission_pool'||obj(source).id==='user_submission_pool'?'用户数据 · 汇总数据池':'用户数据 · 单份提交';
+  return ({system:'系统样本',public:'公开数据集',other:'其他数据'})[key];
+}
+function setDatasetSourceCategory(category){
+  if(!['all','user','public','system','other'].includes(category))return;
+  datasetSourceCategory=category;datasetSourcesExpanded=false;renderDatasetSourceList();
+}
+function renderDatasetSourceList(){
+  const sources=sortDatasetSourcesForDisplay(datasetSourceList);
+  const categories=[['all','全部'],['user','用户数据'],['public','公开数据集'],['system','系统样本']];
+  if(datasetSourceCategory==='other'||sources.some(s=>datasetSourceCategoryKey(s)==='other'))categories.push(['other','其他数据']);
+  document.getElementById('datasetCategoryTabs').innerHTML=categories.map(([key,label])=>{
+    const count=key==='all'?sources.length:sources.filter(s=>datasetSourceCategoryKey(s)===key).length;
+    return `<button class="audit-tab" type="button" aria-pressed="${datasetSourceCategory===key}" onclick="setDatasetSourceCategory('${key}')">${label} ${count}</button>`;
+  }).join('');
+  const filtered=sources.filter(s=>datasetSourceCategory==='all'||datasetSourceCategoryKey(s)===datasetSourceCategory);
+  const available=filtered.filter(s=>s.exists!==false&&Number(s.samples||0)>0);
+  const primary=(available.length?available:filtered).slice(0,6);
+  const visible=datasetSourcesExpanded?filtered:primary;
+  const toggle=document.getElementById('datasetSourceToggle');
+  toggle.hidden=filtered.length<=primary.length;
+  toggle.textContent=datasetSourcesExpanded?'收起数据源':`显示本类全部（${filtered.length}）`;
+  document.getElementById('datasetSourceSummary').textContent=`显示 ${visible.length} / ${filtered.length} 个数据源`;
+  compactDatasetRows=visible;
+  datasetSourceTable.innerHTML=visible.length?visible.map((s,index)=>`<tr data-current="${String(s.id)===String(currentDatasetSourceId)}">
+    <td data-label="数据源"><b>${esc(datasetDisplayName(s))}</b><div class="submission-meta">${esc(datasetSourceCategoryLabel(s))}${String(s.id)===String(currentDatasetSourceId)?' · 当前数据源':''}</div></td>
+    <td data-label="数据量">${esc(Number(s.samples||0).toLocaleString())} 条<div class="submission-meta">${esc(s.features||0)} 个原始字段</div></td>
+    <td data-label="标签分布">${renderDistTags(s.label_distribution,{'0':'正常','1':'风险'})}${distributionScopeNote(s)}</td>
+    <td data-label="状态">${s.exists===false?'<span class="status-pill warn">未导入</span>':s.source_type==='user_submission'&&!s.trainable?'<span class="status-pill warn">待审核</span>':s.prepared_for_federated?'<span class="status-pill ok">已准备</span>':'<span class="status-pill warn">待准备</span>'}</td>
+    <td data-label="操作"><div class="submission-actions">${datasetSourceActions(s)}</div></td></tr>`).join(''):'<tr><td colspan="5" class="text-muted">此分类暂无数据源</td></tr>';
+}
+function datasetPreparationCounts(source,preparation){
+  const s=obj(source),p=obj(preparation);
+  const matches=Boolean(s.prepared_for_federated&&s.id&&p.dataset_source_id&&String(s.id)===String(p.dataset_source_id));
+  return {raw:s.samples??'--',prepared:matches?(p.samples??'--'):'--',train:matches?(p.training_samples??'--'):'--',validation:matches?(p.validation_samples??'--'):'--',matches};
+}
+function renderDatasetPreparationSummary(data){
+  datasetSourceContext=obj(data);
+  const p=obj(data.processed),s=obj(currentDatasetSource),counts=datasetPreparationCounts(s,p);
+  document.getElementById('datasetCurrentSourceLabel').innerHTML=`<b>当前数据源：${esc(datasetDisplayName(s))}</b><span class="mini-badge">${esc(datasetSourceCategoryLabel(s))}</span>`;
+  systemDataMetrics.innerHTML=[['原始样本',counts.raw],['已准备样本',counts.prepared],['训练分区',counts.train],['验证分区',counts.validation]].map(([label,value])=>`<div class="metric"><div class="metric-value">${esc(typeof value==='number'?value.toLocaleString():value)}</div><div class="metric-label">${label}</div></div>`).join('');
+  const runtime=obj(obj(data.model_inventory).runtime_detector),context=obj(runtime.training_context);
+  const relation=!runtime.ready?'尚未就绪':!context.preparation_id?'来源版本未记录':counts.matches&&context.preparation_id===p.preparation_id?'对应当前准备版本':'未对应当前准备版本';
+  document.getElementById('datasetModelStatus').innerHTML=`<span>检测模型：${esc(shortText(runtime.version||'未记录',32))}</span><span class="status-pill ${runtime.ready?'info':'warn'}">${relation}</span><button class="btn-lightx" type="button" onclick="showDatasetModelRelation()">查看关联</button>${counts.matches&&Number(counts.prepared)<Number(counts.raw)?'<span>本次仅准备原始数据的一部分</span>':''}`;
+}
+function showDatasetModelRelation(){
+  const data=datasetSourceContext,p=obj(data.processed),runtime=obj(obj(data.model_inventory).runtime_detector),context=obj(runtime.training_context),counts=datasetPreparationCounts(currentDatasetSource,p);
+  const values=[['当前数据源',datasetDisplayName(currentDatasetSource)],['原始样本',counts.raw],['已准备样本',counts.prepared],['训练分区',counts.train],['独立验证分区',counts.validation],['准备版本',counts.matches?p.preparation_id:'当前数据源尚未准备'],['检测模型',runtime.name||'未记录'],['模型版本',runtime.version||'未记录'],['模型训练的准备版本',context.preparation_id||'未记录']];
+  openWorkspaceDetail('数据与模型关联',`<dl class="submission-detail-grid">${values.map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v??'--')}</dd>`).join('')}</dl><div class="detail-paragraph">数据准备只生成特征、训练/验证分区及四节点数据。对比训练比较普通与联邦模型；只有“更新检测模型”才会更新用户端实际检测器。</div>`);
+}
 function datasetDisplayName(source){
   const s=obj(source),name=String(s.name||s.source_type||'数据源'),file=String(s.source||'').toLowerCase();
   if(s.source_type==='UNSW-NB15')return 'UNSW-NB15 '+(file.includes('training')?'训练集':file.includes('testing')?'测试集':'数据集');
@@ -1688,7 +1752,7 @@ function openWorkspaceDetail(title,html){
 }
 function showDatasetDetail(index){
   const s=compactDatasetRows[index];if(!s)return;
-  const rows=[['数据源',datasetDisplayName(s)],['来源',s.source||'-'],['类型',s.source_type||'-'],['样本',s.samples??0],['原始字段',s.features??0],['标签列',s.label_column||'未识别'],['用途',s.description||'-']];
+  const rows=[['数据源',datasetDisplayName(s)],['分类',datasetSourceCategoryLabel(s)],['来源',s.source||'-'],['类型',s.source_type||'-'],['样本',s.samples??0],['原始字段',s.features??0],['标签列',s.label_column||'未识别'],['用途',s.description||'-']];
   openWorkspaceDetail('数据源详情',`<dl class="submission-detail-grid">${rows.map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}<dt>标签分布</dt><dd>${renderDistTags(s.label_distribution,{'0':'正常','1':'风险'})}${distributionScopeNote(s)}</dd><dt>攻击类型</dt><dd>${renderDistTags(s.attack_type_distribution)}</dd></dl>`);
 }
 function renderDataProcessStructure(data){
@@ -1753,18 +1817,9 @@ async function loadDatasetSourcesData(force=false){
     currentDatasetSource = chooseCurrentDatasetSource(sources, sourcesData.processed, sd);
     currentDatasetSourceId = obj(currentDatasetSource).id || '';
     if(currentDatasetSourceId)rememberCurrentDatasetSource(currentDatasetSourceId);
-    const displaySources = sortDatasetSourcesForDisplay(sources);
-    const availableSources=displaySources.filter(s=>s.exists!==false&&Number(s.samples||0)>0);
-    const primarySources=availableSources.slice(0,6);
-    const visibleSources=datasetSourcesExpanded?displaySources:primarySources;
-    const preparedCount=sources.filter(s=>s.prepared_for_federated).length;
+    datasetSourceList=sources;
     renderDataProcessStructure(sourcesData);
-    systemDataMetrics.innerHTML=[
-      ['当前训练源',datasetDisplayName(currentDatasetSource)],
-      ['当前源样本',currentDatasetSource.samples||sd.samples||0],
-      ['可用数据源',availableSources.length],
-      ['准备状态',currentDatasetSource.prepared_for_federated?'4 / 4 节点':'待准备']
-    ].map(x=>`<div class="metric"><div class="metric-value">${esc(x[1])}</div><div class="metric-label">${x[0]}</div></div>`).join('');
+    renderDatasetPreparationSummary(sourcesData);
     // Once a managed source is selected, only that source may decide whether
     // the training entry is ready.  The legacy dataset status can describe a
     // different, previously prepared source and must not keep stale nodes live.
@@ -1774,32 +1829,11 @@ async function loadDatasetSourcesData(force=false){
     const runtimeContext=obj(obj(obj(sourcesData.model_inventory).runtime_detector).training_context);
     currentRuntimeMatchesPreparation=Boolean(currentPreparation.preparation_id&&runtimeContext.preparation_id===currentPreparation.preparation_id);
     updateDataProcessReadyState(trainingReady,currentRuntimeMatchesPreparation);
-    const sourceToggle=document.getElementById('datasetSourceToggle');
-    const sourceSummary=document.getElementById('datasetSourceSummary');
-    if(sourceToggle){
-      sourceToggle.hidden=displaySources.length<=primarySources.length;
-      sourceToggle.textContent=datasetSourcesExpanded?'收起数据源':`显示全部数据源（${displaySources.length}）`;
-    }
-    if(sourceSummary){
-      const hidden=Math.max(0,displaySources.length-visibleSources.length);
-      sourceSummary.textContent=datasetSourcesExpanded
-        ? `已显示全部 ${displaySources.length} 个数据源`
-        : `显示 ${visibleSources.length} / ${displaySources.length} 个数据源`;
-    }
     if(typeof trainingSourceBox!=='undefined')trainingSourceBox.innerHTML=`<div class="d-flex align-items-center flex-wrap gap-2"><b>${esc(currentDatasetSource.name||currentDatasetSource.source||sd.source||'未检测')}</b><span class="mini-badge">${esc(currentDatasetSource.source_type||sd.source_type||'-')}</span><span class="status-pill ${trainingReady?'ok':'warn'}">${trainingReady?'已准备':'待同步'}</span></div>`;
     if(typeof trainDataMetric!=='undefined')trainDataMetric.textContent=currentDatasetSource.samples||sd.samples||0;
     if(typeof trainFeatureMetric!=='undefined')trainFeatureMetric.textContent=(currentDatasetSource.samples||sd.samples)?18:0;
     if(typeof trainNodeMetric!=='undefined')trainNodeMetric.textContent=trainingReady?'4 / 4':'待同步';
-    if(typeof datasetSourceTable!=='undefined'){
-      compactDatasetRows=visibleSources;
-      datasetSourceTable.innerHTML=visibleSources.length?visibleSources.map(s=>`<tr data-current="${String(s.id)===String(currentDatasetSourceId)}">
-        <td data-label="数据源"><b>${esc(datasetDisplayName(s))}</b>${String(s.id)===String(currentDatasetSourceId)?'<div class="submission-meta">当前数据源</div>':''}</td>
-        <td data-label="数据量">${esc(Number(s.samples||0).toLocaleString())} 条<div class="submission-meta">${esc(s.features||0)} 个原始字段</div></td>
-        <td data-label="标签分布">${renderDistTags(s.label_distribution, {'0':'正常','1':'风险'})}${distributionScopeNote(s)}</td>
-        <td data-label="状态">${s.exists===false?'<span class="status-pill warn">未导入</span>':s.prepared_for_federated?'<span class="status-pill ok">已准备</span>':'<span class="status-pill warn">待准备</span>'}</td>
-        <td data-label="操作"><div class="submission-actions">${datasetSourceActions(s)}</div></td>
-      </tr>`).join(''):'<tr><td colspan="5" class="text-muted">未检测到可用训练数据源</td></tr>';
-    }
+    renderDatasetSourceList();
     return true;
   }catch(err){
     console.error('loadDatasetSourcesData failed',err);
@@ -1946,8 +1980,14 @@ async function runAdminSubmissionAi(id,ev){
     return r;
   }finally{if(btn){btn.disabled=false;btn.innerHTML=oldHtml;}}
 }
-async function archiveSubmission(id){const r=await api(`/api/admin/submissions/${id}/archive`,{method:'POST'});invalidateSubmissionAndDataPages();toast(r.ok?'已归档':r.error,r.ok?'ok':'bad');loadSubmissionsData(true);}
-async function markTrainable(id){const r=await api(`/api/admin/submissions/${id}/mark-trainable`,{method:'POST'});invalidateSubmissionAndDataPages();toast(r.ok?'已标记可训练':r.error,r.ok?'ok':'bad');loadSubmissionsData(true);}
+async function markTrainable(id,ev){
+  const btn=ev&&ev.currentTarget;if(btn)btn.disabled=true;
+  try{
+    const r=await api(`/api/admin/submissions/${encodeURIComponent(id)}/mark-trainable`,{method:'POST'});
+    toast(r.ok?'已允许训练':r.error,r.ok?'ok':'bad');
+    if(r.ok){invalidateSubmissionAndDataPages();await loadSubmissionsData(true);}
+  }finally{if(btn)btn.disabled=false;}
+}
 async function rejectSubmission(id){const r=await api(`/api/admin/submissions/${id}/reject`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:'管理员确认暂不进入训练池'})});invalidateSubmissionAndDataPages();toast(r.ok?'已拒绝进入训练池':r.error,r.ok?'ok':'bad');loadSubmissionsData(true);}
 function federatedNodeLabel(name){
   return ({hospital:'医疗节点',bank:'银行节点',insurance:'保险节点',government:'政务节点'})[String(name||'').toLowerCase()]||name||'节点';

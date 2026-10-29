@@ -3284,7 +3284,7 @@ def admin_submission_mark_trainable(submission_id):
         except Exception as persist_error:
             logger.warning("Persist trainable status failed: {}", persist_error)
         _clear_submission_related_caches()
-        return jsonify(api_response(msg="已标记为可训练", data=item))
+        return jsonify(api_response(msg="已允许训练", data=item))
     except SubmissionStatusError as e:
         return jsonify(api_response(code=400, msg=str(e)))
     except Exception as e:
@@ -5380,6 +5380,11 @@ def _pretrain_on_startup():
         logger.warning("数据采集器启动失败: {}", e)
 
     logger.info("=== 模型初始化完成 ===")
+
+
+# Independent credentials and fixed read-only routes; no admin-session reuse.
+from src.muse_readonly import register_muse_readonly
+register_muse_readonly(app, globals())
 
 
 if __name__ == "__main__":

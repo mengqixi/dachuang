@@ -66,6 +66,15 @@ MAX_TRAIN_ROWS = 20000
 MAX_UPLOAD_ROWS = 50000
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 MAX_UPLOAD_COLUMNS = 200
+SCORE_EXPLANATION_VERSION = "fusion-score-explanation-v1"
+FUSION_SCORE_WEIGHTS = {
+    "failed_attempts_score": 0.23,
+    "request_frequency_score": 0.20,
+    "unusual_time_score": 0.12,
+    "response_time_score": 0.10,
+    "device_ip_score": 0.15,
+    "model_score": 0.20,
+}
 SUPPORTED_UPLOAD_EXTENSIONS = {"csv", "json"}
 
 try:
@@ -150,7 +159,7 @@ REVIEW_STATUS = {
 
 REVIEW_STATUS_NOTE = {
     REVIEW_STATUS["pending"]: "已加密归档，等待管理员确认是否进入训练池。",
-    REVIEW_STATUS["archived"]: "已确认归档，可继续审核是否允许用于训练。",
+    REVIEW_STATUS["archived"]: "数据已加密保存，等待确认是否允许训练。",
     REVIEW_STATUS["trainable"]: "管理员已确认该数据可进入运行时检测模型更新、普通集中式基线和联邦训练流程。",
     REVIEW_STATUS["rejected"]: "管理员已拒绝该数据进入训练池，仅保留加密归档和风险报告。",
 }
@@ -168,6 +177,7 @@ def _analysis_cache_key(item: Dict, limit: int, model_version: str) -> str:
         str(model_version or "runtime"),
         FEATURE_NORMALIZATION_VERSION,
         ANALYSIS_POLICY_VERSION,
+        SCORE_EXPLANATION_VERSION,
     ])
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
@@ -778,7 +788,7 @@ def _suggestions(summary: Dict) -> List[str]:
     if medium:
         suggestions.append("中风险样本建议结合时间、来源和业务字段进一步核验。")
     suggestions.append("上传数据建议使用加密归档，训练前由管理员确认数据质量和授权范围。")
-    suggestions.append("如需进入训练中心，应先完成归档并标记为可训练。")
+    suggestions.append("如需用于训练，请由管理员审核并允许进入训练池。")
     return suggestions
 
 
@@ -894,14 +904,7 @@ def _component_scores(row: Optional[Dict], det: Dict) -> Dict:
 
 def _fusion_score(row: Optional[Dict], det: Dict) -> float:
     parts = _component_scores(row, det)
-    weights = {
-        "failed_attempts_score": 0.23,
-        "request_frequency_score": 0.20,
-        "unusual_time_score": 0.12,
-        "response_time_score": 0.10,
-        "device_ip_score": 0.15,
-        "model_score": 0.20,
-    }
+    weights = FUSION_SCORE_WEIGHTS
     score = sum(parts[k] * weights[k] for k in weights)
     # Keep the detector signal visible: if the model is already more severe,
     # do not suppress it with missing behavioral fields.
@@ -921,7 +924,12 @@ def _level_from_score(score: float) -> str:
 def _risk_breakdown(row: Optional[Dict], det: Dict) -> Dict:
     row = row or {}
     score = float(det.get("risk_score", det.get("score", 0)) or 0)
-    component_scores = _component_scores(row, det)
+    # det.risk_score has already been replaced with the fused score. Explain
+    # the original inputs, not a second fusion using the final output as input.
+    original_det = dict(det)
+    original_det["risk_score"] = det.get("raw_model_score", score)
+    component_scores = _component_scores(row, original_det)
+    weighted_score = sum(component_scores[k] * w for k, w in FUSION_SCORE_WEIGHTS.items())
     failed = _num(row, "failed_attempts", "ct_dst_src_ltm")
     freq = _num(row, "request_rate", "request_frequency", "rate")
     response = _response_time_seconds(row)
@@ -995,11 +1003,23 @@ def _risk_breakdown(row: Optional[Dict], det: Dict) -> Dict:
     return {
         "final_score": round(score, 4),
         **component_scores,
-        "score_range": "0 到 1，越接近 1 表示模型认为异常概率越高",
+        "calculation_version": SCORE_EXPLANATION_VERSION,
+        "weights": dict(FUSION_SCORE_WEIGHTS),
+        "weighted_score": weighted_score,
+        "model_floor": component_scores["model_score"] * 0.85,
+        "component_rules": {
+            "failed_attempts_score": "失败次数封顶20后除以20，再裁剪至0～1",
+            "request_frequency_score": "请求频率封顶200后除以200，再裁剪至0～1",
+            "unusual_time_score": "unusual_hour≥1时为0.75，否则为0",
+            "response_time_score": "响应秒数封顶3后除以3，再裁剪至0～1；毫秒字段先除以1000",
+            "device_ip_score": "有IP加0.15；有设备/浏览器/系统/UA加0.10；登录失败且失败次数≥3加0.10；密码强度非零且≤2加0.10",
+            "model_score": "融合前检测模型输出，裁剪至0～1",
+        },
+        "score_range": "0 到 1 的风险评分，不是经过校准的攻击概率",
         "level_explain": level_explain,
         "model_signal": "融合检测模型输出的风险分数",
         "rule_signal": "登录安全字段触发的规则解释",
-        "score_formula": "排序优先看风险分数，其次看是否达到中高风险等级和触发特征数量。",
+        "score_formula": "最终分 = round(clip(max(各分项×权重之和, 原始模型分×0.85), 0, 1), 4)",
         "dominant_factor": dominant,
         "triggered_count": len(triggered),
         "triggered_indicators": triggered,
@@ -1054,7 +1074,7 @@ def _clean_suggestions(summary: Dict) -> List[str]:
     if medium:
         suggestions.append("中风险样本建议结合访问时间、来源 IP、设备类型和业务字段进一步核验。")
     suggestions.append("上传数据已进行 AES 加密归档；训练前应由管理员确认数据质量和授权范围。")
-    suggestions.append("如需进入训练中心，应先完成归档确认并标记为可训练。")
+    suggestions.append("如需用于训练，请由管理员审核并允许进入训练池。")
     return suggestions
 
 
@@ -1195,14 +1215,12 @@ class UserSubmissionManager:
             or item.get("upload_time")
         )
         actions = []
-        if review_status == REVIEW_STATUS["pending"]:
-            actions.extend(["archive", "reject"])
-        elif review_status == REVIEW_STATUS["archived"]:
+        if review_status in (REVIEW_STATUS["pending"], REVIEW_STATUS["archived"]):
             actions.extend(["mark_trainable", "reject"])
         elif review_status == REVIEW_STATUS["trainable"]:
-            actions.extend(["archive", "reject"])
+            actions.append("reject")
         elif review_status == REVIEW_STATUS["rejected"]:
-            actions.append("archive")
+            actions.append("mark_trainable")
         return {
             "id": item.get("id"),
             "filename": item.get("filename"),
@@ -1293,7 +1311,7 @@ class UserSubmissionManager:
                 "label_distribution": {},
                 "attack_type_distribution": {},
                 "scanned_rows": row_count,
-                "description": "用户上传数据，需在用户提交页归档并标记可训练后进入训练数据池。" if not trainable else "已审核进入训练池，可用于运行时检测模型更新、普通集中式基线和四节点联邦切分。",
+                "description": "用户上传数据，需由管理员允许训练后进入训练池。" if not trainable else "已审核进入训练池，可用于运行时检测模型更新、普通集中式基线和四节点联邦切分。",
                 "review_status": item.get("review_status"),
                 "training_status": "已进入训练池" if trainable else "未进入训练池",
                 "risk_summary": risk_desc,
