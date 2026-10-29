@@ -72,3 +72,35 @@ saved_ai 只是已保存的第二判断，不是当前新调用；本地检测�
 ```
 
 接口开通后还需要在 Muse 侧验证实际 HTTP 工具支持和微信问答链路，不能只凭平台接口测试宣称接入完成。
+
+## 临时 HTTPS 入口
+
+临时接入可使用 Cloudflare Quick Tunnel，不需要 Cloudflare 账号或自有域名。
+启动前先运行项目内的 `scripts/muse_readonly_gateway.py`，它仅监听 `127.0.0.1:18561`。
+隧道必须指向这个白名单网关，不能直接指向整个管理端 5001 端口。
+
+网关只允许上述六个固定路径的 GET/HEAD，并剥离 Cookie、转发头和 Host；后台仍会验证独立令牌和参数。
+其他路径返回 404，写入方法返回 405，最多四个并发请求。它不持有管理登录凭据。
+独立令牌保存在 `data/keys/muse_readonly.token`，服务端权限 600；运行信息保存在忽略提交的 `data/muse_tunnel/`。
+隧道程序仅安装到项目下的 `bin-local/`，不安装系统服务、不修改防火墙、Nginx 或其他业务配置。
+
+Quick Tunnel 地址可能在重启后改变，没有可用性保证，只用于临时对接和演示；正式长期使用需固定 HTTPS 入口。
+在使用前通过 Cloudflare 官方下载页安装并核对发布文件校验和：
+https://developers.cloudflare.com/tunnel/downloads/
+https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/
+
+本机 HTTP 网关并不直接对公网监听。Muse 只能拿到临时 HTTPS 基础地址和只读令牌，不需要服务器 SSH 权限。
+
+项目目录内操作命令：
+
+```bash
+python3 scripts/muse_tunnel_control.py start
+python3 scripts/muse_tunnel_control.py status
+python3 scripts/verify_muse_tunnel.py
+python3 scripts/muse_tunnel_control.py stop
+```
+
+`start` 会核对本项目 PID、工作目录和训练队列，必要时只重启本项目以启用独立令牌；若有训练任务则拒绝中断。
+`stop` 只停止本项目的隧道与白名单网关，不停止原网站。若要同时撤销本机令牌，另按前文关闭应用的 Muse 开关。
+这不是开机自启服务；服务器重启后需要重新运行 start 并把新地址交给 Muse。
+验证脚本从受控文件读取令牌，不通过命令行、输出或 URL 传递秘密，不跟随跳转，避免认证头发送到别的站点。

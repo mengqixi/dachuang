@@ -59,6 +59,8 @@ data/training_records.json
 data/logs/
 logs/
 *.pid
+data/muse_tunnel/
+bin-local/
 
 # Local assistant/check artifacts
 .claude/settings.local.json
