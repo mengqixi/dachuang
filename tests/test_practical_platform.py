@@ -88,6 +88,60 @@ class TestPracticalPlatformRoadmap(unittest.TestCase):
         self.assertNotIn("风险详情模块", html)
         self.assertNotIn("展开详情按钮", html)
 
+    def test_attention_ranking_includes_all_analyzed_risky_rows(self):
+        count = 150
+        csv = 'username,failed_attempts,request_frequency,label\n' + '\n'.join(
+            'demo%d,12,180,%d' % (i, i % 2) for i in range(count))
+        upload = self.client.post('/api/user/datasets/upload', data={
+            'file': (io.BytesIO(csv.encode()), 'complete_ranking.csv')}, content_type='multipart/form-data').get_json()
+        class Detector:
+            def status(self): return {'version': 'ranking-unit'}
+            def is_ready(self): return True
+            def predict(self, X): return np.ones(len(X)), np.full(len(X), .9), np.full(len(X), 2)
+        sid = upload['data']['id']
+        result = self.app_module.user_submission_manager.analyze(sid, detector=Detector(), limit=500)
+        self.assertEqual(result['total'], count)
+        self.assertEqual(len(result['risk_ranking']), count)
+        self.assertEqual(result['risk_ranking_total'], count)
+        self.assertEqual(result['risk_ranking'][-1]['rank'], count)
+
+    def test_ai_save_compares_analysis_revision_atomically_and_report_hides_stale_evidence(self):
+        from src.analysis.external_advisor import build_redacted_analysis_payload, make_external_analysis_record
+        from tests.test_external_advisor import _settings, _advice
+        module = self.submission_module
+        upload = self.client.post('/api/user/datasets/upload', data={
+            'file':(io.BytesIO(b'username,failed_attempts,label\nalice,12,1\n'), 'ai_revision.csv')},
+            content_type='multipart/form-data').get_json()
+        sid = upload['data']['id']
+        analysis = self.app_module.user_submission_manager.analyze(sid, limit=10)
+        record = make_external_analysis_record(build_redacted_analysis_payload(analysis), _settings(), {'advice':_advice()})
+        expected = analysis['analysis_trace']['analysis_id']
+        with self.assertRaises(module.SubmissionStatusError):
+            self.app_module.user_submission_manager.save_external_analysis(sid, record, expected_analysis_id='old-analysis')
+        self.assertFalse(self.app_module.user_submission_manager.get_report(sid)['external_analysis'])
+        self.app_module.user_submission_manager.save_external_analysis(sid, record, expected_analysis_id=expected)
+        self.assertTrue(self.app_module.user_submission_manager.get_report(sid)['external_analysis'])
+        import copy
+        changed = copy.deepcopy(analysis)
+        changed['attack_risk']['score'] = 0.01
+        module._update_submission(sid, {'analysis':changed})
+        self.assertFalse(self.app_module.user_submission_manager.get_report(sid)['external_analysis'])
+        self.assertFalse(self.app_module.user_submission_manager.get_submission(sid)['external_analysis'])
+
+    def test_training_history_does_not_undo_rejection(self):
+        upload = self.client.post('/api/user/datasets/upload', data={
+            'file':(io.BytesIO(b'username,failed_attempts,label\nalice,2,0\n'), 'rejected_while_training.csv')},
+            content_type='multipart/form-data').get_json()
+        sid = upload['data']['id']
+        admin = self._admin_client()
+        admin.post('/api/admin/submissions/'+sid+'/mark-trainable')
+        admin.post('/api/admin/submissions/'+sid+'/reject', json={})
+        self.app_module.user_submission_manager.mark_used_for_training([sid], 'centralized', 'unit-version', 1)
+        item = self.app_module.user_submission_manager.get_submission(sid)
+        self.assertEqual(item['training_runs'], 1)
+        self.assertFalse(item['trainable'])
+        self.assertEqual(item['review_status'], '已拒绝')
+
     def test_training_approval_is_one_step_and_rejection_keeps_archive(self):
         upload = self.client.post('/api/user/datasets/upload',
             data={'file':(io.BytesIO(b'username,failed_attempts,label\nalice,3,1\n'),'approval.csv')},

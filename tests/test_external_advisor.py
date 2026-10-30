@@ -8,6 +8,7 @@ from unittest.mock import patch
 from src.analysis.external_advisor import (
     ExternalAdvisorClient,
     ExternalAdvisorConfigError,
+    ExternalAdvisorProviderError,
     ExternalAdvisorResponseError,
     ExternalAdvisorSettingsStore,
     build_ai_assisted_decisions,
@@ -15,6 +16,8 @@ from src.analysis.external_advisor import (
     build_redacted_training_comparison_payload,
     make_external_analysis_record,
     normalize_base_url,
+    parse_provider_advice,
+    external_error_details,
 )
 
 
@@ -59,7 +62,7 @@ class RedactedPayloadTests(unittest.TestCase):
             html = stream.read()
         advanced = re.search(r'<details class="compact-details" id="externalAiAdvanced">(.*?)</details>',html,re.S)
         self.assertIsNotNone(advanced)
-        for field in ("externalAiMode","externalAiEndpoint","externalAiTimeout"):
+        for field in ("externalAiMode","externalAiEndpoint","externalAiTimeout","externalAiOutputTokens"):
             self.assertIn('id="'+field+'"', advanced.group(1))
             self.assertEqual(html.count('id="'+field+'"'),1)
         self.assertNotIn("externalAiApiKey",advanced.group(1))
@@ -375,6 +378,20 @@ class RedactedPayloadTests(unittest.TestCase):
 
 
 class SettingsStoreTests(unittest.TestCase):
+    def test_output_budget_defaults_and_preserves_larger_saved_limit(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            store = ExternalAdvisorSettingsStore(
+                settings_path=os.path.join(temp_dir, "settings.json"),
+                key_path=os.path.join(temp_dir, "settings.key"),
+            )
+            settings = _settings()
+            settings.pop("max_output_tokens")
+            self.assertEqual(store.save(settings)["max_output_tokens"], 4096)
+            self.assertEqual(store.save({"max_output_tokens": 6000})["max_output_tokens"], 6000)
+            self.assertEqual(store.get_effective()["max_output_tokens"], 6000)
+            self.assertEqual(store.public_status(store.get_effective())["max_output_tokens"], 6000)
+            self.assertEqual(store.save({"max_output_tokens": 99999})["max_output_tokens"], 8192)
+
     def test_key_is_encrypted_and_public_status_is_masked(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             settings_path = os.path.join(temp_dir, "settings.json")
@@ -402,6 +419,37 @@ class SettingsStoreTests(unittest.TestCase):
 
 
 class ClientAndFusionTests(unittest.TestCase):
+    def test_truncated_json_is_not_saved_or_automatically_retried(self):
+        calls = []
+        def transport(url, body, headers, timeout):
+            calls.append(1)
+            return 200, {}, json.dumps({"choices": [{
+                "finish_reason": "length", "message": {"content": '{"summary":"partial"'}
+            }]}).encode("utf-8")
+        with self.assertRaises(ExternalAdvisorResponseError) as caught:
+            ExternalAdvisorClient(_settings(), transport=transport).analyze(
+                build_redacted_analysis_payload({"analysis_trace": {"analyzed_rows": 1}}))
+        self.assertEqual(caught.exception.reason, "output_truncated")
+        self.assertEqual(len(calls), 1)
+
+    def test_complete_json_with_truncated_finish_reason_is_still_rejected(self):
+        for mode, response in (
+            ("chat_completions", {"choices": [{"finish_reason": "length", "message": {
+                "content": json.dumps(_advice())}}]}),
+            ("responses", {"status": "incomplete", "incomplete_details": {"reason": "max_output_tokens"},
+                           "output_text": json.dumps(_advice())}),
+        ):
+            with self.subTest(mode=mode), self.assertRaises(ExternalAdvisorResponseError) as caught:
+                parse_provider_advice(response, mode)
+            self.assertEqual(caught.exception.reason, "output_truncated")
+
+    def test_error_details_never_echo_provider_content_or_credentials(self):
+        for error in (ExternalAdvisorProviderError("secret-provider-body", status_code=401),
+                      ExternalAdvisorResponseError("secret-provider-body", reason="invalid_json")):
+            self.assertNotIn("secret-provider-body", json.dumps(external_error_details(error)))
+        self.assertEqual(external_error_details(ExternalAdvisorProviderError("x", status_code=429))["error_code"],
+                         "provider_http_429")
+
     def test_deterministic_boundaries_override_unsafe_provider_verdicts(self):
         training_payload = {
             "analysis_kind": "training_security_comparison",
@@ -547,6 +595,24 @@ class ClientAndFusionTests(unittest.TestCase):
 
 
 class ExternalAdvisorApiTests(unittest.TestCase):
+    def test_revision_conflict_is_returned_as_409_and_unlocks_ai(self):
+        submission = {'id':'sub-unit', 'analysis':{'total':1,
+            'analysis_trace':{'analysis_id':'current','analyzed_rows':1}}, 'external_analysis':{}}
+        class Client:
+            def analyze(self, payload): return {'advice':_advice()}
+        with self.client.session_transaction() as session:
+            session[self.app_module.USER_SUBMISSION_SESSION_KEY] = ['sub-unit']
+        with patch.object(self.app_module._external_ai_settings_store,'get_effective',return_value=_settings()), \
+             patch.object(self.app_module,'_create_external_advisor_client',return_value=Client()), \
+             patch.object(self.app_module.user_submission_manager,'get_submission',return_value=submission), \
+             patch.object(self.app_module.user_submission_manager,'save_external_analysis',
+                          side_effect=self.app_module.SubmissionStatusError('revision changed')) as save:
+            response = self.client.post('/api/user/datasets/sub-unit/external-analysis',json={})
+        self.assertEqual(response.status_code,409)
+        self.assertEqual(response.get_json()['data']['error_code'],'analysis_revision_changed')
+        self.assertEqual(save.call_args.kwargs['expected_analysis_id'],'current')
+        self.assertFalse(self.app_module._external_analysis_operation_lock.locked())
+
     @classmethod
     def setUpClass(cls):
         import app as app_module
@@ -558,6 +624,30 @@ class ExternalAdvisorApiTests(unittest.TestCase):
             self.app_module._external_analysis_call_times.clear()
         if self.app_module._external_analysis_operation_lock.locked():
             self.app_module._external_analysis_operation_lock.release()
+
+    def test_truncated_advice_returns_actionable_error_without_saving_local_changes(self):
+        submission = {"id": "sub-unit", "analysis": {
+            "total": 1, "analysis_trace": {"analysis_id": "unit", "analyzed_rows": 1}},
+            "external_analysis": {}}
+        class FailedClient:
+            def analyze(self, payload):
+                raise ExternalAdvisorResponseError("secret-response", reason="output_truncated")
+        with self.client.session_transaction() as session:
+            session[self.app_module.USER_SUBMISSION_SESSION_KEY] = ["sub-unit"]
+        with patch.object(self.app_module._external_ai_settings_store, "get_effective", return_value=_settings()), \
+             patch.object(self.app_module, "_create_external_advisor_client", return_value=FailedClient()) as factory, \
+             patch.object(self.app_module.user_submission_manager, "get_submission", return_value=submission), \
+             patch.object(self.app_module.user_submission_manager, "save_external_analysis") as save, \
+             patch.object(self.app_module.logger, "warning") as log:
+            response = self.client.post("/api/user/datasets/sub-unit/external-analysis", json={})
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(response.get_json()["data"]["error_code"], "output_truncated")
+        self.assertTrue(response.get_json()["data"]["local_result_preserved"])
+        self.assertNotIn("secret-response", response.get_data(as_text=True))
+        self.assertNotIn("secret-response", str(log.call_args))
+        factory.assert_called_once()
+        save.assert_not_called()
+        self.assertFalse(self.app_module._external_analysis_operation_lock.locked())
 
     def test_reading_report_returns_saved_ai_without_provider_call(self):
         saved = {"model": "unit-model", "advice": _advice(summary="已保存的安全复核结论")}

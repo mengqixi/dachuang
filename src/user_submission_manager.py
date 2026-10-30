@@ -67,6 +67,8 @@ MAX_UPLOAD_ROWS = 50000
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 MAX_UPLOAD_COLUMNS = 200
 SCORE_EXPLANATION_VERSION = "fusion-score-explanation-v1"
+RISK_RANKING_VERSION = "complete-attention-ranking-v2"
+REASON_PRESENTATION_VERSION = "concise-observations-v2"
 FUSION_SCORE_WEIGHTS = {
     "failed_attempts_score": 0.23,
     "request_frequency_score": 0.20,
@@ -178,6 +180,8 @@ def _analysis_cache_key(item: Dict, limit: int, model_version: str) -> str:
         FEATURE_NORMALIZATION_VERSION,
         ANALYSIS_POLICY_VERSION,
         SCORE_EXPLANATION_VERSION,
+        RISK_RANKING_VERSION,
+        REASON_PRESENTATION_VERSION,
     ])
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
@@ -1028,40 +1032,48 @@ def _risk_breakdown(row: Optional[Dict], det: Dict) -> Dict:
 
 
 def _clean_reason_for_detection(det: Dict, row: Optional[Dict] = None) -> str:
-    score = float(det.get("risk_score", det.get("score", 0)) or 0)
-    risk_level = str(det.get("risk_level") or "").lower()
-    reasons = []
-    if risk_level in ("critical", "high") or score >= 0.75:
-        reasons.append("风险分数处于高区间")
-    elif risk_level == "medium" or score >= 0.45:
-        reasons.append("风险分数处于中等区间")
-    if det.get("is_attack"):
-        reasons.append("模型判断为异常或攻击样本")
-    breakdown = _risk_breakdown(row, det)
-    triggered = breakdown.get("triggered_indicators", [])
-    if triggered:
-        detail = []
-        for item in triggered[:3]:
-            detail.append("%s=%s，阈值%s" % (
-                item.get("name", "指标"),
-                item.get("value", "-"),
-                item.get("threshold", "-"),
-            ))
-        reasons.append("触发指标：" + "；".join(detail))
-    return "；".join(reasons[:3]) or "未发现明显异常特征，建议结合业务场景复核"
+    row = row or {}
+    facts = []
+    failed = _num(row, "failed_attempts", "ct_dst_src_ltm")
+    frequency = _num(row, "request_rate", "request_frequency", "rate")
+    if failed >= 3:
+        facts.append("登录失败%g次" % failed)
+    if frequency >= 80:
+        facts.append("请求频率%g，偏高" % frequency)
+    if _num(row, "unusual_hour") >= 1:
+        facts.append("非常用时段访问")
+    response = _response_time_seconds(row)
+    if response >= 1.2:
+        facts.append("响应耗时%gs" % response)
+    if _num(row, "password_strength", default=3) in (1, 2):
+        facts.append("口令强度偏低")
+    if facts:
+        return "；".join(facts[:3]) + "。"
+    if det.get("risk_level") in ("high", "critical") or det.get("is_attack"):
+        return "模型识别到异常，但现有行为字段不足以解释，需要补充日志核对。"
+    return "现有字段未见明显异常。"
 
 
 def _clean_suggestion_for_detection(det: Dict, row: Optional[Dict] = None) -> str:
+    row = row or {}
     triggers = set(_trigger_features(row))
-    if "失败次数偏高" in triggers or "多次失败登录" in triggers or "密码强度偏低" in triggers:
-        return "建议核验账号登录行为，并按业务策略启用二次验证或密码重置流程。"
-    if "请求频率偏高" in triggers:
-        return "建议关注同一来源的访问频率，结合限流策略和业务白名单进行复核。"
-    if "异常时间段访问" in triggers or "会话时长异常" in triggers:
-        return "建议复核访问时间、设备和账号历史行为，确认是否为本人操作。"
+    failed = bool(triggers & {"失败次数偏高", "多次失败登录"})
+    frequent = "请求频率偏高" in triggers
+    if failed and frequent:
+        return "核对是否为本人连续输错；若该来源仍高频尝试，临时限流并启用二次验证。"
+    if failed:
+        return "先联系账号使用者确认；排除本人操作后，再检查来源并启用二次验证。"
+    if frequent:
+        return "先核对是否为授权批量任务；不是计划任务且持续高频时，再限制访问速率。"
+    if "密码强度偏低" in triggers:
+        return "更换弱口令并启用多因素验证，随后检查近期是否有异常登录。"
+    if triggers & {"异常时间段访问", "会话时长异常"}:
+        return "对照业务排班和账号常用时段，确认是否为本人或授权任务。"
+    if "响应时间异常" in triggers:
+        return "对照同时间段服务耗时，先排除系统拥堵，再核查可疑请求。"
     if det.get("risk_level") in ("high", "critical"):
-        return "建议优先人工复核该样本，并结合来源 IP、设备和业务标签判断。"
-    return "建议持续观察同类样本，作为后续模型训练和策略优化的参考。"
+        return "补充该来源前后的登录日志后人工复核，不仅凭模型分数封禁。"
+    return "暂无需立即处置，留意后续是否出现连续失败或请求突增。"
 
 
 def _clean_suggestions(summary: Dict) -> List[str]:
@@ -1078,6 +1090,27 @@ def _clean_suggestions(summary: Dict) -> List[str]:
     return suggestions
 
 
+def _present_analysis(analysis: Dict) -> Dict:
+    """Refresh explanations from saved observations without changing scores."""
+    if not isinstance(analysis, dict):
+        return {}
+    result = copy.deepcopy(analysis)
+    fields = {"失败登录次数":"failed_attempts", "请求频率":"request_frequency",
+              "响应时间（秒）":"response_time", "会话时长":"session_duration",
+              "密码强度派生特征":"password_strength", "异常时间段":"unusual_hour", "登录结果":"login_success"}
+    for group in ("risk_ranking", "high_risk_reasons", "detections"):
+        for row in result.get(group) or []:
+            indicators = (row.get("score_breakdown") or {}).get("indicators") or []
+            observations = {fields[x["name"]]:x.get("value") for x in indicators if x.get("name") in fields}
+            if observations:
+                row["reason"] = _clean_reason_for_detection(row, observations)
+                row["suggestion"] = _clean_suggestion_for_detection(row, observations)
+    suggestions = list(dict.fromkeys(row.get("suggestion") for row in result.get("risk_ranking") or [] if row.get("suggestion")))
+    if suggestions:
+        result["suggestions"] = suggestions[:4]
+    return result
+
+
 def _update_submission(submission_id: str, patch: Dict) -> Optional[Dict]:
     with _INDEX_LOCK:
         data = _read_index()
@@ -1089,6 +1122,33 @@ def _update_submission(submission_id: str, patch: Dict) -> Optional[Dict]:
                 _write_index(data)
                 return item
     return None
+
+
+def _current_external_analysis(item: Dict) -> Dict:
+    """Hide stale second opinions, including legacy records with fingerprints."""
+    result = item.get("external_analysis")
+    if not isinstance(result, dict) or not result:
+        return {}
+    analysis = item.get("analysis") if isinstance(item.get("analysis"), dict) else {}
+    trace = analysis.get("analysis_trace") if isinstance(analysis.get("analysis_trace"), dict) else {}
+    if result.get("submission_id") and result["submission_id"] != item.get("id"):
+        return {}
+    if result.get("analysis_id") and result["analysis_id"] != trace.get("analysis_id"):
+        return {}
+    if result.get("input_fingerprint") and result.get("settings_fingerprint"):
+        from src.analysis.external_advisor import build_redacted_analysis_payload, canonical_fingerprint
+        current = canonical_fingerprint({
+            "payload": build_redacted_analysis_payload(analysis),
+            "settings_fingerprint": result["settings_fingerprint"],
+        })
+        if current != result["input_fingerprint"]:
+            return {}
+    result = copy.deepcopy(result)
+    rows = list(analysis.get("risk_ranking") or []) + list(analysis.get("detections") or [])
+    addresses = {str(row.get("id")): row.get("ip") or "" for row in rows if isinstance(row, dict) and row.get("ip")}
+    for decision in result.get("assisted_decisions") or []:
+        decision["ip"] = addresses.get(str(decision.get("sample_id")), decision.get("ip") or "")
+    return result
 
 
 class UserSubmissionManager:
@@ -1190,7 +1250,7 @@ class UserSubmissionManager:
         analysis_summary = item.get("analysis", {})
         if not isinstance(analysis_summary, dict):
             analysis_summary = {}
-        external_analysis = item.get("external_analysis", {})
+        external_analysis = _current_external_analysis(item)
         if not isinstance(external_analysis, dict):
             external_analysis = {}
         if model_versions:
@@ -1327,11 +1387,12 @@ class UserSubmissionManager:
                 if include_preview:
                     result["columns"] = item.get("columns", [])
                     result["profile"] = item.get("profile", {})
-                    result["analysis"] = item.get("analysis", {})
+                    result["analysis"] = _present_analysis(item.get("analysis", {}))
                 return result
         return None
 
-    def save_external_analysis(self, submission_id: str, result: Dict) -> Optional[Dict]:
+    def save_external_analysis(self, submission_id: str, result: Dict,
+                               expected_analysis_id: Optional[str] = None) -> Optional[Dict]:
         """Persist a validated aggregate-only AI interpretation.
 
         The caller is responsible for building the strict external-advisor
@@ -1340,11 +1401,21 @@ class UserSubmissionManager:
         """
         if not isinstance(result, dict):
             raise ValueError("external analysis result must be a dictionary")
-        updated = _update_submission(submission_id, {
-            "external_analysis": copy.deepcopy(result),
-            "last_external_analysis_at": result.get("generated_at") or _now(),
-        })
-        return self.public_summary(updated) if updated else None
+        # Check and write under the same lock as local-analysis updates: an AI
+        # request must not overwrite a newer analysis while the provider runs.
+        with _INDEX_LOCK:
+            for item in _read_index().get("submissions", []):
+                if item.get("id") != submission_id:
+                    continue
+                trace = (item.get("analysis") or {}).get("analysis_trace") or {}
+                if expected_analysis_id is not None and trace.get("analysis_id") != expected_analysis_id:
+                    raise SubmissionStatusError("本地检测版本已更新，本次 AI 结论未保存。请基于当前结果重新发起复核。")
+                updated = _update_submission(submission_id, {
+                    "external_analysis": copy.deepcopy(result),
+                    "last_external_analysis_at": result.get("generated_at") or _now(),
+                })
+                return self.public_summary(updated)
+        return None
 
     def _load_plain_rows(self, item: Dict, limit: Optional[int] = None) -> Tuple[List[Dict], List[str]]:
         plain_path = item.get("plain_temp_path")
@@ -1497,6 +1568,7 @@ class UserSubmissionManager:
             det["confidence"] = _clip_score(0.55 + abs(fused - 0.5) * 0.8)
             det["action_suggestion"] = ACTION_SUGGESTIONS.get(level, "观察")
             det["trigger_features"] = _trigger_features(row)
+            det["ip"] = row.get("ip") or row.get("srcip") or row.get("source_ip") or row.get("src_ip") or ""
             det["score_breakdown"] = _risk_breakdown(row, det)
             det["reason"] = _clean_reason_for_detection(det, row)
             det["suggestion"] = _clean_suggestion_for_detection(det, row)
@@ -1539,7 +1611,7 @@ class UserSubmissionManager:
         ]
         high_items = sorted(high_items, key=_attention_key, reverse=True)
         reasons = []
-        for det in high_items[:100]:
+        for det in high_items:
             row = row_by_id.get(det.get("id")) or {}
             breakdown = _risk_breakdown(row, det)
             reasons.append({
@@ -1640,14 +1712,17 @@ class UserSubmissionManager:
                 ],
             },
             "average_risk_score": average_risk_score,
-            "detections": detections[:200],
+            "detections": detections,
             "risk_ranking": reasons,
             "high_risk_reasons": reasons,
-            "risk_ranking_limit": 100,
+            "risk_ranking_limit": len(reasons),
+            "risk_ranking_total": len(high_items),
+            "risk_ranking_version": RISK_RANKING_VERSION,
             "risk_ranking_order": "risk_score_desc",
-            "top_reason_limit": 100,
+            "top_reason_limit": len(reasons),
             "top_reason_order": "risk_score_desc",
-            "suggestions": _clean_suggestions(summary),
+            "suggestions": list(dict.fromkeys(d.get("suggestion") for d in high_items if d.get("suggestion")))[:4]
+                or ["当前未见明显异常，保留本次记录用于后续对照。"],
             "sensitive_columns": item.get("sensitive_columns", []),
             "privacy_notice": item.get("privacy_notice", ""),
             "runtime_model": detector_status,
@@ -1671,7 +1746,7 @@ class UserSubmissionManager:
             # A new local analysis revision invalidates the optional AI
             # interpretation.  Cache hits return before this point and retain
             # a matching external result.
-            "external_analysis": None,
+            "external_analysis": _current_external_analysis(dict(item, analysis=analysis)) or None,
         }
         # Preserve the immutable upload profile.  Only backfill legacy records
         # when this analysis reached a known end-of-file/schema.
@@ -1683,8 +1758,7 @@ class UserSubmissionManager:
         _update_submission(submission_id, submission_patch)
         return analysis
 
-    def _write_clean_report(self, item: Dict, analysis: Dict) -> str:
-        path = os.path.join(REPORT_DIR, item["id"] + ".md")
+    def _clean_report_markdown(self, item: Dict, analysis: Dict) -> str:
         summary = analysis.get("risk_summary", {})
         high_count = summary.get("high", 0) + summary.get("critical", 0)
         medium_count = summary.get("medium", 0)
@@ -1743,12 +1817,13 @@ class UserSubmissionManager:
             for reason in reasons:
                 triggers = "、".join(reason.get("trigger_features", []) or ["无明显触发特征"])
                 lines.append(
-                    "- 排名 %s / 样本 %s：风险等级 %s，风险分数 %s；主要因素：%s；建议：%s" % (
+                    "- 排名 %s / 样本 %s / IP %s：风险等级 %s，风险分数 %s；原因：%s；建议：%s" % (
                         reason.get("rank"),
                         reason.get("id"),
+                        reason.get("ip") or "未提供",
                         reason.get("risk_level_zh", reason.get("risk_level", "-")),
                         reason.get("risk_score", "-"),
-                        triggers,
+                        reason.get("reason") or triggers,
                         reason.get("suggestion"),
                     )
                 )
@@ -1793,7 +1868,7 @@ class UserSubmissionManager:
             "## 七、模型与指标说明",
             "",
             "- 当前使用模型：%s" % ("；".join(active_models) if active_models else "系统当前可用检测模型"),
-            "- 风险分数综合模型输出、登录失败次数、请求频率、响应耗时、访问设备、IP 来源和标签字段生成。",
+            "- 风险分数综合模型输出与行为信号生成，不使用标签作为评分输入。",
             "- 指标用于本次上传数据的风险识别和排序参考，不等同于独立外部评测结论。",
             "- 追踪信息：数据修订 %s；预处理 %s；模型 %s；分析策略 %s。" % (
                 trace.get("data_revision", "-"),
@@ -1802,8 +1877,11 @@ class UserSubmissionManager:
                 trace.get("analysis_policy_version", "-"),
             ),
         ])
-        with open(path, "w", encoding="utf-8") as f:
-            f.write("\n".join(lines))
+        return "\n".join(lines)
+
+    def _write_clean_report(self, item: Dict, analysis: Dict) -> str:
+        path = os.path.join(REPORT_DIR, item["id"] + ".md")
+        atomic_write_bytes(path, self._clean_report_markdown(item, analysis).encode("utf-8"))
         return path
 
     def _write_report(self, item: Dict, analysis: Dict) -> str:
@@ -1813,6 +1891,7 @@ class UserSubmissionManager:
         item = next((x for x in _read_index().get("submissions", []) if x.get("id") == submission_id), None)
         if not item:
             return None
+        analysis = _present_analysis(item.get("analysis", {}))
         report_path = item.get("report_path")
         content = ""
         if report_path and os.path.exists(report_path):
@@ -1820,7 +1899,13 @@ class UserSubmissionManager:
                 content = report_file.read()
             legacy_marker = "\n## 七、" + "系统" + "边界说明"
             content = content.split(legacy_marker, 1)[0].rstrip() + "\n"
-        external = item.get("external_analysis") or {}
+        if analysis.get("risk_summary"):
+            content = self._clean_report_markdown(item, analysis)
+        external = _current_external_analysis(item)
+        # Enrich legacy Markdown in memory; do not rewrite archived reports on reads.
+        for row in (item.get("analysis") or {}).get("risk_ranking") or []:
+            ip = str(row.get("ip") or "未提供").replace("\n", " ").replace("\r", " ")[:80]
+            content = content.replace("/ 样本 %s：" % row.get("id"), "/ 样本 %s / IP %s：" % (row.get("id"), ip))
         advice = external.get("advice") if isinstance(external, dict) else {}
         if isinstance(advice, dict) and advice.get("summary"):
             readiness_labels = {
@@ -1860,9 +1945,10 @@ class UserSubmissionManager:
                     assisted_summary.get("conflicts", 0),
                 )
             decisions = external.get("assisted_decisions") if isinstance(external, dict) else []
-            for decision in decisions[:10] if isinstance(decisions, list) else []:
-                content += "- 样本 %s：本地 %s（分数 %s），AI %s（置信度 %s），综合 %s%s。\n" % (
+            for decision in decisions if isinstance(decisions, list) else []:
+                content += "- 样本 %s / IP %s：本地 %s（分数 %s），AI %s（置信度 %s），综合 %s%s。\n" % (
                     decision.get("sample_id", decision.get("rank", "-")),
+                    decision.get("ip") or "未提供",
                     decision.get("local_risk_level", "-"),
                     decision.get("local_risk_score", "-"),
                     decision.get("ai_risk_level", "-"),
@@ -1870,10 +1956,12 @@ class UserSubmissionManager:
                     decision.get("combined_risk_level", "-"),
                     "，需要人工复核" if decision.get("needs_manual_review") else "",
                 )
+                if decision.get("recommended_action"):
+                    content += "  - AI 建议：%s\n" % decision["recommended_action"]
         return {
             "submission": self.public_summary(item),
             "report_markdown": content,
-            "analysis": item.get("analysis", {}),
+            "analysis": analysis,
             "external_analysis": external,
         }
 
@@ -1950,8 +2038,8 @@ class UserSubmissionManager:
                 item["last_training_task_type"] = task_type
                 item["last_model_version"] = model_version
                 item["model_versions"] = versions[-10:]
-                item["review_status"] = REVIEW_STATUS["trainable"]
-                item["trainable"] = True
+                # Recording a completed run must not undo an administrator's
+                # rejection/revocation made while that run was in progress.
                 updated.append(self.public_summary(item))
             if updated:
                 _write_index(data)

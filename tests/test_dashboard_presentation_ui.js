@@ -1,0 +1,45 @@
+// Verify the shipped inline renderers, including empty/partial data and scope labels.
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const html=fs.readFileSync('index.html','utf8');
+const extract=(start,end)=>html.slice(html.indexOf(start),html.indexOf(end));
+const esc=x=>String(x??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
+const c={obj:x=>x&&typeof x==='object'?x:{},arr:x=>Array.isArray(x)?x:[],esc,
+  currentAnalysis:{},riskLevelText:x=>x||'未知',aiListHtml:()=>''};
+vm.createContext(c);
+vm.runInContext(extract('function infoButton(','function aiListHtml('),c);
+vm.runInContext(extract('function aiDatasetResultHtml(','function aiTrainingResultHtml('),c);
+for(const script of html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi))new vm.Script(script[1]);
+assert.equal(c.chartNumber(null),null);assert.equal(c.chartNumber(''),null);assert.equal(c.chartNumber(undefined),null);
+assert.equal(c.chartNumber(0),0);assert.equal(c.chartNumber('0.7'),.7);
+const metric={accuracy:.6825,recall:0,f1:null};
+const noRanking=c.pairedMetricsVisual(metric,{accuracy:.67},false);
+assert(noRanking.includes('width:68.25%'));assert(noRanking.includes('width:0%'));assert(noRanking.includes('>0.00%</b>'));
+assert(noRanking.includes('>--</b>'));assert(!noRanking.includes('个百分点'));
+const ranking=c.pairedMetricsVisual(metric,{accuracy:.67},true);
+assert(ranking.includes('联邦 -1.25 个百分点'));
+const fair={metric_scope:'shared_holdout_validation',validation_id:'same',model_architecture:'linear',optimizer:'sgd',epochs:5};
+assert(c.trainingMetricsComparable(fair,{...fair}));
+assert(!c.trainingMetricsComparable(fair,{...fair,validation_id:'different'}));
+assert(!c.trainingMetricsComparable({...fair,optimizer:null},{...fair,optimizer:null}));
+const donut=c.riskDistributionVisual({low:3,medium:1,high:1,critical:1});
+assert(donut.includes('严重 1条'));assert(donut.includes('高风险 1条'));assert(donut.includes('>6</text>'));
+assert(!c.riskDistributionVisual({}).includes('NaN'));assert(!c.histogramVisual('empty',{}).includes('Infinity'));
+assert(c.histogramVisual('范围',{'0-0.35':0,'0.35-0.65':3}).includes('height:0%'));
+const attack='<img src=x onerror=alert(1)>';
+const help=c.infoButton('title',attack+' " onclick="evil()');
+assert(!help.includes('<img'));assert(help.includes('&quot;'));assert(!help.includes('" onclick="evil()'));
+const decisions=Array.from({length:19},(_,i)=>({sample_id:i+1,ip:`198.51.100.${i+1}`,local_risk_level:'high',ai_risk_level:'high',decision_status:i===0?'ai_insufficient_local_preserved':i===1?'conflict_local_preserved':i===2?'ai_escalated_review':'local_ai_agree',recommended_action:`核实样本${i+1}`}));
+const result={advice:{summary:attack,confidence_note:'Detailed safety note'},model:'model',generated_at:'date',assisted_decisions:decisions,
+  review_scope:{scope:'high',label:'高风险样本',total:19,reviewed:19,analyzed_rows:219,complete:true}};
+const summary=c.aiDatasetResultHtml(result),full=c.aiDatasetResultHtml(result,true);
+assert(summary.replace(/<[^>]+>/g,'').includes('19 / 19'));assert(summary.includes('查看全部 19 条'));assert(!summary.includes('198.51.100.19'));
+assert(full.includes('198.51.100.19'));assert(full.includes('核实样本19'));
+assert(!summary.includes('<img'));assert(summary.includes('&lt;img'));assert(full.includes('data-info-title="AI 判断依据"'));
+assert(!summary.includes('219 / 219'));assert(summary.includes('本地已分析 219'));
+const legacy=c.aiReviewVisual({assisted_decisions:decisions});assert(legacy.includes('条已有结论'));assert(!legacy.includes('coverage-fill'));
+assert(c.aiReviewVisual({assisted_decisions:[{sample_id:1}]}).includes('未标注'));
+assert(html.includes('event.stopImmediatePropagation();if(modal===infoModal)closePresentationInfo()'));
+assert(html.includes('presentationInfoOpener.focus()'));assert(html.includes("event.key==='Tab'"));
+assert(html.includes('.hint-panel{display:none!important}'));
+assert(html.includes('data-info-source="dataProcessRules"'));
+console.log('Dashboard presentation: shared scales, honest missing values, explicit scopes, all-review dialog, escaping and accessible help controls passed');

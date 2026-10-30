@@ -1004,6 +1004,20 @@ class DatasetSourcesApiTests(unittest.TestCase):
 
 
 class TrainingSourceBoundaryTests(unittest.TestCase):
+    def test_prepared_user_pool_keeps_only_actual_loaded_submission_ids(self):
+        import app as a
+        source = {'id':'user_submission_pool', 'source_type':'user_submission_pool',
+                  'submission_ids':['loaded-one','not-loaded-at-limit']}
+        prepared = {'submission_ids':['loaded-one'],
+                    'source_submission_ids':['loaded-one','not-loaded-at-limit'],
+                    'training_samples':20, 'samples':25}
+        with patch.object(a, '_list_dataset_sources_cached', return_value=[source]), \
+             patch.object(a, '_source_prepared_for_federated', return_value=True), \
+             patch.object(a, '_load_prepared_training_arrays', return_value=(np.zeros((20,18)), np.zeros(20), prepared)):
+            _, _, meta = a._load_training_dataset_source('user_submission_pool')
+        self.assertEqual(a._training_source_submission_ids(meta), ['loaded-one'])
+        self.assertEqual(a._training_source_submission_ids({'sources':[{'id':'dataset:public'}]}), [])
+
     def setUp(self):
         import app as app_module
 

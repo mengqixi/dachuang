@@ -28,9 +28,12 @@ from src.utils.atomic_files import atomic_write_bytes, atomic_write_json
 
 EXTERNAL_ADVISOR_INPUT_VERSION = "external-advisor-input-v1"
 EXTERNAL_ADVISOR_RESULT_VERSION = "external-advisor-result-v1"
-EXTERNAL_ADVISOR_PROMPT_VERSION = "privacy-advisor-zh-v4-compact"
+EXTERNAL_ADVISOR_PROMPT_VERSION = "privacy-advisor-zh-v7-actionable-review"
 EXTERNAL_PAYLOAD_POLICY = "redacted_aggregates_only"
 MAX_RESPONSE_BYTES = 1024 * 1024
+DEFAULT_OUTPUT_TOKENS = 4096
+MAX_OUTPUT_TOKENS = 8192
+MAX_REVIEW_BATCH = 32
 DEFAULT_MODEL = "gpt-5.6-sol"
 DEFAULT_MODE = "chat_completions"
 ALLOWED_MODES = ("chat_completions", "responses")
@@ -58,9 +61,38 @@ class ExternalAdvisorDisabledError(ExternalAdvisorError):
 class ExternalAdvisorProviderError(ExternalAdvisorError):
     """The provider could not complete the request."""
 
+    def __init__(self, message, status_code=None):
+        super().__init__(message)
+        self.status_code = status_code if isinstance(status_code, int) and 100 <= status_code <= 599 else None
+
 
 class ExternalAdvisorResponseError(ExternalAdvisorError):
     """The provider response did not match the safe result schema."""
+
+    def __init__(self, message, reason="invalid_response"):
+        super().__init__(message)
+        self.reason = reason if reason in {"output_truncated", "empty_response", "invalid_json", "incomplete_reviews"} else "invalid_response"
+
+
+def external_error_details(error):
+    """Return fixed diagnostic codes/messages, never provider bodies or secrets."""
+    reason = getattr(error, "reason", None)
+    messages = {
+        "output_truncated": "AI 返回内容超出输出额度，结果未保存。请管理员提高 AI 输出额度后再试。",
+        "empty_response": "AI 未返回有效结论，请稍后手动重试。",
+        "invalid_json": "AI 返回的内容格式不完整，请稍后手动重试。",
+        "invalid_response": "AI 返回的结论格式不符合要求，请稍后手动重试。",
+        "incomplete_reviews": "AI 未完整返回本批样本结论，已有复核结果保留；可手动继续。",
+    }
+    if isinstance(error, ExternalAdvisorResponseError):
+        return {"error_code": reason, "message": messages.get(reason, messages["invalid_response"])}
+    status = getattr(error, "status_code", None)
+    message = {
+        401: "AI 接口认证失败，请管理员检查 API Key。",
+        403: "当前 API Key 无权调用该 AI 模型，请管理员检查模型权限。",
+        429: "AI 服务限流或额度不足，请稍后手动重试或检查账户额度。",
+    }.get(status, "AI 服务连接失败或暂时不可用，请稍后手动重试。")
+    return {"error_code": "provider_http_%s" % status if status else "provider_unavailable", "message": message}
 
 
 def _now() -> str:
@@ -146,7 +178,7 @@ def _validate_settings(settings: Dict) -> Dict:
         raise ExternalAdvisorConfigError("接口模式仅支持 Chat Completions 或 Responses。")
     result["mode"] = mode
     result["timeout_seconds"] = _bounded_int(result.get("timeout_seconds"), 45, 5, 90)
-    result["max_output_tokens"] = _bounded_int(result.get("max_output_tokens"), 800, 200, 1600)
+    result["max_output_tokens"] = _bounded_int(result.get("max_output_tokens"), DEFAULT_OUTPUT_TOKENS, 200, MAX_OUTPUT_TOKENS)
     result["calls_per_hour"] = _bounded_int(result.get("calls_per_hour"), 20, 1, 100)
     result["enabled"] = _as_bool(result.get("enabled"), False)
     result["user_enabled"] = _as_bool(result.get("user_enabled"), False)
@@ -233,7 +265,7 @@ class ExternalAdvisorSettingsStore:
             "model": str(raw.get("model") or DEFAULT_MODEL).strip(),
             "mode": str(raw.get("mode") or DEFAULT_MODE).strip(),
             "timeout_seconds": _bounded_int(raw.get("timeout_seconds"), 45, 5, 90),
-            "max_output_tokens": _bounded_int(raw.get("max_output_tokens"), 800, 200, 1600),
+            "max_output_tokens": _bounded_int(raw.get("max_output_tokens"), DEFAULT_OUTPUT_TOKENS, 200, MAX_OUTPUT_TOKENS),
             "calls_per_hour": _bounded_int(raw.get("calls_per_hour"), 20, 1, 100),
             "updated_at": str(raw.get("updated_at") or ""),
         }
@@ -285,7 +317,7 @@ class ExternalAdvisorSettingsStore:
                 values["model"] = _safe_model_name(values.get("model"))
                 values["mode"] = str(values.get("mode") or DEFAULT_MODE).strip().lower()
                 values["timeout_seconds"] = _bounded_int(values.get("timeout_seconds"), 45, 5, 90)
-                values["max_output_tokens"] = _bounded_int(values.get("max_output_tokens"), 800, 200, 1600)
+                values["max_output_tokens"] = _bounded_int(values.get("max_output_tokens"), DEFAULT_OUTPUT_TOKENS, 200, MAX_OUTPUT_TOKENS)
                 values["calls_per_hour"] = _bounded_int(values.get("calls_per_hour"), 20, 1, 100)
                 values["api_key"] = str(values.get("api_key") or "").strip()
             values["configured"] = bool(values.get("base_url") and values.get("model") and values.get("api_key"))
@@ -307,7 +339,7 @@ class ExternalAdvisorSettingsStore:
             )
         }
         patch = patch if isinstance(patch, dict) else {}
-        for key in ("enabled", "user_enabled", "base_url", "model", "mode", "timeout_seconds"):
+        for key in ("enabled", "user_enabled", "base_url", "model", "mode", "timeout_seconds", "max_output_tokens"):
             if key in patch:
                 candidate[key] = patch.get(key)
         supplied_key = str(patch.get("api_key") or "").strip() if "api_key" in patch else ""
@@ -365,6 +397,7 @@ class ExternalAdvisorSettingsStore:
             "mode": mode,
             "endpoint_path": "/responses" if mode == "responses" else "/chat/completions",
             "timeout_seconds": int(settings.get("timeout_seconds") or 45),
+            "max_output_tokens": int(settings.get("max_output_tokens") or DEFAULT_OUTPUT_TOKENS),
             "calls_per_hour": int(settings.get("calls_per_hour") or 20),
             "api_key_configured": bool(key),
             "api_key_masked": ("****" + key[-4:]) if key else "",
@@ -401,7 +434,7 @@ def _bounded_count_map(value, limit=20) -> Dict:
     return output
 
 
-def build_redacted_analysis_payload(analysis: Dict) -> Dict:
+def build_redacted_analysis_payload(analysis: Dict, candidate_limit=12) -> Dict:
     """Build the only payload shape permitted to leave this application."""
     analysis = analysis if isinstance(analysis, dict) else {}
     privacy = analysis.get("privacy_risk") if isinstance(analysis.get("privacy_risk"), dict) else {}
@@ -452,7 +485,7 @@ def build_redacted_analysis_payload(analysis: Dict) -> Dict:
             "dominant_signal": _clean_text(item.get("dominant_factor"), 60),
             "component_scores": component_scores,
         })
-        if len(review_candidates) >= 12:
+        if len(review_candidates) >= max(1, min(int(candidate_limit), MAX_REVIEW_BATCH)):
             break
     return {
         "schema_version": EXTERNAL_ADVISOR_INPUT_VERSION,
@@ -874,7 +907,7 @@ def _clean_sample_reviews(value) -> List[Dict]:
             rank = int(item.get("rank"))
         except (TypeError, ValueError):
             continue
-        if rank < 1 or rank > 12:
+        if rank < 1 or rank > MAX_REVIEW_BATCH:
             continue
         if rank in seen_ranks:
             continue
@@ -894,7 +927,7 @@ def _clean_sample_reviews(value) -> List[Dict]:
             "reason": _clean_text(item.get("reason"), 400),
             "recommended_action": _clean_text(item.get("recommended_action"), 300),
         })
-        if len(output) >= 12:
+        if len(output) >= MAX_REVIEW_BATCH:
             break
     output.sort(key=lambda item: item["rank"])
     return output
@@ -991,13 +1024,24 @@ def extract_provider_text(response_json: Dict, mode: str) -> str:
 
 
 def parse_provider_advice(response_json: Dict, mode: str) -> Dict:
+    # Reject even syntactically valid partial JSON: a truncated conclusion must
+    # never be saved or silently used for second-opinion decisions.
+    choices = response_json.get("choices") if isinstance(response_json, dict) else None
+    truncated = bool(isinstance(choices, list) and choices and isinstance(choices[0], dict)
+                     and choices[0].get("finish_reason") == "length")
+    incomplete = isinstance(response_json, dict) and response_json.get("status") == "incomplete"
+    details = response_json.get("incomplete_details") if incomplete else {}
+    if truncated or (incomplete and isinstance(details, dict) and details.get("reason") == "max_output_tokens"):
+        raise ExternalAdvisorResponseError("外部分析结果因输出额度或生成中断而不完整。", reason="output_truncated")
+    if incomplete:
+        raise ExternalAdvisorResponseError("外部分析服务未完成结论生成。")
     text = extract_provider_text(response_json, mode)
     if not text:
-        raise ExternalAdvisorResponseError("外部分析服务未返回可读取文本。")
+        raise ExternalAdvisorResponseError("外部分析服务未返回可读取文本。", reason="empty_response")
     try:
         value = json.loads(_strip_json_fence(text))
     except (TypeError, ValueError):
-        raise ExternalAdvisorResponseError("外部分析服务未返回约定的 JSON 结果。")
+        raise ExternalAdvisorResponseError("外部分析服务未返回约定的 JSON 结果。", reason="invalid_json")
     return validate_advice(value)
 
 
@@ -1112,7 +1156,7 @@ def _default_transport(url: str, body: bytes, headers: Dict, timeout: int, allow
         finally:
             response.close()
     except HTTPError as error:
-        raise ExternalAdvisorProviderError("外部分析服务返回 HTTP %s。" % int(error.code or 502))
+        raise ExternalAdvisorProviderError("外部分析服务返回 HTTP %s。" % int(error.code or 502), status_code=int(error.code or 502))
     except (URLError, socket.timeout, TimeoutError):
         raise ExternalAdvisorProviderError("外部分析服务连接失败或超时。")
 
@@ -1150,7 +1194,7 @@ class ExternalAdvisorClient:
                 "training_advice": "string",
                 "comparison_advice": "string",
                 "sample_reviews": [{
-                    "rank": "integer 1..12",
+                    "rank": "integer 1..%d" % max(1, len(payload.get("review_candidates") or [])),
                     "assessment": "agree | escalate | review | insufficient",
                     "ai_risk_level": "low | medium | high | critical | unknown",
                     "ai_confidence": "number 0..1",
@@ -1178,8 +1222,16 @@ class ExternalAdvisorClient:
         user_input = json.dumps(request_input, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         instructions = _SYSTEM_INSTRUCTIONS + (
             " 按本次output_schema选择输出字段，未列字段省略。summary不超过80个中文字；"
-            "每类发现和建议最多2条，每条不超过40字；sample_reviews覆盖输入中的重点样本，"
-            "每项reason和recommended_action各不超过35字。只返回完整JSON，不输出推理过程或重复解释。"
+            "每类发现最多2条，处理建议给出2到3条本次数据适用的动作；不要堆叠通用安全套话。"
+            "sample_reviews必须逐项覆盖本次review_candidates的每个rank，不得遗漏或只返回前12项。"
+            "reason说明该样本的主要信号，recommended_action结合信号给出具体下一步，不能全部套用同一句。"
+            "信号相同可给相同建议，不要为制造差异编造事实；不确定时明确需要核对什么。"
+            "recommended_actions和recommended_action只写用户能执行的业务动作，说明核对对象及行动条件。"
+            "不要用‘复核信号’‘记录结论’‘不下调风险’‘继续脱敏共享’代替处置建议，这些是平台已有约束。"
+            "例如失败次数叠加高频时可建议‘核对本人操作；若非授权任务，短时限流并二次验证’；"
+            "响应慢但行为信号弱时可建议‘先核对服务拥堵，再判断异常访问’，不能对所有样本都建议封禁或重置密码。"
+            "summary概述整体风险，不要把本批样本数写成整个数据集或全部复核的数量。"
+            "各项reason和recommended_action分别不超过25字。只返回完整JSON，不输出推理过程或重复解释。"
         )
         common = {
             "model": self.settings["model"],
@@ -1229,13 +1281,13 @@ class ExternalAdvisorClient:
                 self.settings["timeout_seconds"],
             )
         if int(status or 0) < 200 or int(status or 0) >= 300:
-            raise ExternalAdvisorProviderError("外部分析服务返回 HTTP %s。" % int(status or 502))
+            raise ExternalAdvisorProviderError("外部分析服务返回 HTTP %s。" % int(status or 502), status_code=int(status or 502))
         if len(raw or b"") > MAX_RESPONSE_BYTES:
             raise ExternalAdvisorProviderError("外部分析服务响应过大。")
         try:
             response_json = json.loads((raw or b"").decode("utf-8"))
         except (UnicodeDecodeError, ValueError, TypeError):
-            raise ExternalAdvisorResponseError("外部分析服务返回内容无法解析。")
+            raise ExternalAdvisorResponseError("外部分析服务返回内容无法解析。", reason="invalid_json")
         advice = parse_provider_advice(response_json, self.settings["mode"])
         return {
             "advice": advice,
@@ -1269,7 +1321,7 @@ def make_external_analysis_record(payload: Dict, settings: Dict, provider_result
     }
 
 
-def build_ai_assisted_decisions(analysis: Dict, advice: Dict) -> Dict:
+def build_ai_assisted_decisions(analysis: Dict, advice: Dict, candidate_limit=12) -> Dict:
     """Fuse local and AI second opinions with a conservative safety policy.
 
     The local model remains authoritative.  AI may confirm a result or raise a
@@ -1282,7 +1334,7 @@ def build_ai_assisted_decisions(analysis: Dict, advice: Dict) -> Dict:
     ranking = ranking if isinstance(ranking, list) else []
     local_by_rank = {
         index + 1: item
-        for index, item in enumerate(ranking[:12])
+        for index, item in enumerate(ranking[:candidate_limit])
         if isinstance(item, dict)
     }
     reviews = _clean_sample_reviews(advice.get("sample_reviews"))
@@ -1335,6 +1387,7 @@ def build_ai_assisted_decisions(analysis: Dict, advice: Dict) -> Dict:
         items.append({
             "rank": int(review.get("rank")),
             "sample_id": local.get("id"),
+            "ip": local.get("ip") or "",
             "local_risk_level": local_level,
             "local_risk_score": round(max(0.0, min(1.0, _number(local.get("risk_score")))), 4),
             "ai_risk_level": ai_level,
@@ -1348,12 +1401,106 @@ def build_ai_assisted_decisions(analysis: Dict, advice: Dict) -> Dict:
             "recommended_action": review.get("recommended_action", ""),
             "local_score_preserved": True,
         })
-    counters["local_only_unreviewed"] = max(0, min(len(ranking), 12) - len(items))
+    counters["local_only_unreviewed"] = max(0, min(len(ranking), candidate_limit) - len(items))
     return {
         "policy": "local_primary_ai_may_only_confirm_or_escalate",
         "items": items,
         "summary": counters,
     }
+
+
+def plan_adaptive_review(analysis: Dict, output_budget=4096) -> Dict:
+    """Prefer all rows, then medium/high, then high; bound each paid request."""
+    ranking = analysis.get("risk_ranking") or analysis.get("high_risk_reasons") or []
+    rows, seen = [], set()
+    for row in list(ranking) + list(analysis.get("detections") or []):
+        if not isinstance(row, dict) or row.get("id") is None:
+            continue
+        key = str(row["id"])
+        if key not in seen:
+            seen.add(key)
+            rows.append(row)
+    capacity = max(1, min(MAX_REVIEW_BATCH, (int(output_budget) - 600) // 140))
+    def fits(items):
+        if len(items) > capacity:
+            return False
+        candidate = dict(analysis, risk_ranking=items, high_risk_reasons=items)
+        return len(json.dumps(build_redacted_analysis_payload(candidate, MAX_REVIEW_BATCH), ensure_ascii=False).encode("utf-8")) <= 32000
+    medium_high = [r for r in rows if r.get("risk_level") in {"medium", "high", "critical"}]
+    high = [r for r in rows if r.get("risk_level") in {"high", "critical"}]
+    all_available = len(rows) >= int(analysis.get("total") or len(rows))
+    if all_available and fits(rows):
+        scope, label, selected = "all_samples", "全部已检测样本", rows
+    elif medium_high and fits(medium_high):
+        scope, label, selected = "medium_high", "中高风险样本", medium_high
+    elif high:
+        scope, label, selected = "high", "高风险样本", high
+    elif medium_high:
+        scope, label, selected = "medium_high", "中高风险样本", medium_high
+    else:
+        scope, label, selected = "overview", "整体风险概览", []
+    return {"scope": scope, "label": label, "rows": selected, "batch_size": capacity,
+            "analyzed_rows": int(analysis.get("total") or len(rows))}
+
+
+def adaptive_review_state(plan: Dict, record: Dict) -> Dict:
+    positions = {str(r["id"]): i + 1 for i, r in enumerate(plan["rows"])}
+    valid = []
+    seen = set()
+    for item in record.get("assisted_decisions") or []:
+        key = str(item.get("sample_id"))
+        if key in positions and key not in seen:
+            seen.add(key)
+            valid.append(item)
+    total, reviewed = len(positions), len(valid)
+    return {"scope": plan["scope"], "label": plan["label"], "total": total,
+            "reviewed": reviewed, "pending": total-reviewed,
+            "analyzed_rows": plan["analyzed_rows"],
+            "complete": reviewed == total and bool((record.get("advice") or {}).get("summary"))}
+
+
+def reusable_review_record(analysis: Dict, record: Dict, settings: Dict) -> bool:
+    """Keep paid legacy reviews only when evidence and provider still match."""
+    if not record or record.get("model") != settings.get("model") or record.get("mode") != settings.get("mode"):
+        return False
+    prior_settings = canonical_fingerprint({"base_url": str(settings.get("base_url") or ""),
+        "model": str(settings.get("model") or ""), "mode": str(settings.get("mode") or ""),
+        "prompt_version": record.get("prompt_version")})
+    expected = canonical_fingerprint({"payload": build_redacted_analysis_payload(analysis),
+                                      "settings_fingerprint": prior_settings})
+    return record.get("settings_fingerprint") == prior_settings and record.get("input_fingerprint") == expected
+
+
+def merge_adaptive_review(analysis, plan, previous, batch_rows, provider_result, settings):
+    batch_analysis = dict(analysis, risk_ranking=batch_rows, high_risk_reasons=batch_rows)
+    batch_payload = build_redacted_analysis_payload(batch_analysis, MAX_REVIEW_BATCH)
+    record = make_external_analysis_record(batch_payload, settings, provider_result)
+    assisted = build_ai_assisted_decisions(batch_analysis, record["advice"], candidate_limit=MAX_REVIEW_BATCH)
+    if batch_rows and not assisted["items"]:
+        raise ExternalAdvisorResponseError("AI 未完整返回本批样本的复核结论；已有结果保留。", reason="incomplete_reviews")
+    positions = {str(r["id"]): i+1 for i, r in enumerate(plan["rows"])}
+    by_id = {str(d.get("sample_id")): dict(d) for d in previous.get("assisted_decisions") or []
+             if str(d.get("sample_id")) in positions}
+    for item in assisted["items"]:
+        item["rank"] = positions[str(item["sample_id"])]
+        by_id[str(item["sample_id"])] = item
+    record["assisted_decisions"] = sorted(by_id.values(), key=lambda r: positions[str(r["sample_id"])])
+    # Keep the full-analysis fingerprint compatible with existing report readers.
+    record["input_fingerprint"] = external_cache_key(build_redacted_analysis_payload(analysis), settings)
+    summary = {"reviewed": len(by_id), "agreed": 0, "ai_escalated": 0, "conflicts": 0, "insufficient": 0}
+    for item in by_id.values():
+        status = item.get("decision_status")
+        field = "ai_escalated" if status == "ai_escalated_review" else "conflicts" if status == "conflict_local_preserved" else "insufficient" if status == "ai_insufficient_local_preserved" else "agreed"
+        summary[field] += 1
+    summary["local_only_unreviewed"] = max(0, len(plan["rows"]) - len(by_id))
+    record["assisted_summary"] = summary
+    record["decision_policy"] = assisted["policy"]
+    record["review_scope"] = adaptive_review_state(plan, record)
+    record["batch_count"] = int(previous.get("batch_count") or 0) + 1
+    old_usage, usage = previous.get("usage") or {}, record.get("usage") or {}
+    record["usage"] = {k: int(old_usage.get(k) or 0) + int(usage.get(k) or 0)
+                       for k in ("input_tokens", "output_tokens", "total_tokens")}
+    return record
 
 
 def test_payload() -> Dict:

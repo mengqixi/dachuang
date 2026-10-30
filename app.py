@@ -63,6 +63,11 @@ from src.analysis.external_advisor import (
     build_redacted_analysis_payload,
     build_redacted_training_comparison_payload,
     external_cache_key,
+    external_error_details,
+    plan_adaptive_review,
+    adaptive_review_state,
+    merge_adaptive_review,
+    reusable_review_record,
     make_external_analysis_record,
     test_payload as external_advisor_test_payload,
 )
@@ -1444,6 +1449,15 @@ def _list_dataset_sources_cached(force=False):
         return fresh
 
 
+def _training_source_submission_ids(metadata):
+    """Use actual loaded submission IDs, not the synthetic dataset identifier."""
+    ids = metadata.get("source_submission_ids")
+    if ids is None:
+        ids = [item.get("id") for item in metadata.get("sources", [])
+               if item.get("id") and not str(item["id"]).startswith("dataset:")]
+    return list(dict.fromkeys(str(value) for value in ids if value))
+
+
 def _load_training_dataset_source(source_id=None, limit=50000):
     """Load a managed dataset source for admin local/federated training."""
     from src.preprocess.feature_engineering import load_security_csv, normalize_security_features
@@ -1491,6 +1505,8 @@ def _load_training_dataset_source(source_id=None, limit=50000):
                 ),
                 "dataset_name": selected.get("name") or selected.get("source") or "managed_dataset_source",
                 "dataset_source_id": selected_id,
+                "source_submission_ids": list(processed_meta.get("submission_ids") or [])
+                    if selected.get("source_type") in {"user_submission_pool", "user_submission"} else [],
                 "source_type": selected.get("source_type"),
                 "label_distribution": labels,
                 "preparation_id": processed_meta.get("preparation_id"),
@@ -2518,6 +2534,16 @@ def _create_external_advisor_client(settings):
     return ExternalAdvisorClient(settings)
 
 
+def _external_ai_failure_response(error):
+    details = external_error_details(error)
+    logger.warning("External AI failed: category={}", details["error_code"])
+    return jsonify(api_response(
+        code=502,
+        msg=details["message"] + " 本地结果已保留。",
+        data={"error_code": details["error_code"], "local_result_preserved": True},
+    )), 502
+
+
 def _reserve_external_ai_call(calls_per_hour):
     """Reserve one bounded global provider call for the 2GB deployment."""
     now = time.time()
@@ -2608,8 +2634,8 @@ def admin_external_ai_settings_test():
         }))
     except (ExternalAdvisorConfigError, ExternalAdvisorDisabledError) as error:
         return jsonify(api_response(code=400, msg=str(error))), 400
-    except (ExternalAdvisorProviderError, ExternalAdvisorResponseError):
-        return jsonify(api_response(code=502, msg="AI 接口测试失败，请检查地址、模型、密钥和接口模式。")), 502
+    except (ExternalAdvisorProviderError, ExternalAdvisorResponseError) as error:
+        return _external_ai_failure_response(error)
     except Exception:
         logger.exception("External AI settings test failed")
         return jsonify(api_response(code=500, msg="AI 接口测试失败。")), 500
@@ -2726,6 +2752,54 @@ def user_dataset_analyze(submission_id):
     return _submission_analysis_response(submission_id, actor="user")
 
 
+def _adaptive_external_analysis_response(submission_id, settings, cache_only=False):
+    if not _external_analysis_operation_lock.acquire(blocking=False):
+        return jsonify(api_response(code=409, msg="已有 AI 任务正在执行，请稍后继续。")), 409
+    try:
+        item = user_submission_manager.get_submission(submission_id, include_preview=True) or {}
+        analysis = item.get("analysis") or {}
+        trace = analysis.get("analysis_trace") or {}
+        if not trace.get("analysis_id"):
+            return jsonify(api_response(code=409, msg="请先完成本地检测。")), 409
+        plan = plan_adaptive_review(analysis, settings.get("max_output_tokens") or 4096)
+        payload = build_redacted_analysis_payload(analysis)
+        fingerprint = external_cache_key(payload, settings)
+        previous = item.get("external_analysis") or {}
+        if previous.get("input_fingerprint") != fingerprint and not reusable_review_record(analysis, previous, settings):
+            previous = {}
+        state = adaptive_review_state(plan, previous)
+        if state["complete"] or cache_only:
+            result = dict(previous)
+            result.update({"review_scope": state, "cache_reused": True,
+                           "submission_id": submission_id, "analysis_id": trace["analysis_id"]})
+            return jsonify(api_response(data=result))
+        covered = {str(d.get("sample_id")) for d in previous.get("assisted_decisions") or []}
+        batch = [row for row in plan["rows"] if str(row["id"]) not in covered][:plan["batch_size"]]
+        batch_analysis = dict(analysis, risk_ranking=batch, high_risk_reasons=batch)
+        batch_payload = build_redacted_analysis_payload(batch_analysis, candidate_limit=32)
+        allowed, retry_after, remaining = _reserve_external_ai_call(settings.get("calls_per_hour"))
+        if not allowed:
+            return jsonify(api_response(code=429, msg="本小时 AI 调用额度已用完，已有结论已保留，可稍后继续。",
+                data={"retry_after_seconds": retry_after})), 429
+        provider_result = _create_external_advisor_client(settings).analyze(batch_payload)
+        record = merge_adaptive_review(analysis, plan, previous, batch, provider_result, settings)
+        record.update({"submission_id": submission_id, "analysis_id": trace["analysis_id"],
+                       "remaining_calls_this_hour": remaining})
+        if user_submission_manager.save_external_analysis(submission_id, record, expected_analysis_id=trace["analysis_id"]) is None:
+            return jsonify(api_response(code=404, msg="提交记录不存在。")), 404
+        _clear_submission_related_caches()
+        return jsonify(api_response(msg="AI 复核已保存", data=record))
+    except SubmissionStatusError as error:
+        return jsonify(api_response(code=409, msg=str(error))), 409
+    except (ExternalAdvisorProviderError, ExternalAdvisorResponseError) as error:
+        return _external_ai_failure_response(error)
+    except Exception:
+        logger.exception("Adaptive AI review failed")
+        return jsonify(api_response(code=500, msg="AI 复核未完成，已有结果已保留。")), 500
+    finally:
+        _external_analysis_operation_lock.release()
+
+
 def _external_analysis_response(submission_id, actor="user"):
     """Interpret a completed local analysis using aggregate-only provider input."""
     if actor != "admin" and not _user_owns_submission(submission_id):
@@ -2752,6 +2826,8 @@ def _external_analysis_response(submission_id, actor="user"):
     payload = build_redacted_analysis_payload(analysis)
     expected_cache_key = external_cache_key(payload, settings)
     req = request.get_json(silent=True) or {}
+    if req.get("adaptive_review") is True:
+        return _adaptive_external_analysis_response(submission_id, settings, cache_only=req.get("cache_only") is True)
     force_value = req.get("force", False)
     force = actor == "admin" and (
         force_value is True or str(force_value).lower() in {"1", "true", "yes"}
@@ -2772,6 +2848,8 @@ def _external_analysis_response(submission_id, actor="user"):
         # calls when two requests arrive together.
         latest = user_submission_manager.get_submission(submission_id, include_preview=True) or {}
         latest_analysis = latest.get("analysis") if isinstance(latest.get("analysis"), dict) else analysis
+        if not (latest_analysis.get("analysis_trace") or {}).get("analysis_id"):
+            return jsonify(api_response(code=409, msg="本地检测结果已更新，请先完成检测再复核。")), 409
         latest_payload = build_redacted_analysis_payload(latest_analysis)
         latest_cache_key = external_cache_key(latest_payload, settings)
         latest_cached = latest.get("external_analysis") if isinstance(latest.get("external_analysis"), dict) else {}
@@ -2794,17 +2872,21 @@ def _external_analysis_response(submission_id, actor="user"):
         record["assisted_summary"] = assisted.get("summary", {})
         record["decision_policy"] = assisted.get("policy")
         record["remaining_calls_this_hour"] = remaining
-        if user_submission_manager.save_external_analysis(submission_id, record) is None:
+        analysis_id = (latest_analysis.get("analysis_trace") or {}).get("analysis_id")
+        record["submission_id"] = submission_id
+        record["analysis_id"] = analysis_id
+        if user_submission_manager.save_external_analysis(
+            submission_id, record, expected_analysis_id=analysis_id,
+        ) is None:
             return jsonify(api_response(code=404, msg="提交记录不存在。")), 404
         _clear_submission_related_caches()
         return jsonify(api_response(msg="AI 脱敏研判完成", data=record))
+    except SubmissionStatusError as error:
+        return jsonify(api_response(code=409, msg=str(error), data={"error_code": "analysis_revision_changed"})), 409
     except (ExternalAdvisorConfigError, ExternalAdvisorDisabledError):
         return jsonify(api_response(code=503, msg="AI 脱敏解读配置不可用，本地功能不受影响。")), 503
-    except (ExternalAdvisorProviderError, ExternalAdvisorResponseError):
-        return jsonify(api_response(
-            code=502,
-            msg="AI 解读服务暂时不可用；本地检测结果已保留，不会受到影响。",
-        )), 502
+    except (ExternalAdvisorProviderError, ExternalAdvisorResponseError) as error:
+        return _external_ai_failure_response(error)
     except Exception:
         logger.exception("External aggregate analysis failed")
         return jsonify(api_response(code=500, msg="AI 解读失败；本地检测结果已保留。")), 500
@@ -3131,7 +3213,7 @@ def _prepare_dataset_source_for_federated_locked(source, source_id=None, limit=5
                 "validation_label_counts": partition_meta["validation_label_counts"],
                 "federated_split_version": partition_meta["federated_split_version"],
                 "federated_split": partition_meta["federated_split"],
-                "submission_ids": (user_meta or {}).get("submission_ids") or source.get("submission_ids") or [],
+                "submission_ids": [item["id"] for item in (user_meta or {}).get("sources", []) if item.get("id")],
                 "source_submission_ids": sorted(str(value) for value in (source.get("submission_ids") or []) if value),
                 "drift": {"available": False, "level": "baseline", "reason": "initial_full_preparation"},
             }
@@ -3548,10 +3630,7 @@ def _admin_training_centralized_locked():
             return jsonify(api_response(code=500, msg="普通集中式基线未能生成可评估权重。")), 500
 
         version = datetime.now().strftime("central%Y%m%d%H%M%S%f")[:-3]
-        source_ids = [
-            item.get("id") for item in meta.get("sources", [])
-            if item.get("id") and not str(item.get("id")).startswith("dataset:")
-        ]
+        source_ids = _training_source_submission_ids(meta)
         record = {
             **meta,
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -3780,7 +3859,7 @@ def _admin_training_local_locked():
             "runtime_model_updated": True,
             "note": "Runtime training updates the user-facing ensemble detector directly; it is tracked separately and is not used as the ordinary baseline in the FedAvg comparison.",
         }
-        source_ids = [s.get("id") for s in meta.get("sources", []) if s.get("id") and not str(s.get("id")).startswith("dataset:")]
+        source_ids = _training_source_submission_ids(meta)
         record["source_submission_ids"] = source_ids
         save_training_record(record)
         updated_submissions = user_submission_manager.mark_used_for_training(
@@ -3986,7 +4065,7 @@ def _admin_training_federated_locked():
                 "该数值不能与普通集中式基线指标直接判断优劣。"
             )
         version = datetime.now().strftime("fed%Y%m%d%H%M%S%f")[:-3]
-        source_ids = [s.get("id") for s in meta.get("sources", []) if s.get("id") and not str(s.get("id")).startswith("dataset:")]
+        source_ids = _training_source_submission_ids(meta)
         data = {
             **meta,
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -4439,8 +4518,8 @@ def admin_training_external_comparison():
         return jsonify(api_response(msg="AI 训练方案辅助判定完成", data=record))
     except (ExternalAdvisorConfigError, ExternalAdvisorDisabledError):
         return jsonify(api_response(code=503, msg="AI 配置不可用，现有训练对比不受影响。")), 503
-    except (ExternalAdvisorProviderError, ExternalAdvisorResponseError):
-        return jsonify(api_response(code=502, msg="AI 服务暂时不可用，现有训练对比结果已保留。")), 502
+    except (ExternalAdvisorProviderError, ExternalAdvisorResponseError) as error:
+        return _external_ai_failure_response(error)
     except Exception:
         logger.exception("External training comparison failed")
         return jsonify(api_response(code=500, msg="AI 辅助判定失败，现有训练对比结果已保留。")), 500

@@ -207,6 +207,14 @@ main.container-fluid{max-width:1600px;margin:0 auto}
   .submission-table td[colspan]{grid-column:1/-1}.submission-detail-grid{grid-template-columns:80px minmax(0,1fr)}
 }
 .toastx{backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+/* Presentation layer: concise summaries, explicit scopes and dependency-free charts. */
+.hint-panel{display:none!important}.info-trigger{display:inline-flex;align-items:center;justify-content:center;gap:5px;border:1px solid #dce5ed;background:#f7fafc;color:var(--app-accent);border-radius:7px;font-size:12px;padding:4px 8px;cursor:pointer;vertical-align:middle}.info-trigger.icon-only{width:23px;height:23px;padding:0;border-radius:50%}.info-trigger:focus-visible{outline:2px solid var(--app-accent);outline-offset:3px}
+.summary-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:12px}.summary-toolbar .summary-end{margin-left:auto}.summary-line{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}.summary-line>strong{font-size:14px;color:#365775}.presentation-empty{padding:22px 12px;text-align:center;color:#82909f;font-size:13px}.chart-caption{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;color:#42617b;font-weight:650;margin-bottom:12px}.chart-card-body{min-width:0}.visual-card{border:1px solid #e1e8ef;border-radius:11px;padding:14px;background:#fff;min-width:0}.visual-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.visual-card .result-card{border:0;padding:0;margin:0}.visual-card .result-card .title{font-size:13px}.visual-card .compare-row{grid-template-columns:minmax(80px,110px) minmax(0,1fr) 48px;margin:12px 0;font-size:12px}.visual-card .compare-row span{overflow-wrap:anywhere}.visual-card .bar-track{height:10px}.visual-card .bar-fill{min-width:0;background:#6486b5}.visual-card .result-card .compare-row:last-child{margin-bottom:0}
+.risk-donut-layout{display:flex;align-items:center;justify-content:center;gap:24px;min-height:160px}.risk-donut{width:144px;max-width:45%;flex:none}.risk-donut text{fill:#365775;font-family:inherit}.risk-donut .donut-value{font-size:22px;font-weight:750}.risk-donut .donut-label{font-size:10px;fill:#82909f}.donut-legend{flex:1;max-width:240px;min-width:0}.donut-legend-row{display:flex;align-items:center;gap:7px;font-size:12px;color:#617284;margin:12px 0}.legend-dot{width:9px;height:9px;border-radius:3px;flex:none}.donut-legend-row b{margin-left:auto;color:#365775}.donut-legend-row small{width:43px;text-align:right;color:#82909f}
+.score-histogram{display:flex;gap:12px;align-items:flex-end;height:160px;border-bottom:1px solid #dce5ed;padding:20px 8px 0;margin-bottom:30px}.histogram-column{height:100%;flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;position:relative;min-width:0}.histogram-column b{font-size:12px;color:#42617b;margin-bottom:5px}.histogram-column i{display:block;width:min(75%,60px);background:#86a4c1;border-radius:5px 5px 0 0;flex:none}.histogram-column span{position:absolute;top:calc(100% + 7px);font-size:11px;white-space:nowrap;color:#718096}
+.paired-chart{display:grid;gap:17px;margin-top:14px}.paired-chart-axis{display:flex;justify-content:space-between;color:#8b97a5;font-size:10px;margin-top:8px}.paired-metric-head{display:flex;align-items:center;gap:8px;font-size:12px;color:#50687e;margin-bottom:7px}.paired-metric-head .metric-delta{margin-left:auto;font-size:11px;background:#f0f5fa;border-radius:5px;padding:3px 6px;color:#42617b}.paired-bar-line{display:grid;grid-template-columns:minmax(0,1fr) 58px;gap:9px;align-items:center;margin-top:6px}.paired-bar-track{height:12px;position:relative;background:repeating-linear-gradient(to right,#f1f5f9 0,#f1f5f9 calc(25% - 1px),#e1e8ef calc(25% - 1px),#e1e8ef 25%);border-radius:4px;overflow:hidden}.paired-bar-fill{display:block;height:100%;border-radius:4px;background:#6486b5}.paired-bar-fill.fed{background:#75a58e}.paired-bar-line b{font-size:12px;text-align:right;color:#45627c}.paired-bar-line b.unavailable{color:#9aa6b2}.chart-legend{flex-wrap:wrap;gap:12px}.chart-legend span{white-space:nowrap}.chart-legend .legend-dot{display:inline-block;margin-right:5px}.ai-visuals{display:grid;grid-template-columns:minmax(160px,.8fr) minmax(0,1.2fr);gap:12px;margin:14px 0}.ai-progress-number{font-size:24px;font-weight:750;color:#365775;margin:8px 0}.ai-progress-number small{font-size:13px;font-weight:400;color:#82909f}.coverage-track{height:8px;background:#e9eef4;border-radius:8px;overflow:hidden;margin:10px 0}.coverage-fill{height:100%;background:#6486b5}.coverage-label{font-size:12px;color:#718096}.review-outcomes{display:grid;gap:8px}.review-outcome{display:grid;grid-template-columns:60px minmax(0,1fr) 28px;align-items:center;gap:8px;font-size:12px;color:#718096}.review-outcome .bar-track{height:8px}.review-outcome b{text-align:right;color:#42617b}.ai-summary-text{font-size:13px;line-height:1.75;color:#365775;margin:10px 0;overflow-wrap:anywhere}.ai-result-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:12px}.ai-result-actions .ai-status-line{font-size:11px}.ai-review-table{table-layout:fixed;width:100%}.ai-review-table th:nth-child(1){width:25%}.ai-review-table th:nth-child(2){width:17%}.ai-review-table th:nth-child(3){width:24%}.ai-review-table th:nth-child(4){width:34%}.ai-review-table td{overflow-wrap:anywhere;font-weight:400;text-align:left}.ai-review-table th{text-align:left}.ai-review-table .status-pill{white-space:normal}.report-metadata{display:grid;gap:10px}.report-metadata .summary-line{margin-bottom:0}.report-file-name{overflow-wrap:anywhere;font-size:14px;color:#365775;font-weight:650}.recommendation-list{padding-left:18px;line-height:1.8;font-size:13px}.recommendation-list li+li{margin-top:6px}.compact-progress-chart{margin-top:14px}.compact-progress-chart .compare-row{grid-template-columns:90px minmax(0,1fr) 62px;font-size:12px;margin:9px 0}.compact-progress-chart .bar-track{height:9px}.help-dialog{z-index:10040}.help-dialog .mini-modal-card{width:min(660px,96vw)}.help-dialog .mini-modal-body{font-size:13px;color:#52687c;line-height:1.8;overflow-wrap:anywhere}.help-dialog .mini-modal-body p:last-child{margin-bottom:0}.help-dialog .mini-modal-body .compact-details{margin-top:10px}
+#riskStatsBoard{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}#riskStatsBoard>.result-card{margin-top:0}#reportCharts .result-card{margin-top:0}#currentModelHint[hidden]{display:none!important}#fedNodeExplain{font-size:12px}.audit-visuals{margin-top:14px}.audit-visuals .visual-card{padding:12px}.audit-visuals .chart-caption{margin-bottom:4px}
+@media(max-width:720px){#riskStatsBoard,.visual-grid,.ai-visuals{grid-template-columns:1fr}#riskMetrics,#reportMetrics{grid-template-columns:repeat(2,minmax(0,1fr))}.summary-toolbar .summary-end{margin-left:0}.risk-donut-layout{gap:16px}.score-histogram{gap:8px}.score-histogram span{font-size:10px}.ai-review-table{font-size:12px}.ai-review-table th,.ai-review-table td{padding:10px 5px}.ai-review-table .status-pill{font-size:11px}.ai-review-table th:nth-child(1){width:32%}.ai-review-table th:nth-child(2){width:18%}.ai-review-table th:nth-child(3){width:22%}.ai-review-table th:nth-child(4){width:28%}.summary-line{flex-wrap:wrap}.help-dialog{padding:10px}.ai-result-actions{align-items:flex-start}.paired-chart{gap:14px}.histogram-column span{white-space:normal;text-align:center}.visual-card .compare-row{grid-template-columns:85px minmax(0,1fr) 40px}}
 *{scrollbar-width:thin;scrollbar-color:rgba(var(--app-accent-rgb),.35) transparent}
 *::-webkit-scrollbar{width:8px;height:8px}*::-webkit-scrollbar-track{background:transparent}*::-webkit-scrollbar-thumb{background:rgba(var(--app-accent-rgb),.28);border-radius:999px}*::-webkit-scrollbar-thumb:hover{background:rgba(var(--app-accent-rgb),.42)}
 @media(prefers-reduced-motion:reduce){.btn-main,.btn-lightx,.metric,.nav-link,.scroll-box tbody tr{transition:none!important}}
@@ -286,7 +294,8 @@ main.container-fluid{max-width:1600px;margin:0 auto}
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">中风险</div></div>
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">低风险</div></div>
         </div>
-        <div class="notice mt-2" id="currentModelHint">当前检测模型：加载中...</div>
+        <div class="summary-toolbar"><span id="privacyRiskOverview"></span><span class="summary-end"><button class="info-trigger" type="button" data-info-title="当前检测模型" data-info-source="currentModelHint">模型信息 ⓘ</button></span></div>
+        <span id="currentModelHint" hidden>当前检测模型：加载中...</span>
         <div class="ai-assist-card" id="externalAnalysisBoxDetect">
           <div class="ai-title"><span><i class="fas fa-wand-magic-sparkles"></i> AI 辅助判定</span><span class="mini-badge">按需调用</span></div>
         </div>
@@ -295,8 +304,8 @@ main.container-fluid{max-width:1600px;margin:0 auto}
     <div class="panel">
       <div class="panel-head">检测统计</div>
       <div class="panel-body">
-        <div class="three-col" id="riskStatsBoard">
-          <div class="notice">完成检测后显示风险等级、攻击类型和触发因素统计。</div>
+        <div class="visual-grid" id="riskStatsBoard">
+          <div class="presentation-empty">暂无检测数据</div>
         </div>
       </div>
     </div>
@@ -315,7 +324,7 @@ main.container-fluid{max-width:1600px;margin:0 auto}
 
   <section class="page" id="pg-report">
     <div class="panel">
-      <div class="panel-head"><i class="fas fa-file-lines text-primary"></i> 分析报告 - 结果留存</div>
+      <div class="panel-head"><i class="fas fa-file-lines text-primary"></i> 分析报告 <button class="info-trigger icon-only" type="button" data-info-title="报告说明" data-info-text="报告同步本次检测和已保存的 AI 结论。查看、下载报告不会再次调用 AI；需要补充复核时，请到风险检测页主动发起。" aria-label="查看报告说明">i</button></div>
       <div class="panel-body">
         <button class="btn-main me-2" onclick="loadReport()">加载报告</button>
         <button class="btn-lightx" onclick="downloadReport()">下载完整报告</button>
@@ -323,7 +332,7 @@ main.container-fluid{max-width:1600px;margin:0 auto}
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">总样本</div></div>
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">高风险</div></div>
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">中风险</div></div>
-          <div class="metric"><div class="metric-value">--</div><div class="metric-label">加密归档</div></div>
+          <div class="metric"><div class="metric-value">--</div><div class="metric-label">低风险</div></div>
         </div>
         <div class="two-col mt-3">
           <div class="preview-card">
@@ -338,7 +347,6 @@ main.container-fluid{max-width:1600px;margin:0 auto}
         <div id="reportCharts" class="report-charts"></div>
         <div class="ai-assist-card" id="externalAnalysisBoxReport">
           <div class="ai-title"><span><i class="fas fa-wand-magic-sparkles"></i> AI 复核结论</span><span class="mini-badge">可选</span></div>
-          <div class="ai-local-primary">尚未使用 AI；如需辅助判断，请到风险检测页发起。此处同步展示结果。</div>
         </div>
         <div class="panel mt-3 mb-0">
           <div class="panel-head">需关注样本摘要</div>
@@ -351,7 +359,6 @@ main.container-fluid{max-width:1600px;margin:0 auto}
             </div>
           </div>
         </div>
-        <div class="subtle-note mt-3">报告同步本次检测与已有 AI 结论；查看、下载均不会再次调用 AI。</div>
         <details class="mt-3">
           <summary class="btn-lightx">查看完整 Markdown 内容</summary>
           <div class="report-box empty mt-2" id="reportBox">完成风险检测后可查看报告。</div>
@@ -398,9 +405,8 @@ main.container-fluid{max-width:1600px;margin:0 auto}
         <button class="btn-lightx ms-2" id="datasetSourceToggle" type="button" onclick="toggleDatasetSources()" hidden>显示全部数据源</button>
         <span class="ms-2 small-text text-muted" id="datasetSourceSummary"></span>
         </div>
-        <details class="compact-details">
-          <summary>查看处理规则与模型关系</summary>
-          <div class="compact-details-content">
+        <button class="info-trigger" type="button" data-info-title="处理规则与模型关系" data-info-source="dataProcessRules">处理说明 ⓘ</button>
+          <div class="compact-details-content" id="dataProcessRules" hidden>
             <div class="chain mb-3">
               <span>训练数据源</span><i class="fas fa-arrow-right muted"></i><span>统一字段</span><i class="fas fa-arrow-right muted"></i><span>分层切分</span><i class="fas fa-arrow-right muted"></i><span>四节点数据</span><i class="fas fa-arrow-right muted"></i><span>训练入口</span>
             </div>
@@ -410,7 +416,6 @@ main.container-fluid{max-width:1600px;margin:0 auto}
               <div class="compare-box"><h6>训练与节点关系</h6><div class="small-text text-muted">关系加载中</div></div>
             </div>
           </div>
-        </details>
         <div class="source-context" id="datasetCurrentSourceLabel">当前数据源：加载中</div>
         <div class="metric-grid mt-3" id="systemDataMetrics">
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">原始样本</div></div>
@@ -419,6 +424,7 @@ main.container-fluid{max-width:1600px;margin:0 auto}
           <div class="metric"><div class="metric-value">--</div><div class="metric-label">验证分区</div></div>
         </div>
         <div class="source-model-status" id="datasetModelStatus"></div>
+        <div id="dataPreparationChart" class="compact-progress-chart"></div>
         <div class="source-category-tabs" id="datasetCategoryTabs" role="group" aria-label="数据源分类"></div>
         <div class="scroll-box workspace-table-wrap mt-3">
           <table class="table table-sm workspace-table source-table">
@@ -550,6 +556,7 @@ main.container-fluid{max-width:1600px;margin:0 auto}
         </div></details>
         <div class="small-text text-muted mt-2" id="auditFilterSummary">正在读取审计记录</div>
         <div class="metric-grid mt-3" id="auditMetrics"></div>
+        <div class="visual-grid audit-visuals" id="auditVisuals"></div>
       </div>
     </div>
     <div class="panel">
@@ -627,6 +634,9 @@ main.container-fluid{max-width:1600px;margin:0 auto}
         <label class="form-label mb-0">超时（秒）
           <input class="form-control mt-1" id="externalAiTimeout" type="number" min="5" max="90" value="45">
         </label>
+        <label class="form-label mb-0">最大输出额度（tokens）
+          <input class="form-control mt-1" id="externalAiOutputTokens" type="number" min="200" max="8192" value="4096">
+        </label>
         </div>
         <div class="subtle-note mt-3" id="externalAiConfigMeta"></div>
         <div class="subtle-note mt-2">仅手动调用，向 AI 发送脱敏统计，不发送原始账号或 IP。</div>
@@ -667,6 +677,9 @@ main.container-fluid{max-width:1600px;margin:0 auto}
   </div>
 </div>
 
+<div class="mini-modal help-dialog" id="presentationInfoModal" hidden role="dialog" aria-modal="true" aria-labelledby="presentationInfoTitle">
+  <div class="mini-modal-card"><div class="mini-modal-head"><span id="presentationInfoTitle">说明</span><button class="mini-close" type="button" onclick="closePresentationInfo()" aria-label="关闭说明">×</button></div><div class="mini-modal-body" id="presentationInfoBody"></div><div class="mini-modal-foot"><button class="btn-lightx" type="button" onclick="closePresentationInfo()">关闭</button></div></div>
+</div>
 <script>
 const requestedAppMode = new URLSearchParams(location.search).get('mode');
 const APP_MODE = location.port === '5001' || requestedAppMode === 'admin' ? 'admin' : 'user';
@@ -690,6 +703,7 @@ let datasetSourceContext = {};
 let currentAnalysis = null;
 let currentExternalAnalysis = null;
 let currentReportPayload = null;
+let userResultRevision = 0;
 let currentTrainingAiComparison = null;
 let currentDatasetSourceId = '';
 const ADMIN_CURRENT_DATASET_SOURCE_KEY = 'adminCurrentDatasetSourceId';
@@ -929,10 +943,68 @@ function toggleDatasetSources(){
   datasetSourcesExpanded=!datasetSourcesExpanded;
   renderDatasetSourceList();
 }
-function closeMiniModal(id){const el=document.getElementById(id);if(el)el.hidden=true}
-function openMiniModal(id){const el=document.getElementById(id);if(el)el.hidden=false}
+const miniModalOpeners=new Map();let miniModalPreviousOverflow='';
+function closeMiniModal(id){
+  const el=document.getElementById(id);if(!el||el.hidden)return;
+  el.hidden=true;const opener=miniModalOpeners.get(id);miniModalOpeners.delete(id);
+  if(!document.querySelector('.mini-modal:not([hidden])'))document.body.style.overflow=miniModalPreviousOverflow;
+  if(opener&&opener.isConnected)opener.focus();
+}
+function openMiniModal(id){
+  const el=document.getElementById(id);if(!el)return;
+  if(el.hidden){if(!document.querySelector('.mini-modal:not([hidden])'))miniModalPreviousOverflow=document.body.style.overflow;miniModalOpeners.set(id,document.activeElement);}
+  el.hidden=false;document.body.style.overflow='hidden';el.querySelector('.mini-close')?.focus();
+}
 function aiAssessmentText(value){return ({agree:'与本地一致',escalate:'建议提高关注',review:'判定冲突需复核',insufficient:'信息不足'})[value]||'辅助复核'}
 function aiVerdictText(value){return ({local_preferred:'当前优先使用普通集中式模型',federated_preferred:'当前优先使用联邦训练模型',tradeoff:'按安全与性能需求权衡选择',not_comparable:'当前指标口径不足以直接判定'})[value]||'尚未形成模型选择判断'}
+function infoButton(title,text,label='i'){
+  return `<button class="info-trigger ${label==='i'?'icon-only':''}" type="button" data-info-title="${esc(title)}" data-info-text="${esc(text)}" aria-haspopup="dialog" aria-controls="presentationInfoModal" aria-label="${esc(title)}">${esc(label)}</button>`;
+}
+let presentationInfoOpener=null,presentationPreviousOverflow='';
+function openPresentationInfo(title,html){
+  const modal=document.getElementById('presentationInfoModal');
+  if(modal.hidden){presentationInfoOpener=document.activeElement;presentationPreviousOverflow=document.body.style.overflow;}
+  document.getElementById('presentationInfoTitle').textContent=title||'说明';
+  document.getElementById('presentationInfoBody').innerHTML=html;
+  modal.hidden=false;document.body.style.overflow='hidden';
+  modal.querySelector('.mini-close').focus();
+}
+function closePresentationInfo(){
+  const modal=document.getElementById('presentationInfoModal');if(modal.hidden)return;
+  modal.hidden=true;document.body.style.overflow=presentationPreviousOverflow;
+  if(presentationInfoOpener&&presentationInfoOpener.isConnected)presentationInfoOpener.focus();
+}
+function chartNumber(value){return value!==null&&value!==undefined&&value!==''&&Number.isFinite(Number(value))?Number(value):null;}
+function nonnegativeEntries(data){return Object.entries(obj(data)).map(([k,v])=>[k,chartNumber(v)]).filter(([,v])=>v!==null&&v>=0);}
+function riskDistributionVisual(summary,title='风险分布'){
+  const s=obj(summary),colors={critical:'#b65c6b',high:'#d48186',medium:'#d3ae69',low:'#75a58e'};
+  const entries=[['critical','严重'],['high','高风险'],['medium','中风险'],['low','低风险']].map(([key,label])=>({key,label,value:Math.max(0,chartNumber(s[key])||0)})).filter(x=>x.value>0);
+  const total=entries.reduce((sum,x)=>sum+x.value,0);let offset=0;
+  const arcs=entries.map(x=>{const pct=x.value/total*100;const result=`<circle cx="80" cy="80" r="58" fill="none" stroke="${colors[x.key]}" stroke-width="16" pathLength="100" stroke-dasharray="${pct} ${100-pct}" stroke-dashoffset="${-offset}" transform="rotate(-90 80 80)"/>`;offset+=pct;return result;}).join('');
+  return `<div class="visual-card"><div class="chart-caption">${esc(title)}${infoButton('风险分布统计范围','仅统计本次本地检测结果；严重、高、中、低四类互不重叠，数量相加为已分析样本数。')}</div>${total?`<div class="risk-donut-layout"><svg class="risk-donut" viewBox="0 0 160 160" role="img" aria-label="${esc(entries.map(x=>x.label+' '+x.value+'条').join('，'))}"><circle cx="80" cy="80" r="58" fill="none" stroke="#edf1f5" stroke-width="16"/>${arcs}<text class="donut-value" x="80" y="80" text-anchor="middle">${esc(total)}</text><text class="donut-label" x="80" y="99" text-anchor="middle">已分析样本</text></svg><div class="donut-legend">${entries.map(x=>`<div class="donut-legend-row"><i class="legend-dot" style="background:${colors[x.key]}"></i><span>${x.label}</span><b>${esc(x.value)}</b><small>${(x.value/total*100).toFixed(1)}%</small></div>`).join('')}</div></div>`:'<div class="presentation-empty">暂无统计</div>'}</div>`;
+}
+function histogramVisual(title,data){
+  const entries=nonnegativeEntries(data),max=Math.max(...entries.map(([,v])=>v),1);
+  return `<div class="visual-card"><div class="chart-caption">${esc(title)}${infoButton('分数区间统计','柱高表示当前区间的样本数量，不是风险概率。鼠标指向柱形可查看区间与数量。')}</div>${entries.length?`<div class="score-histogram" role="img" aria-label="${esc(entries.map(([k,v])=>k+'：'+v).join('，'))}">${entries.map(([k,v])=>`<div class="histogram-column" title="${esc(k)}：${v} 条"><b>${v}</b><i style="height:${v/max*82}%;background:${String(k).includes('0.85')?'#d48186':'#86a4c1'}"></i><span>${esc(k)}</span></div>`).join('')}</div>`:'<div class="presentation-empty">暂无统计</div>'}</div>`;
+}
+function pairedMetricsVisual(local,fed,comparable=false){
+  const metrics=[['准确率','accuracy'],['风险召回率','recall'],['F1','f1']];
+  const bar=(row,key,cls)=>{const n=chartNumber(obj(row)[key]);return `<div class="paired-bar-line"><div class="paired-bar-track"><span class="paired-bar-fill ${cls}" style="width:${n===null?0:Math.max(0,Math.min(100,n*100))}%"></span></div><b class="${n===null?'unavailable':''}">${n===null?'--':(n*100).toFixed(2)+'%'}</b></div>`;};
+  return `<div class="chart-legend"><span><i style="background:#6486b5"></i>普通集中式</span><span><i style="background:#75a58e"></i>四节点联邦</span></div><div class="paired-chart" role="img" aria-label="普通集中式与联邦训练指标；所有横条使用零至百分之百统一刻度">${metrics.map(([label,key])=>{const l=chartNumber(obj(local)[key]),f=chartNumber(obj(fed)[key]),delta=l!==null&&f!==null&&comparable?(f-l)*100:null;return `<div><div class="paired-metric-head"><b>${label}</b>${delta!==null?`<span class="metric-delta">联邦 ${delta>0?'+':''}${delta.toFixed(2)} 个百分点</span>`:''}</div>${bar(local,key,'')}${bar(fed,key,'fed')}</div>`;}).join('')}</div><div class="paired-chart-axis"><span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span></div>`;
+}
+function trainingMetricsComparable(local,fed){
+  return local.metric_scope==='shared_holdout_validation'&&fed.metric_scope==='shared_holdout_validation'&&!!local.validation_id&&local.validation_id===fed.validation_id&&!!local.model_architecture&&local.model_architecture===fed.model_architecture&&!!local.optimizer&&local.optimizer===fed.optimizer&&Number(local.epochs)>0&&Number(local.epochs)===Number(fed.epochs);
+}
+function aiReviewVisual(result){
+  const d=obj(result),scope=obj(d.review_scope),decisions=arr(d.assisted_decisions),summary=obj(d.assisted_summary);
+  const reviewed=chartNumber(scope.reviewed)??chartNumber(summary.reviewed)??decisions.length,total=chartNumber(scope.total);
+  const outcomes={agreed:0,escalated:0,conflicts:0,insufficient:0,unknown:0};
+  decisions.forEach(x=>{const key=x.decision_status==='ai_escalated_review'?'escalated':x.decision_status==='conflict_local_preserved'?'conflicts':x.decision_status==='ai_insufficient_local_preserved'?'insufficient':['local_ai_agree','local_ai_consistent'].includes(x.decision_status)?'agreed':'unknown';outcomes[key]++;});
+  const rows=[['一致',outcomes.agreed,'#75a58e'],['建议升级',outcomes.escalated,'#d3ae69'],['判定冲突',outcomes.conflicts,'#d48186'],['信息不足',outcomes.insufficient,'#a2adba']],denominator=Math.max(decisions.length,1);
+  if(outcomes.unknown)rows.push(['未标注',outcomes.unknown,'#a2adba']);
+  const scopeText=scope.scope?`本地已分析 ${scope.analyzed_rows??'--'} 条。本次选择${scope.label||scope.scope}，共 ${total??'--'} 条；已复核 ${reviewed} 条。未选入范围或尚未返回的样本不能视为已被 AI 复核。`:'这是已有复核结论，历史记录未保存完整目标范围，不能据此认定全部样本已完成复核。';
+  return `<div class="ai-visuals"><div class="visual-card"><div class="chart-caption">复核覆盖${infoButton('AI 复核范围',scopeText)}</div><div class="ai-progress-number">${esc(reviewed)}<small>${total===null?' 条已有结论':' / '+esc(total)+' 条'}</small></div>${total!==null&&total>0?`<div class="coverage-track"><div class="coverage-fill" style="width:${Math.min(100,reviewed/total*100)}%"></div></div>`:''}<div class="coverage-label">${esc(scope.label||'已有重点复核')}${scope.pending?' · 待继续 '+esc(scope.pending):''}</div></div><div class="visual-card"><div class="chart-caption">本地与 AI 对照${infoButton('复核结果说明','按已返回的逐样本结论统计，不代表模型准确率。一致不等于已确认攻击；升级、冲突和信息不足仍需结合业务证据复核。')}</div><div class="review-outcomes">${rows.map(([label,n,color])=>`<div class="review-outcome"><span>${label}</span><div class="bar-track"><div class="bar-fill" style="width:${n/denominator*100}%;background:${color};min-width:0"></div></div><b>${n}</b></div>`).join('')}</div></div></div>`;
+}
 function aiListHtml(title,values){
   const rows=arr(values).filter(Boolean).slice(0,6);
   return rows.length?`<div class="mt-2"><b>${esc(title)}</b><ul class="ai-list">${rows.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`:'';
@@ -941,29 +1013,22 @@ function aiDecisionForRisk(row){
   const decisions=arr(obj(currentExternalAnalysis).assisted_decisions);
   return decisions.find(x=>String(x.sample_id)===String(row.id))||decisions.find(x=>Number(x.rank)===Number(row.rank))||null;
 }
-function aiDatasetResultHtml(result){
-  const data=obj(result), advice=obj(data.advice), summary=obj(data.assisted_summary);
-  const decisions=arr(data.assisted_decisions);
-  const decisionRows=decisions.slice(0,8).map(d=>`<div class="ai-decision-row">
-    <b>样本 ${esc(d.sample_id??('排名 '+d.rank))}</b>
-    <span>本地：${esc(riskLevelText(d.local_risk_level))} ${esc(d.local_risk_score)}</span>
-    <span>AI：${esc(riskLevelText(d.ai_risk_level))}（${esc(Math.round(Number(d.ai_confidence||0)*100))}%） → <b>${esc(riskLevelText(d.combined_risk_level))}</b>${d.needs_manual_review?' · 需人工复核':''}</span>
-  </div>`).join('');
-  return `<div class="ai-local-primary"><b>判定规则：</b>本地模型为主；AI 可以确认或提高复核等级，不能降低本地高风险，也不会修改本地风险分数。</div>
-    <div class="mt-3"><b>AI 综合说明：</b>${esc(advice.summary||'AI 已完成辅助判定。')}</div>
-    <div class="tag-line mt-2">
-      <span class="mini-badge">已复核 ${esc(summary.reviewed||0)}</span>
-      <span class="mini-badge">一致 ${esc(summary.agreed||0)}</span>
-      <span class="mini-badge">建议升级 ${esc(summary.ai_escalated||0)}</span>
-      <span class="mini-badge">冲突 ${esc(summary.conflicts||0)}</span>
-    </div>
-    ${decisionRows?`<div class="mt-3"><b>重点样本双模型判定</b>${decisionRows}</div>`:'<div class="notice mt-3">AI 未返回可映射的样本二次判定，本地结果保持不变。</div>'}
-    ${aiListHtml('隐私安全判断',advice.privacy_findings)}
-    ${aiListHtml('安全性判断',advice.security_findings)}
-    ${aiListHtml('攻击风险判断',advice.attack_findings)}
-    ${aiListHtml('处理建议',advice.recommended_actions)}
-    <div class="ai-status-line mt-3">模型：${esc(data.model||'-')} · 已保存的复核结论${data.generated_at?' · '+esc(data.generated_at):''} · ${esc(advice.confidence_note||'AI 仅作辅助判定。')}</div>`;
+function aiDatasetResultHtml(result,expanded=false){
+  const data=obj(result),advice=obj(data.advice),summary=obj(data.assisted_summary),scope=obj(data.review_scope);
+  const decisions=arr(data.assisted_decisions),localRows=arr(obj(currentAnalysis).risk_ranking).concat(arr(obj(currentAnalysis).detections));
+  const renderRows=rows=>rows.map(d=>{
+    const row=localRows.find(x=>String(x.id)===String(d.sample_id))||{};
+    const verdict=d.decision_status==='ai_insufficient_local_preserved'?'信息不足，保留本地判断':d.needs_manual_review?`综合${riskLevelText(d.combined_risk_level)} · 需人工核对`:'与本地一致';
+    return `<tr><td><b>${esc(d.ip||row.ip||'IP 未提供')}</b><div class="submission-meta">样本 ${esc(d.sample_id??d.rank)}</div></td><td>${esc(riskLevelText(d.local_risk_level))}<div class="submission-meta">${esc(d.local_risk_score)}</div></td><td><span class="status-pill ${d.needs_manual_review?'warn':'info'}">AI ${esc(riskLevelText(d.ai_risk_level))}</span><div class="submission-meta">${esc(verdict)}</div></td><td>${esc(d.recommended_action||d.reason||'AI 未提供具体建议')}</td></tr>`;
+  }).join('');
+  const reviewTable=rows=>`<div class="workspace-table-wrap"><table class="training-metric-table ai-review-table"><thead><tr><th>IP / 样本</th><th>本地判断</th><th>复核结果</th><th>AI 建议</th></tr></thead><tbody>${renderRows(rows)}</tbody></table></div>`;
+  const evidence=['本地判断为主，AI 不改写风险分数。',...arr(advice.privacy_findings),...arr(advice.attack_findings),...arr(advice.security_findings),advice.confidence_note||''].filter(Boolean).join('\n');
+  return `<p class="ai-summary-text">${esc(advice.summary||'暂无 AI 结论。')}</p>${aiReviewVisual(data)}
+    ${expanded&&decisions.length?reviewTable(decisions):''}
+    ${expanded?aiListHtml('AI 处置建议',advice.recommended_actions):''}
+    <div class="ai-result-actions"><span>${!expanded&&decisions.length?`<button class="btn-lightx" type="button" onclick="showSavedAiReview()">查看全部 ${decisions.length} 条复核与建议</button>`:''} ${infoButton('AI 判断依据',evidence,'依据 ⓘ')}</span><span class="ai-status-line">${esc(data.model||'-')} · ${esc(data.generated_at||'已保存')}</span></div>`;
 }
+function showSavedAiReview(){if(currentExternalAnalysis)showExternalAiResultModal(currentExternalAnalysis,'dataset');}
 function aiTrainingResultHtml(result){
   const data=obj(result), advice=obj(data.advice), facts=obj(data.comparison_facts);
   const fairness=obj(facts.comparison_fairness), diffs=obj(facts.deterministic_differences);
@@ -995,21 +1060,31 @@ function renderExternalAiResult(result,kind='dataset'){
     const target=document.getElementById('externalAnalysisBoxDetect');
     if(target)target.innerHTML=`<div class="ai-title"><span><i class="fas fa-wand-magic-sparkles"></i> AI 辅助判定</span><span class="mini-badge">双模型复核</span></div>${html}`;
     const reportTarget=document.getElementById('externalAnalysisBoxReport'),data=obj(result);
-    if(reportTarget)reportTarget.innerHTML=`<div class="ai-title"><span>AI 复核结论</span><span class="mini-badge">已同步</span></div><p class="detail-paragraph">${esc(obj(data.advice).summary||'AI 已完成辅助复核。')}</p><div class="subtle-note">${esc(data.model||'-')} · ${esc(data.generated_at||'-')} · 查看不产生调用</div><details class="compact-details"><summary>查看复核依据与样本结论</summary>${html}</details>`;
+    if(reportTarget)reportTarget.innerHTML=`<div class="ai-title"><span>AI 复核结论</span><span class="mini-badge">已同步</span></div><p class="ai-summary-text">${esc(obj(data.advice).summary||'AI 已完成辅助复核。')}</p>${aiReviewVisual(data)}<button class="btn-lightx" type="button" onclick="showSavedAiReview()">查看 IP 明细与 AI 建议</button>`;
   }
   return html;
 }
 function showExternalAiResultModal(result,kind='dataset'){
   const body=document.getElementById('externalAiResultModalBody');
-  if(body)body.innerHTML=kind==='training'?aiTrainingResultHtml(result):aiDatasetResultHtml(result);
+  if(body)body.innerHTML=kind==='training'?aiTrainingResultHtml(result):aiDatasetResultHtml(result,true);
   openMiniModal('externalAiResultModal');
 }
 function resetExternalAiDatasetResult(){
   currentExternalAnalysis=null;
   ['externalAnalysisBoxDetect','externalAnalysisBoxReport'].forEach(id=>{
     const target=document.getElementById(id);
-    if(target)target.innerHTML='<div class="ai-title"><span>AI 辅助判定</span><span class="mini-badge">未使用</span></div>'+(id==='externalAnalysisBoxReport'?'<div class="ai-local-primary">如需 AI 辅助，请在风险检测页发起；报告自动同步已有结论。</div>':'');
+    if(target)target.innerHTML='<div class="ai-title"><span>AI 辅助判定</span><span class="mini-badge">未使用</span></div>'+(id==='externalAnalysisBoxReport'?infoButton('AI 复核说明','请在风险检测页主动发起 AI 辅助；报告同步保存的结论，不重复调用。','查看说明 ⓘ'):'');
   });
+}
+function renderUserAiFailure(message){
+  const target=document.getElementById('externalAnalysisBoxDetect');
+  if(!target)return;
+  if(currentExternalAnalysis&&obj(currentExternalAnalysis.advice).summary){
+    renderExternalAiResult(currentExternalAnalysis,'dataset');
+    target.insertAdjacentHTML('beforeend',`<div class="ai-status-line" role="alert">${esc(message)} 已有 AI 结论未覆盖。</div>`);
+  }else{
+    target.innerHTML=`<div class="ai-title"><span>AI 辅助判定</span><span class="mini-badge">未完成</span></div><div class="ai-status-line" role="alert">${esc(message)}</div>`;
+  }
 }
 function parseJsonObject(value){
   if(typeof value==='string'){
@@ -1232,6 +1307,18 @@ async function init(){
   }
 }
 
+function resetUserSubmissionState(submissionId){
+  userResultRevision++;
+  currentSubmissionId=submissionId;
+  currentReport='';currentReportPayload=null;lastRiskReasons=[];
+  pageLoaded.delete('report');
+  resetExternalAiDatasetResult();
+  renderAnalysis({});currentAnalysis=null;
+  ['reportMetrics','reportCharts'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML='';});
+  const empty={reportSummaryBox:'完成当前提交的风险检测后查看报告。',reportSuggestionList:'',reportBox:'暂无当前提交的报告。'};
+  Object.entries(empty).forEach(([id,text])=>{const el=document.getElementById(id);if(el)el.textContent=text;});
+  const rows=document.getElementById('reportTopTable');if(rows)rows.innerHTML='<tr><td colspan="6">暂无当前提交的报告数据</td></tr>';
+}
 function renderUploadSummary(d){
   const schema=obj(d.schema_check);
   const missing=schema.missing_ratio!=null ? (Number(schema.missing_ratio)*100).toFixed(1)+'%' : '--';
@@ -1254,7 +1341,7 @@ function renderUploadSummary(d){
     ? `<div class="mt-2">${warnings.map(w=>`<div class="status-pill warn me-1 mb-1">${esc(w)}</div>`).join('')}</div>`
     : '<div class="mt-2"><span class="status-pill ok">数据结构可用于当前风险检测流程</span></div>';
   privacyNotice.innerHTML=`${sensitiveText}<div class="mt-2">${schemaText}</div>${warningText}`;
-  if(d.id){currentSubmissionId=d.id;localStorage.setItem('currentSubmissionId',d.id);detectHint.textContent='当前提交：'+d.id;resetExternalAiDatasetResult();currentAnalysis=null;}
+  if(d.id){resetUserSubmissionState(d.id);localStorage.setItem('currentSubmissionId',d.id);detectHint.textContent='当前提交：'+d.id;}
 }
 function setUploadStatus(message,type='info'){
   const color=type==='bad'?'#C62828':type==='ok'?'#2E7D32':'#2F5F93';
@@ -1334,27 +1421,57 @@ async function generatePrivacySamples(){
 }
 async function analyzeCurrentSubmission(){
   if(!currentSubmissionId){toast('请先上传或生成登录安全样本','bad');return}
-  const res=await api(`/api/user/datasets/${currentSubmissionId}/analyze`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:1000})});
+  const submissionId=currentSubmissionId,revision=++userResultRevision;
+  const isCurrent=()=>submissionId===currentSubmissionId&&revision===userResultRevision;
+  const res=await api(`/api/user/datasets/${encodeURIComponent(submissionId)}/analyze`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:1000})});
+  if(!isCurrent())return;
   if(!res.ok){toast(res.error,'bad');return}
   resetExternalAiDatasetResult();
   renderAnalysis(res.data); toast('风险检测完成','ok');
   pageLoaded.delete('report');
-  const saved=await api(`/api/user/reports/${encodeURIComponent(currentSubmissionId)}`);
+  const saved=await api(`/api/user/reports/${encodeURIComponent(submissionId)}`);
+  if(!isCurrent())return;
   if(saved.ok&&obj(obj(saved.data).external_analysis).advice){currentExternalAnalysis=obj(saved.data.external_analysis);renderExternalAiResult(currentExternalAnalysis,'dataset');renderAnalysis(currentAnalysis);}
+}
+async function requestAdaptiveAi(url,onProgress,isCurrent=()=>true){
+  let reviewed=-1;
+  for(let batch=0;batch<50;batch++){
+    if(!isCurrent())return{ok:false,abandoned:true};
+    const result=await apiWithTimeout(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({adaptive_review:true})},100000);
+    if(!isCurrent())return{ok:false,abandoned:true};
+    if(!result.ok)return result;
+    onProgress(obj(result.data));
+    const scope=obj(obj(result.data).review_scope);
+    if(scope.complete!==false)return result;
+    const count=Number(scope.reviewed||0);
+    if(count<=reviewed)return{ok:false,error:'本批未增加有效复核结果，已暂停；已有结论已保存。'};
+    reviewed=count;
+  }
+  return{ok:false,error:'本次复核已暂停，已有结果已保存；可再次点击继续。'};
 }
 async function runUserAiAssist(ev){
   if(!currentSubmissionId){toast('请先上传数据并完成本地检测','bad');return}
   if(!currentAnalysis || !obj(currentAnalysis.analysis_trace).analysis_id){toast('请先完成本地风险检测','bad');return}
+  const submissionId=currentSubmissionId,analysisId=obj(currentAnalysis.analysis_trace).analysis_id,revision=userResultRevision;
+  const isCurrent=()=>submissionId===currentSubmissionId&&revision===userResultRevision&&analysisId===obj(obj(currentAnalysis).analysis_trace).analysis_id;
   const btn=ev&&ev.currentTarget, oldHtml=btn?btn.innerHTML:'';
   if(btn){btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> AI 判定中';}
   try{
     const status=await api('/api/user/external-ai/status');
+    if(!isCurrent())return;
     if(!status.ok || !obj(status.data).available){
       toast('AI 辅助判定尚未启用，本地检测和报告不受影响','info');
       return;
     }
-    const res=await apiWithTimeout(`/api/user/datasets/${encodeURIComponent(currentSubmissionId)}/external-analysis`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'},100000);
-    if(!res.ok){toast(res.error||'AI 辅助判定失败，本地结果不受影响','bad');return}
+    const res=await requestAdaptiveAi(`/api/user/datasets/${encodeURIComponent(submissionId)}/external-analysis`,data=>{
+      if((data.submission_id&&data.submission_id!==submissionId)||(data.analysis_id&&data.analysis_id!==analysisId))return;
+      currentExternalAnalysis=data;renderExternalAiResult(data,'dataset');renderAnalysis(currentAnalysis);
+      const scope=obj(data.review_scope);if(btn&&scope.total)btn.textContent=`AI 复核 ${scope.reviewed}/${scope.total}`;
+    },isCurrent);
+    if(res.abandoned)return;
+    if(!isCurrent())return;
+    if(!res.ok){const message=res.error||'AI 辅助判定失败，本地结果不受影响';renderUserAiFailure(message);toast(message,'bad');return}
+    if((obj(res.data).submission_id&&res.data.submission_id!==submissionId)||(obj(res.data).analysis_id&&res.data.analysis_id!==analysisId)){renderUserAiFailure('AI 结论与当前检测版本不一致，请重新加载报告。');return}
     currentExternalAnalysis=obj(res.data);
     renderExternalAiResult(currentExternalAnalysis,'dataset');
     renderAnalysis(currentAnalysis);
@@ -1386,7 +1503,9 @@ async function submitTrainingJob(url,payload,timeoutMs=20*60*1000){
   return{ok:false,error:'等待训练结果超时，后台任务仍会继续，可稍后在训练记录中查看',data:initial};
 }
 async function detectFromSystemDataset(){
+  const revision=++userResultRevision;
   const res=await api('/api/ensemble/detect_from_dataset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:50})});
+  if(revision!==userResultRevision)return;
   if(!res.ok){toast(res.error || '请先在管理端处理训练数据源','bad');return}
   resetExternalAiDatasetResult();
   renderDatasetDetection(res.data);
@@ -1429,7 +1548,7 @@ function renderCountBars(title, data){
   if(!entries.length)return `<div class="result-card"><div class="title">${esc(title)}</div><div class="text-muted small-text">暂无统计数据</div></div>`;
   const max=Math.max(...entries.map(x=>Number(x[1])||0),1);
   return `<div class="result-card"><div class="title">${esc(title)}</div>${entries.map(([k,v])=>`
-    <div class="compare-row compact"><span title="${esc(k)}">${esc(k)}</span><div class="bar-track"><div class="bar-fill" style="width:${Math.max(4,Number(v)*100/max)}%"></div></div><b>${esc(v)}</b></div>
+    <div class="compare-row compact"><span title="${esc(k)}">${esc(k)}</span><div class="bar-track"><div class="bar-fill" style="width:${Number(v)*100/max}%"></div></div><b>${esc(v)}</b></div>
   `).join('')}</div>`;
 }
 function renderRiskStatsBoard(d){
@@ -1437,24 +1556,13 @@ function renderRiskStatsBoard(d){
   const s=obj(d.risk_summary);
   const privacy=obj(d.privacy_risk);
   const privacyCategories=arr(privacy.categories).map(x=>obj(x).label).filter(Boolean);
-  const privacyCard=`<div class="result-card">
-    <div class="title">隐私暴露风险</div>
-    <div class="metric-value risk-${esc(privacy.level||'low')}">${esc(privacy.level_zh||'未评估')} ${privacy.score!==undefined?'· '+esc(privacy.score):''}</div>
-    <div class="small-text text-muted mt-2">${privacyCategories.length?`类别：${privacyCategories.map(esc).join('、')}`:'未识别到常见敏感类别'}</div>
-    <div class="small-text text-muted mt-2">${esc(privacy.recommendation||'完成分析后显示隐私处理建议。')}</div>
-  </div>`;
-  const riskLevels={
-    '低风险':s.low||0,
-    '中风险':s.medium||0,
-    '高风险':s.high||0,
-    '严重风险':s.critical||0,
-  };
+  const overview=document.getElementById('privacyRiskOverview');
+  if(overview)overview.innerHTML=infoButton('隐私评估详情',`规则评估：${privacy.level_zh||'未评估'}，评分 ${privacy.score??'--'}（不是泄露概率）。\n敏感类别：${privacyCategories.join('、')||'未识别'}。\n${privacy.recommendation||''}`,`隐私 ${privacy.level_zh||'未评估'} ⓘ`)+infoButton('本地风险指标',`平均风险分：${d.average_risk_score??'--'}。风险分用于排序和分级，不等于攻击概率；评分细项可在样本分数旁的问号按钮查看。`,'评分说明 ⓘ');
   riskStatsBoard.innerHTML=[
-    privacyCard,
-    renderCountBars('风险等级分布',riskLevels),
-    renderCountBars('攻击类型分布',d.attack_types),
-    renderCountBars('风险分数区间',d.risk_score_distribution),
-    renderCountBars('主要触发因素',d.trigger_feature_stats),
+    riskDistributionVisual(s),
+    `<div class="visual-card">${renderCountBars('攻击类型分布',d.attack_types)}</div>`,
+    histogramVisual('风险分数区间',d.risk_score_distribution),
+    `<div class="visual-card">${renderCountBars('主要触发因素',d.trigger_feature_stats)}${infoButton('触发因素统计','同一样本可以触发多个因素，各因素数量相加可能大于样本总量。图中按出现次数排序，最多展示前八项。')}</div>`,
   ].join('');
 }
 function riskRowHtml(r,index){
@@ -1463,8 +1571,8 @@ function riskRowHtml(r,index){
     <td data-label="排名">${esc(r.rank||'-')}</td>
     <td data-label="IP / 样本"><button class="sample-detail-link" onclick="showRiskDetail(${index})">${esc(r.ip||'查看样本')}</button><div class="submission-meta">样本 ${esc(r.id)} · ${esc(r.username||'-')}</div></td>
     <td data-label="本地风险" class="risk-${esc(r.risk_level)}">${esc(r.risk_level_zh||riskLevelText(r.risk_level))}<div class="submission-meta">${esc(r.risk_score??'--')}<button class="score-info-button" type="button" title="查看分数计算过程" aria-label="查看样本 ${esc(r.id)} 的分数计算过程" onclick="showScoreCalculation(${index})">?</button></div></td>
-    <td data-label="主要因素">${esc(r.dominant_factor||arr(r.trigger_features)[0]||'-')}<div class="submission-meta">${esc(r.attack_type||'-')}</div></td>
-    <td data-label="AI / 综合判定">${ai?`<span class="status-pill ${ai.needs_manual_review?'warn':'info'}">综合 ${esc(riskLevelText(ai.combined_risk_level))}</span><div class="submission-meta">AI ${esc(riskLevelText(ai.ai_risk_level))}${ai.needs_manual_review?' · 待复核':''}</div>`:'<span class="text-muted">未使用 AI</span>'}</td>
+    <td data-label="主要因素" title="${esc(r.reason||'')}">${esc(shortText(r.reason||r.dominant_factor||arr(r.trigger_features)[0]||'-',60))}<div class="submission-meta">${esc(r.attack_type||'-')}</div></td>
+    <td data-label="AI / 综合判定">${ai?`<span class="status-pill ${ai.needs_manual_review?'warn':'info'}">综合 ${esc(riskLevelText(ai.combined_risk_level))}</span><div class="submission-meta">AI ${esc(riskLevelText(ai.ai_risk_level))}${ai.needs_manual_review?' · 待复核':''}</div>`:`<span class="text-muted">${obj(obj(currentExternalAnalysis).review_scope).scope?'未纳入本次复核':'未使用 AI'}</span>`}</td>
     <td data-label="操作"><button class="btn-lightx" onclick="showRiskDetail(${index})">详情</button></td>
   </tr>`;
 }
@@ -1490,7 +1598,7 @@ function showRiskDetail(index){
   const peers=r.ip&&r.ip!=='-'?rows.filter(row=>row.ip===r.ip):[r],ai=aiDecisionForRisk(r),breakdown=obj(r.score_breakdown);
   const values=[['IP',r.ip||'未提供'],['样本编号',r.id],['用户（脱敏）',r.username||'-'],['本地判断',r.risk_level_zh||riskLevelText(r.risk_level)],['风险分数',r.risk_score??'--'],['风险类型',r.attack_type||'-'],['主要因素',r.dominant_factor||'-'],['模型版本',r.model_version||obj(obj(currentAnalysis).analysis_trace).model_version||'-']];
   const scores=Object.fromEntries(Object.entries(breakdown).filter(([key,value])=>typeof value==='number'&&key.endsWith('_score')&&!['final_score','model_score'].includes(key)).map(([key,value])=>[triggerLabel(key.replace(/_score$/,'')),value]));
-  openWorkspaceDetail('IP / 样本风险详情',`<dl class="submission-detail-grid">${values.map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl><div class="detail-paragraph"><b>判断依据</b><div>${esc(r.reason||'模型未提供额外说明。')}</div><div class="mt-2"><b>建议</b> ${esc(r.suggestion||r.action_suggestion||'结合业务复核。')}</div></div>${Object.keys(scores).length?renderCountBars('风险信号分量（非概率）',scores):''}<div class="detail-paragraph"><b>AI / 综合结论</b><div>${ai?`AI ${esc(riskLevelText(ai.ai_risk_level))}；综合 ${esc(riskLevelText(ai.combined_risk_level))}。${esc(ai.reason||ai.recommended_action||'')}`:'当前样本尚无可映射的 AI 复核结论。'}</div></div><details class="compact-details"><summary>同 IP 需关注记录（${peers.length} 条）</summary><div class="subtle-note mt-2">仅汇总本次返回的风险排名，最多 100 条，不代表该 IP 的全部访问历史。</div><table class="training-metric-table"><thead><tr><th>样本</th><th>风险</th><th>分数</th></tr></thead><tbody>${peers.map(row=>`<tr><td>${esc(row.id)}</td><td>${esc(riskLevelText(row.risk_level))}</td><td>${esc(row.risk_score)}</td></tr>`).join('')}</tbody></table></details>`);
+  openWorkspaceDetail('IP / 样本风险详情',`<dl class="submission-detail-grid">${values.map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl><div class="detail-paragraph"><b>判断依据</b><div>${esc(r.reason||'模型未提供额外说明。')}</div><div class="mt-2"><b>建议</b> ${esc(r.suggestion||r.action_suggestion||'结合业务复核。')}</div></div>${Object.keys(scores).length?renderCountBars('风险信号分量（非概率）',scores):''}<div class="detail-paragraph"><b>AI / 综合结论</b><div>${ai?`AI ${esc(riskLevelText(ai.ai_risk_level))}；综合 ${esc(riskLevelText(ai.combined_risk_level))}。${esc(ai.reason||ai.recommended_action||'')}`:'当前样本尚无可映射的 AI 复核结论。'}</div></div><details class="compact-details"><summary>同 IP 需关注记录（${peers.length} 条）</summary><div class="subtle-note mt-2">仅汇总本次检测的需关注记录，不代表该 IP 的全部访问历史。</div><table class="training-metric-table"><thead><tr><th>样本</th><th>风险</th><th>分数</th></tr></thead><tbody>${peers.map(row=>`<tr><td>${esc(row.id)}</td><td>${esc(riskLevelText(row.risk_level))}</td><td>${esc(row.risk_score)}</td></tr>`).join('')}</tbody></table></details>`);
 }
 function renderRiskRows(){
   const rows=arr(lastRiskReasons);
@@ -1503,9 +1611,7 @@ function renderAnalysis(d){
     ['总样本',d.total||0],
     ['高风险',(s.high||0)+(s.critical||0)],
     ['中风险',s.medium||0],
-    ['低风险',s.low||0],
-    ['平均风险分',d.average_risk_score??'--'],
-    ['隐私暴露',obj(d.privacy_risk).score??'--']
+    ['低风险',s.low||0]
   ].map(x=>`<div class="metric"><div class="metric-value">${esc(x[1])}</div><div class="metric-label">${x[0]}</div></div>`).join('');
   renderRiskStatsBoard(d);
   const rows=arr(d.risk_ranking || d.high_risk_reasons);
@@ -1521,31 +1627,21 @@ function renderReportStructured(payload){
   const total=analysis.total || submission.row_count || 0;
   const encrypted=submission.encrypted ? (submission.encryption || 'AES') : '--';
   reportMetrics.innerHTML=[
-    ['总样本',total],['高风险',summary.high],['中风险',summary.medium],['加密归档',encrypted]
+    ['总样本',total],['高风险',summary.high],['中风险',summary.medium],['低风险',summary.low]
   ].map(x=>`<div class="metric"><div class="metric-value">${esc(x[1])}</div><div class="metric-label">${x[0]}</div></div>`).join('');
 
   const sensitive=arr(analysis.sensitive_columns || submission.sensitive_columns);
   const privacy=obj(analysis.privacy_risk || submission.privacy_risk);
   const dual=obj(analysis.dual_risk || submission.dual_risk);
   const trace=obj(analysis.analysis_trace || submission.analysis_trace);
-  const attackTypes=obj(analysis.attack_types);
-  const attackTypeText=Object.keys(attackTypes).length
-    ? Object.entries(attackTypes).map(([k,v])=>`${esc(k)} ${esc(v)} 条`).join('，')
-    : '未发现明显风险类型';
-  reportSummaryBox.innerHTML=`
-    <div class="mb-2"><b>提交编号：</b>${esc(submission.id || currentSubmissionId || '--')}</div>
-    <div class="mb-2"><b>文件名称：</b>${esc(submission.filename || '--')}</div>
-    <div class="mb-2"><b>风险分布：</b>${riskSummaryTags(analysis.risk_summary || submission.risk_summary)}</div>
-    <div class="mb-2"><b>主要风险类型：</b>${attackTypeText}</div>
-    <div class="mb-2"><b>隐私暴露：</b>${esc(privacy.level_zh||'未评估')} ${privacy.score!==undefined?'('+esc(privacy.score)+')':''}；${esc(dual.recommended_action||privacy.recommendation||'')}</div>
-    <div class="mb-2"><b>敏感字段：</b>${sensitive.length?sensitive.map(x=>`<span class="status-pill warn me-1">${esc(x)}</span>`).join(''):'未识别到常见敏感字段'}</div>
-    <details class="compact-details"><summary>检测范围与版本追踪</summary><div class="submission-meta">已分析 ${esc(trace.analyzed_rows??total)} / ${esc(trace.source_rows??total)} 条；标签 ${esc(analysis.label_column||submission.label_column||'未识别')}<br>数据 ${esc(trace.data_revision||'-')}<br>预处理 ${esc(trace.preprocessing_version||'-')}<br>模型 ${esc(trace.model_version||'-')}<br>策略 ${esc(trace.analysis_policy_version||'-')}</div></details>
-  `;
-  document.getElementById('reportCharts').innerHTML=renderCountBars('风险等级分布',{'高风险':summary.high,'中风险':summary.medium,'低风险':summary.low})+renderCountBars('主要触发因素',analysis.trigger_feature_stats);
+  const reportDetails=`提交编号：${submission.id||currentSubmissionId||'--'}\n已分析 ${trace.analyzed_rows??total} / ${trace.source_rows??total} 条；标签 ${analysis.label_column||submission.label_column||'未识别'}\n数据：${trace.data_revision||'-'}\n预处理：${trace.preprocessing_version||'-'}\n模型：${trace.model_version||'-'}\n策略：${trace.analysis_policy_version||'-'}`;
+  const privacyDetails=`隐私规则评分：${privacy.score??'--'}，不是泄露概率。\n敏感字段：${sensitive.join('、')||'未识别'}\n${dual.recommended_action||privacy.recommendation||''}`;
+  reportSummaryBox.innerHTML=`<div class="report-metadata"><div class="report-file-name">${esc(submission.filename||'--')}</div><div class="summary-line">${riskSummaryTags(analysis.risk_summary||submission.risk_summary)}${infoButton('报告数据与版本',reportDetails,'版本 ⓘ')}</div><div class="summary-toolbar">${infoButton('隐私评估详情',privacyDetails,`隐私 ${privacy.level_zh||'未评估'} ⓘ`)}<span class="status-pill info">${esc(encrypted)}</span></div></div>`;
+  document.getElementById('reportCharts').innerHTML=riskDistributionVisual(analysis.risk_summary||submission.risk_summary)+`<div class="visual-card">${renderCountBars('主要触发因素',analysis.trigger_feature_stats)}${infoButton('统计口径','同一样本可能触发多个因素；次数不能直接相加作为样本总数。')}</div>`;
 
   const suggestions=arr(analysis.suggestions);
   reportSuggestionList.innerHTML=suggestions.length
-    ? suggestions.slice(0,6).map(x=>`<li>${esc(x)}</li>`).join('')
+    ? suggestions.slice(0,3).map(x=>`<li>${esc(x)}</li>`).join('')+(suggestions.length>3?`<li class="list-unstyled">${infoButton('全部本地处理建议',suggestions.join('\n'),'全部建议 ⓘ')}</li>`:'')
     : '<li>暂无处理建议，请先执行风险检测。</li>';
 
   const rows=arr(analysis.risk_ranking || analysis.high_risk_reasons).slice(0,10);
@@ -1554,11 +1650,14 @@ function renderReportStructured(payload){
 
 async function loadReport(){
   if(!currentSubmissionId){toast('请先完成检测','bad');return false}
-  const res=await api(`/api/user/reports/${currentSubmissionId}`);
+  const submissionId=currentSubmissionId,revision=userResultRevision;
+  const res=await api(`/api/user/reports/${encodeURIComponent(submissionId)}`);
+  if(submissionId!==currentSubmissionId||revision!==userResultRevision)return false;
   if(!res.ok){toast(res.error,'bad');return false}
   currentReport=res.data.report_markdown||'暂无报告内容';
   currentAnalysis=obj(res.data.analysis);
   currentExternalAnalysis=obj(res.data.external_analysis || obj(res.data.submission).external_analysis);
+  renderAnalysis(currentAnalysis);
   renderReportStructured(res.data);
   if(Object.keys(currentExternalAnalysis).length)renderExternalAiResult(currentExternalAnalysis,'dataset');
   else resetExternalAiDatasetResult();
@@ -1571,10 +1670,15 @@ function buildReportDocument(payload){
   const meta=[['文件',s.filename||'-'],['提交编号',s.id||'-'],['分析时间',a.analyzed_at||trace.created_at||s.last_analysis_at||'-'],['分析范围',`${trace.analyzed_rows??a.total??0} / ${trace.source_rows??s.row_count??0} 条`],['归档',s.encrypted?(s.encryption||'AES 加密'):'未记录']];
   const list=items=>arr(items).map(item=>`<li>${esc(item)}</li>`).join('');
   const charts=renderCountBars('风险等级（条）',{'高风险':counts.high,'中风险':counts.medium,'低风险':counts.low})+renderCountBars('主要触发因素（条）',a.trigger_feature_stats);
-  const cases=rows.map(r=>{const decision=decisions.find(d=>String(d.sample_id)===String(r.id));return `<details class="case"><summary>样本 ${esc(r.id)} · ${esc(r.ip||'未提供 IP')} · ${esc(r.risk_level_zh||riskLevelText(r.risk_level))} · ${esc(r.risk_score)}</summary><p><b>用户：</b>${esc(r.username||'-')}　<b>类型：</b>${esc(r.attack_type||'-')}</p><p><b>判断依据：</b>${esc(r.reason||r.dominant_factor||'-')}</p><p><b>处理建议：</b>${esc(r.suggestion||r.action_suggestion||'-')}</p><p><b>AI / 综合判断：</b>${decision?`${esc(riskLevelText(decision.ai_risk_level))} / ${esc(riskLevelText(decision.combined_risk_level))}；${esc(decision.reason||decision.recommended_action||'')}`:'该样本无 AI 复核结论'}</p></details>`}).join('');
+  const cases=rows.map(r=>{const decision=decisions.find(d=>String(d.sample_id)===String(r.id));return `<details class="case"><summary>样本 ${esc(r.id)} · ${esc(r.ip||'未提供 IP')} · ${esc(r.risk_level_zh||riskLevelText(r.risk_level))} · ${esc(r.risk_score)}</summary><p><b>用户：</b>${esc(r.username||'-')}　<b>类型：</b>${esc(r.attack_type||'-')}</p><p><b>判断依据：</b>${esc(r.reason||r.dominant_factor||'-')}</p><p><b>处理建议：</b>${esc(r.suggestion||r.action_suggestion||'-')}</p><p><b>AI / 综合判断：</b>${decision?`${esc(riskLevelText(decision.ai_risk_level))} / ${esc(riskLevelText(decision.combined_risk_level))}；${esc(decision.reason||decision.recommended_action||'')}`:'该样本无 AI 复核结论'}</p>${decision?.recommended_action?`<p><b>AI 建议：</b>${esc(decision.recommended_action)}</p>`:''}</details>`}).join('');
   return `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>隐私与攻击风险分析报告</title><style>body{font:14px/1.8 system-ui,"Microsoft YaHei",sans-serif;color:#31445a;background:#f3f6fa;margin:0}main{max-width:1020px;margin:28px auto;padding:28px;background:white;border-radius:14px}h1{font-size:26px;line-height:1.5;margin:0}h2{font-size:18px;margin-top:28px;border-bottom:1px solid #e1e8ef;padding-bottom:8px}h3,.title{font-size:15px;font-weight:650}.subtitle{color:#75879a}dl{display:grid;grid-template-columns:100px 1fr;gap:5px}dt{color:#75879a}dd{margin:0;overflow-wrap:anywhere}.metrics,.charts{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.metrics div,.result-card,.case{padding:15px;border:1px solid #e1e8ef;border-radius:10px}.metrics b{display:block;font-size:25px;color:#4779a7}.charts{grid-template-columns:1fr 1fr}.compare-row{display:grid;grid-template-columns:100px 1fr 42px;align-items:center;gap:10px;margin:12px 0;font-size:12px}.bar-track{height:12px;background:#edf2f7;border-radius:6px;overflow:hidden}.bar-fill{height:100%;background:#608db6;border-radius:6px}.case{margin:8px 0}.case summary{cursor:pointer;font-weight:600}p{overflow-wrap:anywhere}.note{background:#f5f8fb;padding:14px;border-radius:8px;color:#607589}.two{display:grid;grid-template-columns:1fr 1fr;gap:20px}table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:9px 6px;border-bottom:1px solid #e4ebf2;text-align:left;overflow-wrap:anywhere}footer{margin-top:28px;color:#8191a1;font-size:12px}@media(max-width:650px){main{margin:0;padding:18px;border-radius:0}.charts,.two{grid-template-columns:1fr}h1{font-size:22px}.metrics{gap:6px}.metrics b{font-size:21px}}@media print{body{background:white}main{margin:0;padding:0;max-width:none}.case{break-inside:avoid}details::details-content{content-visibility:visible}h2{break-after:avoid}}</style></head><body><main><h1>隐私暴露与攻击风险分析报告</h1><p class="subtitle">本地检测结果 · ${advice.summary?'含已有 AI 复核结论':'未使用 AI'}</p><dl>${meta.map(([k,v])=>`<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl><div class="metrics"><div><b>${esc(a.total??0)}</b>已检测样本</div><div><b>${counts.high}</b>高风险样本</div><div><b>${counts.medium}</b>中风险样本</div></div><h2>一、结论概览</h2><div class="two"><section><h3>隐私暴露风险：${esc(privacy.level_zh||'未评估')}</h3><p>分数 ${esc(privacy.score??'--')}，来自字段规则评估。</p><p>${esc(privacy.recommendation||'未记录处理建议。')}</p></section><section><h3>攻击风险：${esc(attack.level_zh||attack.level||'未评估')}</h3><p>聚合分数 ${esc(attack.score??a.average_risk_score??'--')}；高风险占比 ${a.total?((counts.high/a.total)*100).toFixed(1):'0'}%。</p><p>${esc(obj(a.dual_risk).recommended_action||'优先复核高风险样本，再结合业务处理。')}</p></section></div><h2>二、风险分布与信号</h2><div class="charts">${charts}</div><h2>三、处理建议</h2><ol>${list(a.suggestions)||'<li>请结合业务核实高风险记录。</li>'}</ol><h2>四、AI 复核结论</h2>${advice.summary?`<p><b>${esc(advice.summary)}</b></p><p class="subtitle">模型 ${esc(ai.model||'-')} · ${esc(ai.generated_at||'-')}</p><ul>${list(advice.privacy_findings)}${list(advice.attack_findings)}${list(advice.recommended_actions)}</ul><p>${esc(advice.confidence_note||'AI 为辅助判断，本地分数保持不变。')}</p>`:'<p class="note">本次未使用 AI，以上结论均来自本地检测；查看和下载报告不产生 AI 调用。</p>'}<h2>五、重点 IP / 样本明细</h2><p class="subtitle">按风险排名展示 ${rows.length} 条返回记录，最多 100 条；同 IP 的记录不代表完整历史。展开可查看具体依据和建议。</p>${cases||'<p>暂无需优先关注的样本。</p>'}<h2>六、数据与模型追溯</h2><dl>${[['数据修订',trace.data_revision],['检测模型',trace.model_version],['预处理版本',trace.preprocessing_version],['策略版本',trace.analysis_policy_version]].map(([k,v])=>`<dt>${k}</dt><dd>${esc(v||'-')}</dd>`).join('')}</dl><footer>本报告依据本次提交可见数据生成。模型风险类型为辅助判断，应结合实际业务复核。下载文件可离线查看，也可通过浏览器打印保存 PDF。</footer></main></body></html>`;
 }
-function downloadReport(format='html'){
+async function downloadReport(format='html'){
+  const submissionId=currentSubmissionId,revision=userResultRevision;
+  if(!currentReportPayload||obj(currentReportPayload.submission).id!==submissionId||!pageLoaded.has('report')){
+    if(!await loadReport())return;
+  }
+  if(submissionId!==currentSubmissionId||revision!==userResultRevision)return;
   if(!currentReportPayload){toast('请先加载报告','bad');return}
   const markdown=format==='markdown',content=markdown?currentReport:buildReportDocument(currentReportPayload),url=URL.createObjectURL(new Blob([content],{type:markdown?'text/markdown;charset=utf-8':'text/html;charset=utf-8'})),a=document.createElement('a');
   a.href=url;a.download=markdown?'risk-report.md':'risk-report.html';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
@@ -1607,7 +1711,8 @@ function externalAiFormPayload(){
     base_url:String(document.getElementById('externalAiBaseUrl')?.value||'').trim(),
     model:String(document.getElementById('externalAiModel')?.value||'').trim(),
     mode:String(document.getElementById('externalAiMode')?.value||'chat_completions'),
-    timeout_seconds:Number(document.getElementById('externalAiTimeout')?.value||45)
+    timeout_seconds:Number(document.getElementById('externalAiTimeout')?.value||45),
+    max_output_tokens:Number(document.getElementById('externalAiOutputTokens')?.value||4096)
   };
   const key=String(document.getElementById('externalAiApiKey')?.value||'').trim();
   if(key)value.api_key=key;
@@ -1621,6 +1726,7 @@ function applyExternalAiSettings(data){
   document.getElementById('externalAiModel').value=d.model||'gpt-5.6-sol';
   document.getElementById('externalAiMode').value=d.mode||'chat_completions';
   document.getElementById('externalAiTimeout').value=d.timeout_seconds||45;
+  document.getElementById('externalAiOutputTokens').value=d.max_output_tokens||4096;
   const keyInput=document.getElementById('externalAiApiKey');
   keyInput.value='';
   keyInput.placeholder=d.api_key_configured?`${d.api_key_masked||'密钥已保存'}（留空不修改）`:'输入新的 API Key';
@@ -1732,6 +1838,11 @@ function renderDatasetPreparationSummary(data){
   const runtime=obj(obj(data.model_inventory).runtime_detector),context=obj(runtime.training_context);
   const relation=!runtime.ready?'尚未就绪':!context.preparation_id?'来源版本未记录':counts.matches&&context.preparation_id===p.preparation_id?'对应当前准备版本':'未对应当前准备版本';
   document.getElementById('datasetModelStatus').innerHTML=`<span>检测模型：${esc(shortText(runtime.version||'未记录',32))}</span><span class="status-pill ${runtime.ready?'info':'warn'}">${relation}</span><button class="btn-lightx" type="button" onclick="showDatasetModelRelation()">查看关联</button>${counts.matches&&Number(counts.prepared)<Number(counts.raw)?'<span>本次仅准备原始数据的一部分</span>':''}`;
+  const chart=document.getElementById('dataPreparationChart');
+  if(chart){
+    const train=Number(counts.train),validation=Number(counts.validation),total=train+validation;
+    chart.innerHTML=counts.matches&&Number.isFinite(total)&&total>0?`<div class="summary-line"><strong>准备数据划分</strong><span class="chart-legend"><span><i style="background:#6486b5"></i>训练 ${esc(train.toLocaleString())}</span><span><i style="background:#75a58e"></i>验证 ${esc(validation.toLocaleString())}</span></span></div><div class="coverage-track" style="display:flex" role="img" aria-label="训练 ${train} 条，验证 ${validation} 条"><div style="width:${train/total*100}%;background:#6486b5"></div><div style="width:${validation/total*100}%;background:#75a58e"></div></div>`:'';
+  }
 }
 function showDatasetModelRelation(){
   const data=datasetSourceContext,p=obj(data.processed),runtime=obj(obj(data.model_inventory).runtime_detector),context=obj(runtime.training_context),counts=datasetPreparationCounts(currentDatasetSource,p);
@@ -1971,7 +2082,10 @@ async function runAdminSubmissionAi(id,ev){
   const btn=ev&&ev.currentTarget, oldHtml=btn?btn.innerHTML:'';
   if(btn){btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> AI判定';}
   try{
-    const r=await apiWithTimeout(`/api/admin/submissions/${encodeURIComponent(id)}/external-analysis`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'},100000);
+    const r=await requestAdaptiveAi(`/api/admin/submissions/${encodeURIComponent(id)}/external-analysis`,data=>{
+      const scope=obj(data.review_scope);if(btn&&scope.total)btn.textContent=`AI ${scope.reviewed}/${scope.total}`;
+      showExternalAiResultModal(data,'dataset');
+    });
     if(!r.ok){toast(r.error||'AI 辅助判定失败，本地结果不受影响','bad');return r}
     showExternalAiResultModal(r.data,'dataset');
     invalidateSubmissionAndDataPages();
@@ -2022,7 +2136,7 @@ async function loadNodes(force=false){
         <span><b>${nodeReady?esc(normal):'--'}</b>正常</span>
         <span><b>${nodeReady?esc(attack):'--'}</b>风险</span>
       </div>
-      <div class="small-text text-muted mt-2">${nodeReady?`攻击占比 ${Number.isFinite(attackRate)?esc((attackRate*100).toFixed(1)+'%'):'--'}`:'等待准备当前数据源'}</div>
+      ${nodeReady?`<div class="coverage-track" style="display:flex" role="img" aria-label="正常 ${esc(normal)} 条，风险 ${esc(attack)} 条" title="正常 ${esc(normal)} / 风险 ${esc(attack)}"><div style="width:${Number(normal)+Number(attack)>0?Number(normal)/(Number(normal)+Number(attack))*100:0}%;background:#75a58e"></div><div style="flex:1;background:#d48186"></div></div><div class="coverage-label">风险占比 ${Number.isFinite(attackRate)?esc((attackRate*100).toFixed(1)+'%'):'--'}</div>`:'<div class="small-text text-muted mt-2">待同步</div>'}
     </div>`;
   }).join(''):'<div class="text-muted">暂无节点数据</div>';
   if(typeof fedNodes!=='undefined')fedNodes.innerHTML=html;
@@ -2211,9 +2325,10 @@ function renderCompareChartCore(canvas,fallback,local={},fed={},chartRef){
   if(canvas){canvas.style.display='none';if(canvas.parentElement)canvas.parentElement.hidden=true;}
   if(!fallback)return;
   const hasLocal=Object.keys(local).length>0,hasFed=Object.keys(fed).length>0;
+  const comparable=trainingMetricsComparable(local,fed);
   fallback.innerHTML=!hasLocal&&!hasFed
-    ?'<div class="subtle-note">当前数据版本暂无对比结果。</div>'
-    :`<table class="training-metric-table"><thead><tr><th>指标</th><th>普通集中式</th><th>四节点联邦</th></tr></thead><tbody>${[['准确率','accuracy'],['风险召回率','recall'],['F1','f1']].map(([label,key])=>`<tr><td>${label}</td><td>${optionalMetricDisplay(local[key])}</td><td>${optionalMetricDisplay(fed[key])}</td></tr>`).join('')}</tbody></table>${!hasLocal||!hasFed?'<div class="subtle-note mt-2">另一种训练方式完成后显示完整对比。</div>':''}`;
+    ?'<div class="presentation-empty">暂无对比结果</div>'
+    :pairedMetricsVisual(local,fed,comparable)+`<div class="summary-toolbar"><span class="status-pill ${comparable?'ok':'warn'}">${comparable?'同口径评测':'暂不直接排名'}</span>${infoButton('训练指标对比说明','横条统一使用 0–100% 刻度；差值为联邦减普通集中式的百分点，仅在模型、优化器、训练轮数和共享留出集均一致时展示。空缺指标表示未记录，不能当作 0。','对比说明 ⓘ')}</div>`;
 }
 function renderTrainingCompare(){
   const local=trainingCompareState.local||{};
@@ -2232,16 +2347,8 @@ function renderTrainingCompare(){
   const hasLocal=Object.keys(local).length>0,hasFed=Object.keys(fed).length>0;
   trainingCompareBox.hidden=!hasLocal&&!hasFed;
   if(trainingCompareBox.hidden)return;
-  const directlyComparable=String(local.metric_scope||'')==='shared_holdout_validation'
-    && String(fed.metric_scope||'')==='shared_holdout_validation'
-    && !!local.validation_id
-    && local.validation_id===fed.validation_id
-    && !!local.model_architecture
-    && local.model_architecture===fed.model_architecture
-    && local.optimizer===fed.optimizer
-    && Number(local.epochs)>0
-    && Number(local.epochs)===Number(fed.epochs);
-  const hasBothMetrics=Number.isFinite(Number(local.accuracy))&&Number.isFinite(Number(fed.accuracy));
+  const directlyComparable=trainingMetricsComparable(local,fed);
+  const hasBothMetrics=chartNumber(local.accuracy)!==null&&chartNumber(fed.accuracy)!==null;
   const gap=(directlyComparable&&hasBothMetrics)
     ? ((Number(fed.accuracy)-Number(local.accuracy))*100).toFixed(2)+' 个百分点'
     : '--';
@@ -2261,7 +2368,7 @@ function renderTrainingCompare(){
     <div class="comparison-summary ${directlyComparable&&!qualityWarning?'ok':'warn'}">
       <i class="fas ${directlyComparable&&!qualityWarning?'fa-circle-check':'fa-triangle-exclamation'}"></i>
       <b>${qualityWarning|| (directlyComparable?`差异 ${esc(gap)}`:compareState)}</b>
-      <span>${qualityWarning?`评测口径一致，但不可只看准确率；准确率差异 ${esc(gap)}`:(directlyComparable?`共享留出集 ${esc(local.validation_samples||fed.validation_samples||'--')} 条`:'完成同一数据源的两类训练后再比较')}</span>
+      ${infoButton('评测结论依据',qualityWarning?`评测口径一致，但存在风险召回为零的质量告警，不能只看准确率。准确率差异 ${gap}。`:directlyComparable?`在相同共享留出集上评测：${local.validation_samples||fed.validation_samples||'--'} 条；差异为联邦准确率减普通集中式准确率。`:'需完成同一准备版本的两类训练，确认模型、轮数与共享留出集一致后才能直接排名。')}
       ${securePaillier?'<span class="mini-badge ms-auto">安全聚合</span>':''}
     </div>`;
 }
@@ -2270,9 +2377,7 @@ function trainLimit(){
   return Math.max(100,Math.min(50000,n||10000));
 }
 function trainingComparisonBars(local,fed){
-  const metrics=[['准确率','accuracy'],['风险召回率','recall'],['F1','f1']];
-  const bar=(row,key,cls)=>{const value=row[key],valid=value!==null&&value!==undefined&&Number.isFinite(Number(value));return `<div class="comparison-bar ${cls}"><b>${valid?optionalMetricDisplay(value):'未完成'}</b><span style="height:${valid?Math.max(0,Math.min(100,Number(value)*100)):0}%"></span></div>`};
-  return `<div class="chart-legend"><span><i style="background:#6486b5"></i>普通集中式</span><span><i style="background:#75a58e"></i>四节点联邦</span></div><div class="comparison-bars" role="img" aria-label="两种训练方式的准确率、风险召回率和F1百分比柱状图">${metrics.map(([label,key])=>`<div><div class="comparison-bar-pair">${bar(local,key,'')}${bar(fed,key,'fed')}</div><div class="comparison-bar-title">${label}</div></div>`).join('')}</div>`;
+  return pairedMetricsVisual(local,fed,trainingMetricsComparable(local,fed));
 }
 function showTrainingDetails(){
   const local=obj(trainingCompareState.local),fed=obj(trainingCompareState.federated);
@@ -2774,8 +2879,13 @@ async function loadAudit(){
   auditState={...auditState,events,visits,totalEvents,totalVisits};
   const high=events.filter(e=>['high','critical'].includes(e.risk_level)).length, med=events.filter(e=>e.risk_level==='medium').length, low=events.filter(e=>['low','info'].includes(e.risk_level)).length;
   auditMetrics.innerHTML=[['安全事件总数',totalEvents],['本页高风险',high],['本页中风险',med],['访问记录总数',totalVisits]].map(x=>`<div class="metric"><div class="metric-value">${x[1]}</div><div class="metric-label">${x[0]}</div></div>`).join('');
+  const visual=document.getElementById('auditVisuals');
+  if(visual){
+    const types={};events.forEach(e=>{const label=auditEventName(e.event_type);types[label]=(types[label]||0)+1;});
+    visual.innerHTML=`<div class="visual-card">${renderCountBars('本页事件风险',{'高风险':high,'中风险':med,'低风险 / 信息':low})}${infoButton('审计图表范围',`仅统计当前筛选下本页 ${events.length} 条安全事件，不代表全部 ${totalEvents} 条历史事件。翻页或更改筛选后图表同步更新。`)}</div><div class="visual-card">${renderCountBars('本页事件类型',types)}</div>`;
+  }
   const pageLimit=Number(auditLimit?.value||100)||100;
-  auditFilterSummary.textContent=`本页安全事件 ${events.length} 条、访问记录 ${visits.length} 条；风险数量按本页统计。`;
+  auditFilterSummary.innerHTML=`本页事件 ${events.length} · 访问 ${visits.length} ${infoButton('审计统计范围','总数为当前筛选下的全部记录；风险数量和图表只统计当前页，不应视作全部历史风险。')}`;
   eventPageInfo.textContent=auditPageText(auditState.eventOffset,events.length,totalEvents,pageLimit);
   visitPageInfo.textContent=auditPageText(auditState.visitOffset,visits.length,totalVisits,pageLimit);
   if(typeof eventPrevButton!=='undefined')eventPrevButton.disabled=auditState.eventOffset<=0;
@@ -2796,6 +2906,27 @@ function genData(){return generatePrivacySamples()} function loadDS(){return loa
 function startTrain(){return runAdminLocalTrain()} function loadTrainHist(){return loadTrainingRecords(true,true)} function loadFed(){return loadNodes(true)} function runFed(){return runAdminFederatedTrain()}
 function detSample(){return analyzeCurrentSubmission()} function detFile(){return uploadUserFile()} function showDetRes(d){return renderAnalysis(d)} function updEnc(){return generatePrivacySamples()}
 function loadOpt(){} function toggleAuto(){} function loadDash(){} function loadSec(){return loadAudit()} function ensureSecTimer(){} function escapeHtml(v){return esc(v)}
+// Explanations open on click (including touch); never require hovering a tooltip.
+document.querySelectorAll('.hint .info-icon').forEach(button=>{if(!button.hasAttribute('aria-label'))button.setAttribute('aria-label','查看功能说明');button.setAttribute('aria-haspopup','dialog');});
+document.addEventListener('click',event=>{
+  const trigger=event.target.closest('[data-info-title],.hint .info-icon');
+  if(trigger){
+    const source=trigger.dataset.infoSource&&document.getElementById(trigger.dataset.infoSource),hint=trigger.closest('.hint')?.querySelector('.hint-panel');
+    const text=trigger.dataset.infoText||hint?.textContent||'';
+    const clone=source?.cloneNode(true);if(clone)clone.querySelectorAll('[id]').forEach(el=>el.removeAttribute('id'));
+    openPresentationInfo(trigger.dataset.infoTitle||'功能说明',source?(source.id==='currentModelHint'?`<p>${esc(source.textContent)}</p>`:clone.innerHTML):`<p>${esc(text).replace(/\n/g,'<br>')}</p>`);
+  }else if(event.target===document.getElementById('presentationInfoModal'))closePresentationInfo();
+});
+document.addEventListener('keydown',event=>{
+  const infoModal=document.getElementById('presentationInfoModal');
+  const modal=!infoModal.hidden?infoModal:Array.from(document.querySelectorAll('.mini-modal:not([hidden])')).pop();if(!modal)return;
+  if(event.key==='Escape'){event.preventDefault();event.stopImmediatePropagation();if(modal===infoModal)closePresentationInfo();else closeMiniModal(modal.id);return;}
+  if(event.key==='Tab'){
+    const focusable=Array.from(modal.querySelectorAll('button:not(:disabled),a[href],input:not(:disabled),select:not(:disabled),textarea:not(:disabled),summary,[tabindex="0"]')).filter(el=>el.getClientRects().length);
+    const first=focusable[0],last=focusable[focusable.length-1];
+    if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}
+  }
+},true);
 init();
 </script>
 </body>
