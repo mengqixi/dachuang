@@ -13,11 +13,12 @@ const build = new Function('document', `
   let datasetSourceCategory='all',datasetSourcesExpanded=false,datasetSourceList=[];
   let currentDatasetSourceId='selected',currentDatasetSource={id:'selected',samples:63999,prepared_for_federated:true};
   let compactDatasetRows=[],datasetSourceContext={};
+  const selectedUserSources=new Set();
   const datasetSourceTable=document.getElementById('table'),systemDataMetrics=document.getElementById('metrics');
   const datasetSourceActions=s=>'detail-index:'+compactDatasetRows.indexOf(s);
   ${functions}
   return {category:datasetSourceCategoryKey,label:datasetSourceCategoryLabel,counts:datasetPreparationCounts,
-    set:setDatasetSourceCategory,render:renderDatasetSourceList,summary:renderDatasetPreparationSummary,
+    set:setDatasetSourceCategory,render:renderDatasetSourceList,summary:renderDatasetPreparationSummary,select:setUserSourceSelected,
     initialize:list=>{datasetSourceList=list;renderDatasetSourceList()},
     state:()=>({selected:currentDatasetSourceId,rows:compactDatasetRows,table:datasetSourceTable.innerHTML,metrics:systemDataMetrics.innerHTML})};
 `);
@@ -49,4 +50,8 @@ assert.equal(ui.counts(source,{...prep,validation_samples:0}).validation,0);
 ui.summary({processed:prep,model_inventory:{runtime_detector:{ready:true,version:'model-old',training_context:{preparation_id:'old'}}}});
 assert(controls.datasetModelStatus.innerHTML.includes('未对应当前准备版本'));
 assert(ui.state().metrics.includes('40,000'));
+ui.initialize([{id:'submission:a',source_type:'user_submission',submission_id:'a',name:'first.csv',upload_time:'2026-10-30 09:00:00',samples:20,trainable:true},{id:'submission:b',source_type:'user_submission',submission_id:'b',name:'second.csv',samples:30,trainable:true}]);
+ui.set('user');assert(ui.state().table.includes('提交 2026-10-30 09:00:00'));
+ui.select(0,true);ui.select(1,true);assert.equal(controls.prepareSelectedSourcesButton.disabled,false);
+assert.equal(ui.state().selected,'selected');
 console.log('Dataset categories, independent selection, detail indices, empty states, preparation counts and model context: passed');

@@ -422,7 +422,51 @@ def _read_index() -> Dict:
 def _write_index(data: Dict) -> None:
     _ensure_dirs()
     with _INDEX_LOCK:
-        atomic_write_json(INDEX_FILE, data)
+        # Runtime metadata does not need pretty-printing. Compact encoding is
+        # much faster and avoids repeatedly writing tens of MB of whitespace.
+        atomic_write_json(INDEX_FILE, data, indent=None)
+        cached_id = _SUBMISSION_READ_CACHE.get("id")
+        _SUBMISSION_READ_CACHE.clear()
+        if cached_id:
+            current = next((x for x in data.get("submissions", []) if x.get("id") == cached_id), None)
+            _cache_submission_record(current, _index_file_signature())
+
+
+# Keep only the last small submission, never the entire historical index.
+_SUBMISSION_READ_CACHE = {}
+_MAX_CACHED_DETECTION_ROWS = 1200
+
+
+def _index_file_signature():
+    try:
+        path = os.path.abspath(INDEX_FILE)
+        value = os.stat(path)
+        return (path, value.st_ino, value.st_size, value.st_mtime_ns)
+    except OSError:
+        return None
+
+
+def _cache_submission_record(item, signature):
+    if not item or signature is None:
+        return
+    analysis = item.get("analysis") or {}
+    if max(len(analysis.get(key) or []) for key in ("detections", "risk_ranking", "high_risk_reasons")) > _MAX_CACHED_DETECTION_ROWS:
+        return
+    _SUBMISSION_READ_CACHE.update({"id": item.get("id"), "signature": signature, "item": copy.deepcopy(item)})
+
+
+def _read_submission_record(submission_id):
+    """Return a detached record; atomic file changes invalidate the bounded cache."""
+    with _INDEX_LOCK:
+        signature = _index_file_signature()
+        if signature is not None and _SUBMISSION_READ_CACHE.get("signature") == signature and _SUBMISSION_READ_CACHE.get("id") == submission_id:
+            return copy.deepcopy(_SUBMISSION_READ_CACHE["item"])
+        data = _read_index()
+        item = next((x for x in data.get("submissions", []) if x.get("id") == submission_id), None)
+        _SUBMISSION_READ_CACHE.clear()
+        if signature == _index_file_signature():
+            _cache_submission_record(item, signature)
+        return item
 
 
 def _get_key_unlocked() -> bytes:
@@ -1357,6 +1401,8 @@ class UserSubmissionManager:
                 "id": f"submission:{item.get('id')}",
                 "submission_id": item.get("id"),
                 "name": "用户提交数据",
+                "filename": item.get("filename") or "",
+                "upload_time": item.get("upload_time") or "",
                 "source": item.get("filename") or item.get("id"),
                 "source_type": "user_submission",
                 "path": plain_path if plain_exists else None,
@@ -1380,16 +1426,54 @@ class UserSubmissionManager:
                 break
         return sources
 
+    def list_training_selections(self) -> List[Dict]:
+        path = os.path.join(DATA_ROOT, "training_selections.json")
+        if not os.path.exists(path):
+            return []
+        with open(path, "r", encoding="utf-8") as stream:
+            data = json.load(stream)
+        return data.get("selections", []) if isinstance(data, dict) else []
+
+    def create_training_selection(self, ids: List[str]) -> Dict:
+        if not isinstance(ids, list) or not all(isinstance(x, str) and x for x in ids):
+            raise SubmissionStatusError("请选择有效的用户提交。")
+        ids = sorted(set(ids))
+        if not 2 <= len(ids) <= 20:
+            raise SubmissionStatusError("每个组合请选择 2 到 20 份已允许训练的用户提交。")
+        with _INDEX_LOCK:
+            all_items = {x.get("id"): x for x in _read_index().get("submissions", [])}
+            hashes = set()
+            for sid in ids:
+                item = all_items.get(sid) or {}
+                if not item.get("trainable") or not os.path.isfile(item.get("encrypted_path") or ""):
+                    raise SubmissionStatusError("所选提交不存在、未获准训练或加密归档不可用，请刷新后重选。")
+                fingerprint = item.get("sha256")
+                if fingerprint and fingerprint in hashes:
+                    raise SubmissionStatusError("所选文件含有完全相同的内容，请取消重复文件。")
+                if fingerprint:
+                    hashes.add(fingerprint)
+            selection_id = "user_selection:" + hashlib.sha256("|".join(ids).encode("utf-8")).hexdigest()[:16]
+            selections = self.list_training_selections()
+            existing = next((x for x in selections if x.get("id") == selection_id), None)
+            if existing:
+                return existing
+            if len(selections) >= 30:
+                raise SubmissionStatusError("已保存的组合达到 30 个，请复用已有组合。")
+            result = {"id": selection_id, "submission_ids": ids, "created_at": _now(), "name": "自选用户数据（%s份）" % len(ids)}
+            selections.append(result)
+            atomic_write_json(os.path.join(DATA_ROOT, "training_selections.json"), {"selections": selections}, indent=None)
+            return result
+
     def get_submission(self, submission_id: str, include_preview: bool = True) -> Optional[Dict]:
-        for item in _read_index().get("submissions", []):
-            if item.get("id") == submission_id:
-                result = self.public_summary(item)
-                if include_preview:
-                    result["columns"] = item.get("columns", [])
-                    result["profile"] = item.get("profile", {})
-                    result["analysis"] = _present_analysis(item.get("analysis", {}))
-                return result
-        return None
+        item = _read_submission_record(submission_id)
+        if item is None:
+            return None
+        result = self.public_summary(item)
+        if include_preview:
+            result["columns"] = item.get("columns", [])
+            result["profile"] = item.get("profile", {})
+            result["analysis"] = _present_analysis(item.get("analysis", {}))
+        return result
 
     def save_external_analysis(self, submission_id: str, result: Dict,
                                expected_analysis_id: Optional[str] = None) -> Optional[Dict]:
@@ -1440,8 +1524,7 @@ class UserSubmissionManager:
     def analyze(self, submission_id: str, detector=None, limit: int = 500,
                 force: bool = False) -> Optional[Dict]:
         started = time.perf_counter()
-        data = _read_index()
-        item = next((x for x in data.get("submissions", []) if x.get("id") == submission_id), None)
+        item = _read_submission_record(submission_id)
         if item is None:
             return None
 
@@ -1888,7 +1971,7 @@ class UserSubmissionManager:
         return self._write_clean_report(item, analysis)
 
     def get_report(self, submission_id: str) -> Optional[Dict]:
-        item = next((x for x in _read_index().get("submissions", []) if x.get("id") == submission_id), None)
+        item = _read_submission_record(submission_id)
         if not item:
             return None
         analysis = _present_analysis(item.get("analysis", {}))
@@ -2045,7 +2128,7 @@ class UserSubmissionManager:
                 _write_index(data)
             return updated
 
-    def load_trainable_features(self, ids: Optional[List[str]] = None, limit: int = MAX_TRAIN_ROWS) -> Tuple[np.ndarray, np.ndarray, Dict]:
+    def load_trainable_features(self, ids: Optional[List[str]] = None, limit: int = MAX_TRAIN_ROWS, require_all: bool = False) -> Tuple[np.ndarray, np.ndarray, Dict]:
         selected = []
         for item in _read_index().get("submissions", []):
             if ids and item.get("id") not in ids:
@@ -2053,15 +2136,22 @@ class UserSubmissionManager:
             if not item.get("trainable"):
                 continue
             selected.append(item)
+        if require_all and (not ids or set(x.get("id") for x in selected) != set(ids)):
+            raise SubmissionStatusError("自选组合中的提交已撤回或未获准训练，请刷新后重新选择。")
         X_all = []
         y_all = []
         source_items = []
         remaining = max(1, int(limit))
-        for item in selected:
+        if require_all and remaining < len(selected):
+            raise SubmissionStatusError("处理上限不足以覆盖每份所选文件，请提高上限。")
+        for index, item in enumerate(selected):
             if remaining <= 0:
                 break
-            rows, _ = self._load_plain_rows(item, limit=remaining)
+            source_limit = max(1, remaining // (len(selected) - index)) if require_all else remaining
+            rows, _ = self._load_plain_rows(item, limit=source_limit)
             X, y = _features_from_rows(rows)
+            if require_all and not len(X):
+                raise SubmissionStatusError("组合中有提交无法读取有效数据，请刷新后重选。")
             if len(X):
                 X_all.append(X)
                 y_all.append(y)

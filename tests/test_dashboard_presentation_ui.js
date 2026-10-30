@@ -8,6 +8,7 @@ const c={obj:x=>x&&typeof x==='object'?x:{},arr:x=>Array.isArray(x)?x:[],esc,
 vm.createContext(c);
 vm.runInContext(extract('function infoButton(','function aiListHtml('),c);
 vm.runInContext(extract('function aiDatasetResultHtml(','function aiTrainingResultHtml('),c);
+vm.runInContext(extract('function attentionGroups(','function renderRiskRows('),c);
 for(const script of html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi))new vm.Script(script[1]);
 assert.equal(c.chartNumber(null),null);assert.equal(c.chartNumber(''),null);assert.equal(c.chartNumber(undefined),null);
 assert.equal(c.chartNumber(0),0);assert.equal(c.chartNumber('0.7'),.7);
@@ -42,4 +43,17 @@ assert(html.includes('event.stopImmediatePropagation();if(modal===infoModal)clos
 assert(html.includes('presentationInfoOpener.focus()'));assert(html.includes("event.key==='Tab'"));
 assert(html.includes('.hint-panel{display:none!important}'));
 assert(html.includes('data-info-source="dataProcessRules"'));
+const grouped=c.attentionGroups([...Array.from({length:9},()=>({risk_level:'high'})),...Array.from({length:51},()=>({risk_level:'medium'})),...Array.from({length:43},()=>({risk_level:'low'}))]);
+assert.equal(grouped.priority.length,60);assert.equal(grouped.low.length,43);assert.equal(grouped.all.length,103);
+const elements={};c.document={getElementById:id=>elements[id]||={innerHTML:''}};
+for(const id of ['reportMetrics','reportSummaryBox','reportSuggestionList','reportTopTable'])c[id]=c.document.getElementById(id);
+vm.runInContext(extract('function parseRiskSummary(','function privacyRiskBadge('),c);
+vm.runInContext(extract('function renderReportStructured(','async function loadReport('),c);
+c.currentReportPayload=null;c.currentAnalysis={};
+c.renderReportStructured({submission:{id:'test',filename:'sample.csv',upload_time:'2026-10-30 09:23:16',encrypted:true},analysis:{total:200,analyzed_at:'2026-10-30 09:23:39',risk_summary:{high:9,medium:51,low:140},risk_ranking:[{id:1,ip:'198.51.100.1',risk_level:'high',suggestion:'核对授权'}],suggestions:['核对授权']}});
+assert(c.reportMetrics.innerHTML.includes('提交时间'));assert(c.reportMetrics.innerHTML.includes('2026-10-30 09:23:16'));
+assert.equal(elements.reportCharts.innerHTML,'');assert(!c.reportSummaryBox.innerHTML.includes('risk-donut'));
+assert(c.reportTopTable.innerHTML.includes('198.51.100.1'));assert(c.reportTopTable.innerHTML.includes('核对授权'));
+const context=c.trainingValidationInfo({validation_samples:44,validation_label_distribution:{0:32,1:12}},{});
+assert.equal(context.warning,'小样本验证');assert(context.text.includes('正常 32，风险 12'));
 console.log('Dashboard presentation: shared scales, honest missing values, explicit scopes, all-review dialog, escaping and accessible help controls passed');

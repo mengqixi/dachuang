@@ -8,7 +8,9 @@ numeric CSV files with a label column.
 
 import csv
 import os
+import re
 import threading
+from functools import lru_cache
 from typing import Dict, Iterable, List, Optional, Tuple
 
 import numpy as np
@@ -85,8 +87,18 @@ UNSW_FEATURE_ALIASES = {
 }
 
 LABEL_COLUMNS = ["label", "is_attack", "attack", "target", "class"]
+CSV_SCHEMA_VERSION = "security-csv-headers-cic-units-v2"
 _INSPECT_CACHE = {}
 _INSPECT_CACHE_LOCK = threading.Lock()
+
+
+@lru_cache(maxsize=1024)
+def canonical_column(value):
+    return re.sub(r"[^a-z0-9_]+", "_", str(value).lstrip("\ufeff").strip().lower()).strip("_")
+
+
+def canonical_row(row):
+    return {canonical_column(key): value for key, value in row.items() if key is not None}
 
 
 def _to_float(value, default: float = 0.0) -> float:
@@ -107,6 +119,7 @@ def _read_first(row: Dict, aliases: Iterable[str], default: float = 0.0) -> floa
 
 def infer_label(row: Dict) -> int:
     """Return 1 for attack rows and 0 for normal rows."""
+    row = canonical_row(row)
     for key in LABEL_COLUMNS:
         if key in row and row.get(key) not in (None, ""):
             value = str(row.get(key)).strip().lower()
@@ -139,6 +152,7 @@ def derive_behavior_anomaly_scores(features: np.ndarray) -> np.ndarray:
 
 def extract_features_structured(row: Dict) -> np.ndarray:
     """Extract the fixed 18-dimensional vector from a dictionary row."""
+    row = canonical_row(row)
     vec = FEATURE_DEFAULT_VALUES.copy()
     for i, feature in enumerate(FEATURE_NAMES):
         vec[i] = _read_first(
@@ -150,6 +164,18 @@ def extract_features_structured(row: Dict) -> np.ndarray:
     # the canonical model feature uses seconds.
     if row.get("response_time_ms") not in (None, ""):
         vec[FEATURE_NAMES.index("response_time")] = _to_float(row.get("response_time_ms")) / 1000.0
+    # CICFlowMeter uses microseconds for duration/IAT. Packet rate is not
+    # failed-login count and IAT is not response latency: only map real matches.
+    cic_fields = {
+        "request_frequency": (["flow_pkts_s", "flow_packets_s"], 1.0),
+        "connection_duration": (["flow_duration"], 1e-6),
+        "packet_interarrival": (["flow_iat_mean"], 1e-6),
+        "payload_size": (["totlen_fwd_pkts", "total_length_of_fwd_packets"], 1.0),
+        "request_size_variance": (["pkt_len_var", "packet_length_variance"], 1.0),
+    }
+    for feature, (aliases, multiplier) in cic_fields.items():
+        if row.get(feature) in (None, "") and any(row.get(key) not in (None, "") for key in aliases):
+            vec[FEATURE_NAMES.index(feature)] = _read_first(row, aliases) * multiplier
     # Never trust a supplied anomaly/risk/model score as a base feature. It can
     # be the output of a previous classifier and would make training circular.
     vec[FEATURE_NAMES.index("anomaly_score")] = derive_behavior_anomaly_scores(vec)[0]
@@ -247,10 +273,11 @@ def inspect_csv(filepath: str) -> Dict:
     with open(filepath, "r", encoding="utf-8", errors="replace", newline="") as f:
         reader = csv.DictReader(f)
         fields = reader.fieldnames or []
-        info["features"] = len([c for c in fields if c not in set(LABEL_COLUMNS + ["attack_cat", "id"])])
+        info["features"] = len([c for c in fields if canonical_column(c) not in set(LABEL_COLUMNS + ["attack_cat", "id"])])
         for col in LABEL_COLUMNS + ["attack_cat"]:
-            if col in fields:
-                info["label_column"] = col
+            original = next((field for field in fields if canonical_column(field) == col), None)
+            if original is not None:
+                info["label_column"] = original
                 break
 
     newline_count = 0

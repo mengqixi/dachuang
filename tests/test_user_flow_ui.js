@@ -13,13 +13,14 @@ const source = [
 const defer = () => {let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve}};
 function context(){
   const elements={};
-  const c={currentSubmissionId:'A',userResultRevision:0,currentAnalysis:{analysis_trace:{analysis_id:'ana-A'}},
+  const c={currentSubmissionId:'A',userResultRevision:0,userAnalysisBusy:false,riskRankingFilter:'priority',currentAnalysis:{analysis_trace:{analysis_id:'ana-A'}},
     currentExternalAnalysis:null,currentReport:'old report',currentReportPayload:{submission:{id:'A'}},lastRiskReasons:[{id:1}],
     pageLoaded:new Set(['report']),obj:x=>x||{},toast:()=>{},rendered:[],errors:[],
     document:{getElementById:id=>elements[id]||=( {innerHTML:'old',textContent:'old',classList:{toggle(){}}} )},
     api:async()=>({ok:true,data:{available:true}}),apiWithTimeout:async()=>{throw Error('unexpected provider request')},
     resetExternalAiDatasetResult(){c.currentExternalAnalysis=null},
     renderAnalysis(d){c.currentAnalysis=d;c.rendered.push(d)},
+    renderRiskRows(){},
     renderExternalAiResult(d){c.rendered.push(d)},renderReportStructured(d){c.currentReportPayload=d;c.rendered.push(d)},
     renderUserAiFailure(m){c.errors.push(m)},
   };
@@ -64,6 +65,21 @@ async function adaptiveReviewContinuesOnlyPendingRows(){
   };
   await c.runUserAiAssist();assert.equal(calls,2);assert.equal(c.currentExternalAnalysis.review_scope.reviewed,26);
 }
+async function detectionDoubleClicksAreDeduplicated(){
+  const c=context(),pending=defer();let calls=0;
+  c.api=async()=>{calls++;return pending.promise;};
+  const task=c.analyzeCurrentSubmission();
+  const revision=c.userResultRevision;
+  assert.equal(c.document.getElementById('userDetectButton').disabled,true);
+  await c.analyzeCurrentSubmission();
+  assert.equal(calls,1);assert.equal(c.userResultRevision,revision);
+  pending.resolve({ok:true,data:{total:200,external_analysis:{advice:{summary:'saved AI'}}}});await task;
+  assert.equal(calls,1);assert.equal(c.currentAnalysis.total,200);
+  assert.equal(c.currentExternalAnalysis.advice.summary,'saved AI');
+  assert.equal(c.userAnalysisBusy,false);assert.equal(c.document.getElementById('userDetectButton').disabled,false);
+  const failed=context();failed.api=async()=>({ok:false,error:'failed'});
+  await failed.analyzeCurrentSubmission();assert.equal(failed.userAnalysisBusy,false);
+}
 function aiResultShowsLocalIpAndConciseFooter(){
   const c=context();c.arr=x=>Array.isArray(x)?x:[];
   c.esc=x=>String(x??'').replaceAll('<','&lt;').replaceAll('>','&gt;');
@@ -83,5 +99,6 @@ function aiResultShowsLocalIpAndConciseFooter(){
   for(const script of html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi))new vm.Script(script[1]);
   await aiResultAfterSwitch();await switchBeforeStatusReturns();await lateReportAndDetectionAreIgnored();await unchangedSubmissionAcceptsMatchingAiOnly();
   await adaptiveReviewContinuesOnlyPendingRows();aiResultShowsLocalIpAndConciseFooter();
+  await detectionDoubleClicksAreDeduplicated();
   console.log('User flow UI: stale AI, status race, local-analysis race, report race, reset and matching-version checks passed');
 })().catch(error=>{console.error(error);process.exitCode=1});
