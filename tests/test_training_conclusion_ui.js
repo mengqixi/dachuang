@@ -8,7 +8,7 @@ function context(){
     document:{getElementById:id=>elements[id]||null},currentDatasetSourceId:'source',
     currentDatasetSource:{name:'数据'},currentPreparation:{preparation_id:'prep'},
     trainingCompareState:{local:{version:'c1',accuracy:.8,comparison_run_id:'run'},federated:{version:'f1',accuracy:.79,comparison_run_id:'run'},secure:{version:'s1',accuracy:.79,comparison_run_id:'run',paillier:{secure_aggregation:true,actual_crypto_operations_performed:true}}},
-    trainingAiContextKey:'',trainingAiBusy:false,fullTrainingBusy:false,runtimeTrainingBusy:false,currentTrainingAiComparison:null,
+    trainingAiContextKey:'',trainingAiBusy:false,trainingAiReadState:'idle',fullTrainingBusy:false,runtimeTrainingBusy:false,currentTrainingAiComparison:null,latestTrainingTasks:[],
     trainingCompareBox:{innerHTML:'',hidden:false},aggregationVisualBox:{innerHTML:''},trainingResultSummary:{innerHTML:''},
     chartNumber:x=>x===undefined||x===null?null:Number(x),lossDisplay:x=>x||'--',optionalMetricDisplay:x=>x||'--',
     trainingMetricsComparable:()=>true,trainingValidationInfo:()=>({text:'共享留出集',warning:''}),
@@ -32,8 +32,16 @@ function context(){
 async function main(){
   const {c,elements}=context();
   c.renderTrainingCompare();
-  assert(c.trainingCompareBox.innerHTML.includes('AI 解读本次对比'));
-  assert(c.trainingCompareBox.innerHTML.includes('解读记录'));
+  assert(c.trainingCompareBox.innerHTML.includes('调用 AI 解读'));
+  assert(c.trainingCompareBox.innerHTML.includes('查看历史'));
+  assert(c.trainingCompareBox.innerHTML.includes('评测结论 · 本地计算'));
+  c.api=async()=>({ok:true,data:null});
+  await c.loadSavedTrainingAiComparison();
+  assert(c.trainingCompareBox.innerHTML.includes('本次未使用 AI'));
+  c.api=async()=>({ok:false,error:'offline'});
+  await c.loadSavedTrainingAiComparison();
+  assert(c.trainingCompareBox.innerHTML.includes('本次记录读取失败'));
+  assert(!c.trainingCompareBox.innerHTML.includes('本次未使用 AI'));
   c.showTrainingDetails();
   assert(!c.modal.body.includes('AI 解读'));assert(c.modal.body.includes('训练样本'));
   assert(c.aggregationVisualBox.innerHTML.includes('<svg'));assert(!c.aggregationVisualBox.innerHTML.includes('fas'));
@@ -55,13 +63,26 @@ async function main(){
   resolve({ok:true,data:saved});await loading;assert.equal(c.currentTrainingAiComparison,null);
   c.apiWithTimeout=async()=>{writes++;return{ok:true,data:saved}};
   await c.runTrainingAiComparison();assert.equal(writes,1);
-  assert(c.trainingCompareBox.innerHTML.includes('查看已存解读'));
+  assert(c.trainingCompareBox.innerHTML.includes('查看本次解读'));
+  assert(c.trainingCompareBox.innerHTML.includes('本次已有 AI 解读'));
   assert(c.trainingCompareBox.innerHTML.includes('2026-10-30'));
   // An earlier empty GET must not erase a newly completed paid review.
   const refresh=c.loadSavedTrainingAiComparison();
   c.currentTrainingAiComparison={...saved,generated_at:'new'};
   resolve({ok:true,data:{}});await refresh;
   assert.equal(c.currentTrainingAiComparison.generated_at,'new');
+  const legacy={version_binding:'unrecorded',advice:{summary:'旧结论 <script>'},generated_at:'2026-10-30 09:44:32'};
+  const bound={advice:{summary:'本次结论'},comparison_context:{dataset_source_id:'source',preparation_id:'prep',local_version:'c1',federated_version:'f3',secure_version:'s1'}};
+  const onlyOld=c.trainingAiHistoryHtml([legacy]);
+  assert(onlyOld.includes('本次对比暂无已保存的 AI 解读'));
+  assert(onlyOld.includes('旧版记录（1，未关联本次）'));
+  assert(!onlyOld.includes('<details class="compact-details" open'));
+  assert(onlyOld.includes('&lt;script&gt;'));
+  assert(!c.trainingAiHistoryHtml([bound]).includes('本次对比暂无'));
+  assert(c.trainingAiHistoryHtml([{...bound,comparison_context:{...bound.comparison_context,preparation_id:'old'}}]).includes('其他轮次（1）'));
+  c.api=async url=>{reads++;assert(url.includes('history=1'));return{ok:true,data:{records:[legacy]}}};
+  await c.showTrainingAiHistory();
+  assert(c.modal.title.includes('只读'));assert.equal(writes,1);
   await c.runAdminFullTraining();assert.equal(c.fullTrainingBusy,false);
   assert(c.trainingResultSummary.innerHTML.includes('本次训练未完成'));
   assert(c.trainingResultSummary.innerHTML.includes('标签不足'));

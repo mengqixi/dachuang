@@ -161,7 +161,8 @@ def binary_classification_metrics(y_true, y_pred):
     y_true = np.asarray(y_true).astype(int)
     y_pred = np.asarray(y_pred).astype(int)
     if len(y_true) == 0:
-        return {"accuracy": 0.0, "precision": None, "recall": None, "f1": None}
+        return {"accuracy": 0.0, "precision": None, "recall": None, "f1": None,
+                "confusion_matrix": None}
     tp = int(np.sum((y_true == 1) & (y_pred == 1)))
     tn = int(np.sum((y_true == 0) & (y_pred == 0)))
     fp = int(np.sum((y_true == 0) & (y_pred == 1)))
@@ -182,6 +183,7 @@ def binary_classification_metrics(y_true, y_pred):
         "precision": round(precision, 4) if precision is not None else None,
         "recall": round(recall, 4) if recall is not None else None,
         "f1": round(f1, 4) if f1 is not None else None,
+        "confusion_matrix": {"tp": tp, "tn": tn, "fp": fp, "fn": fn},
     }
 
 
@@ -3069,12 +3071,18 @@ def _admin_submission_summary(items):
 @app.route("/api/admin/submissions", methods=["GET"])
 def admin_submissions():
     force = str(request.args.get("force", "")).lower() in {"1", "true", "yes"}
-    limit = max(1, min(int(request.args.get("limit", 100) or 100), 500))
+    try:
+        limit = max(1, min(int(request.args.get("limit", 100) or 100), 500))
+        offset = max(0, int(request.args.get("offset", 0) or 0))
+    except (TypeError, ValueError):
+        return jsonify(api_response(code=400, msg="分页参数无效。")), 400
     items = _list_admin_submissions_cached(force=force)
     return jsonify(api_response(msg="success", data={
-        "submissions": items[:limit],
+        "submissions": items[offset:offset + limit],
         "total": len(items),
         "limit": limit,
+        "offset": offset,
+        "has_more": offset + limit < len(items),
         "summary": _admin_submission_summary(items),
     }))
 
@@ -3839,6 +3847,7 @@ def _admin_training_centralized_locked():
             "f1": metrics["f1"],
             "loss": metrics["loss"],
             "train_accuracy": fit_result.get("accuracy"),
+            "confusion_matrix": metrics.get("confusion_matrix"),
             "train_loss": fit_result.get("loss"),
             "algorithm": "linear_logistic_gradient_descent",
             "base_model_algorithm": "linear_logistic_binary_classifier",
@@ -4312,6 +4321,7 @@ def _admin_training_federated_locked():
             "f1": comparison_f1,
             "loss": comparison_loss,
             "node_validation_accuracy": float(latest_round.get("accuracy") or 0),
+            "confusion_matrix": (shared_validation_metrics or {}).get("confusion_matrix"),
             "node_validation_loss": float(latest_round.get("loss") or 0),
             "node_diagnostic_accuracy": float(latest_round.get("accuracy") or 0),
             "node_diagnostic_loss": float(latest_round.get("loss") or 0),
@@ -4500,6 +4510,7 @@ def _training_task_to_tracking_version(task, index=0):
     )
     samples = task.get("samples") if task.get("samples") is not None else merged.get("samples", 0)
     accuracy = task.get("accuracy") if task.get("accuracy") is not None else merged.get("accuracy", 0)
+    recorded_time = task.get("timestamp") or merged.get("timestamp") or task.get("created_at") or merged.get("created_at") or ""
     return {
         "id": -1 * (index + 1),
         "version": version,
@@ -4521,7 +4532,8 @@ def _training_task_to_tracking_version(task, index=0):
         "recall": merged.get("recall", merged.get("precision", "")),
         "f1_score": merged.get("f1_score", merged.get("f1", "")),
         "status": task.get("status") or merged.get("status") or "completed",
-        "created_at": task.get("timestamp") or merged.get("timestamp") or merged.get("created_at") or "",
+        "created_at": recorded_time,
+        "timestamp": recorded_time,
         "metadata": json.dumps({**merged, "task_type": task_type, "task_status": task.get("status")}, ensure_ascii=False),
         "current": False,
         "current_display": False,

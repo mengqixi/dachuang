@@ -40,5 +40,8 @@ function setup(){
  let resolve;c.api=()=>new Promise(r=>resolve=r);
  const task=c.runAdminSubmissionAi('A');modal.hidden=true;
  resolve({ok:true,data:{}});await task;assert.equal(c.paid,1);
+ modal.hidden=false;c.renderSubmissionRows([{id:'B',filename:'other.csv'}]);
+ c.api=async()=>({ok:false,error:'offline'});await c.showSubmissionDetail(0);
+ assert(body.innerHTML.includes('详情读取失败'));assert(!body.innerHTML.includes('用户端已有结论'));
  console.log('Submission detail: review buttons outside, analysis inside, user AI reuse without provider, explicit continuation and close-race guards passed');
 })().catch(e=>{console.error(e);process.exitCode=1});

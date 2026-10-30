@@ -26,6 +26,17 @@ def pair(version="1"):
                  for kind in ("centralized", "federated"))
 
 
+def test_tracking_version_exposes_recorded_time_consistently():
+    for task in (
+        {"task_type": "federated", "created_at": "2026-10-30 20:38:39"},
+        {"task_type": "runtime", "timestamp": "2026-10-30 20:38:39"},
+        {"task_type": "centralized", "metadata": json.dumps({"timestamp": "2026-10-30 20:38:39"})},
+    ):
+        version = a._training_task_to_tracking_version(task)
+        assert version['timestamp'] == version['created_at'] == '2026-10-30 20:38:39'
+    assert a._training_task_to_tracking_version({'model_version': 'fed20261030203839'})['timestamp'] == ''
+
+
 @pytest.fixture
 def isolated_review(tmp_path):
     client = a.app.test_client()

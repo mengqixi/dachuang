@@ -16,7 +16,10 @@ assert.equal(c.trainingCompareState.local.version,'c1');assert.equal(c.trainingC
 assert(c.trainingTripletComparable());
 const quality=c.trainingTripletVisual('quality');
 assert(quality.includes('普通集中式'));assert(quality.includes('普通 FedAvg'));assert(quality.includes('Paillier FedAvg'));
-assert.equal((quality.match(/class="paired-bar-line"/g)||[]).length,9);
+assert(quality.includes('三路核心指标一致'));assert(quality.includes('预测损失'));
+assert.equal((quality.match(/class="paired-bar-line"/g)||[]).length,0);
+const unequal={...c.trainingCompareState,local:{...c.trainingCompareState.local,accuracy:.81}};
+assert.equal((c.trainingTripletVisual('quality',unequal).match(/class="paired-bar-line"/g)||[]).length,9);
 assert(c.trainingTripletVisual('speed').includes('未记录'));
 // Latest incomplete run must not borrow the previous run's successful secure model.
 c.trainingCompareState=c.selectTrainingTriplet([record('federated','f2','run-2'),record('local','c2','run-2'),...records]);

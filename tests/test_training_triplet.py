@@ -102,6 +102,15 @@ def test_three_paths_are_independently_saved_and_use_identical_scope(triplet):
         assert row['validation_samples'] == 40
         assert row['effective_epochs'] == 3
         assert row['performance']['training_time_ms'] > 0
+        matrix = row['confusion_matrix']
+        assert set(matrix) == {'tp', 'tn', 'fp', 'fn'}
+        assert sum(matrix.values()) == row['validation_samples']
+        assert matrix['tn'] + matrix['fp'] == row['validation_label_distribution']['0']
+        assert matrix['tp'] + matrix['fn'] == row['validation_label_distribution']['1']
+        assert round((matrix['tp'] + matrix['tn']) / 40, 4) == row['accuracy']
+    for saved in a.db.get_training_tasks():
+        metadata = json.loads(saved['metadata'])
+        assert (metadata.get('metadata') or metadata)['confusion_matrix'] is not None
     assert rows['federated']['round'] == rows['secure']['round'] == 1
     assert rows['federated']['continued_from_previous_round'] is False
     assert rows['secure']['continued_from_previous_round'] is False
