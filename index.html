@@ -151,13 +151,15 @@ main.container-fluid{max-width:1600px;margin:0 auto}
 .submission-meta{font-size:12px;color:#748294;margin-top:4px;line-height:1.6}
 .submission-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .submission-actions button{padding:6px 10px;font-size:12px;white-space:nowrap;margin:0!important}
-.submission-review-actions{margin-bottom:6px}.submission-actions .submission-reject{color:#b45353}
+.submission-actions.submission-row-actions{flex-wrap:nowrap;white-space:nowrap}.submission-actions .submission-reject{color:#b45353}
 .submission-risk{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px}
 .submission-detail-grid{display:grid;grid-template-columns:100px minmax(0,1fr);gap:12px;font-size:13px;line-height:1.7}
 .submission-detail-grid dt{color:#718096;font-weight:500}.submission-detail-grid dd{margin:0;overflow-wrap:anywhere}
 /* Compact source and audit views share a single, readable content column. */
 .workspace-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
 .workspace-toolbar .toolbar-end{margin-left:auto}.workspace-table-wrap{max-height:none;overflow:visible}
+.source-table-scroll{height:clamp(280px,52vh,540px);max-height:540px;overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable}.source-table-scroll:focus-visible{outline:2px solid var(--app-accent);outline-offset:2px}.source-table-scroll .source-table{margin:0}
+.detail-file-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}.detail-file-heading>b{font-size:15px;overflow-wrap:anywhere}.submission-detail-meta{font-size:12px;margin:7px 0;color:#65758a}.submission-detail-pane{padding:14px 0 4px;min-height:150px}.submission-detail-pane .compare-head{gap:10px;flex-wrap:wrap}.submission-detail-pane .scroll-box{max-height:280px}
 .source-category-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 10px}.source-context{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:16px;font-size:13px;color:#425b72}.source-model-status{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:#708090;margin-top:12px}.source-model-status span{overflow-wrap:anywhere}.source-model-status .btn-lightx{padding:4px 8px;font-size:12px}
 .source-category-tabs .audit-tab[aria-pressed="true"]{color:var(--app-accent);background:rgba(var(--app-accent-rgb),.08);border-color:rgba(var(--app-accent-rgb),.25);font-weight:650}
 .workspace-table{table-layout:fixed;width:100%;white-space:normal!important;min-width:0!important}
@@ -165,10 +167,10 @@ main.container-fluid{max-width:1600px;margin:0 auto}
 .source-table th:nth-child(1){width:32%}.source-table th:nth-child(2){width:13%}.source-table th:nth-child(3){width:21%}.source-table th:nth-child(4){width:12%}.source-table th:nth-child(5){width:22%}
 .source-table tr[data-current="true"]{background:#f5f9fd}.source-table .mini-badge{font-weight:500}
 .source-metrics .metric:first-child .metric-value{font-size:19px;line-height:1.5;word-break:normal;overflow-wrap:anywhere}
-.audit-toolbar{display:grid;grid-template-columns:minmax(140px,1fr) minmax(180px,2fr) auto;gap:12px;align-items:end}
+.audit-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}.audit-toolbar .audit-search{flex:1;min-width:160px}.audit-toolbar .compact-details{margin:0;padding:0;border:0}.audit-toolbar .compact-details>summary{padding:9px 12px}.audit-filter-panel{margin-bottom:16px}.audit-filter-panel .audit-advanced{grid-template-columns:repeat(2,minmax(0,1fr));margin:12px 0}.audit-log>.panel-body{padding:0}
 .audit-toolbar label,.audit-advanced label{font-size:12px;color:#708090;margin-bottom:5px}
 .audit-advanced{display:grid;grid-template-columns:1fr 2fr 1fr;gap:12px;margin-top:12px}
-.audit-tabs{display:flex;gap:8px;align-items:center;margin-bottom:16px}
+.audit-tabs{display:flex;gap:8px;align-items:center;margin-bottom:16px}.audit-timestamp{white-space:nowrap;font-variant-numeric:tabular-nums}
 .audit-tab{border:1px solid #e1e8ef;background:#fff;color:#647586;padding:8px 15px;border-radius:8px;font-size:14px}
 .audit-tab[aria-selected="true"]{color:#315e98;background:#edf4fc;border-color:#c4d7ed;font-weight:650}
 .audit-log[hidden]{display:none!important}.audit-ip-panel>summary{padding:15px 18px;cursor:pointer;font-weight:600;color:#425b72}
@@ -187,7 +189,7 @@ main.container-fluid{max-width:1600px;margin:0 auto}
 .score-info-button{display:inline-flex;align-items:center;justify-content:center;width:19px;height:19px;padding:0;margin-left:5px;border:1px solid #cad9e7;border-radius:50%;background:#f3f7fb;color:var(--app-accent);font-size:11px;vertical-align:middle;cursor:pointer}.score-info-button:focus-visible{outline:2px solid var(--app-accent);outline-offset:2px}.score-component-table td:last-child{font-weight:400;text-align:left}.score-component-table{font-size:12px}
 .workspace-modal .detail-kv{font-size:13px;line-height:1.7}.workspace-modal .detail-kv>div{overflow-wrap:anywhere;white-space:normal}
 @media(max-width:720px){
-  .audit-toolbar,.audit-advanced{grid-template-columns:1fr}.audit-toolbar .btn-main{width:100%}
+  .audit-toolbar,.audit-advanced,.audit-filter-panel .audit-advanced{grid-template-columns:1fr}.audit-toolbar .audit-search{flex-basis:100%}
   #systemDataMetrics,#auditMetrics{grid-template-columns:repeat(2,minmax(0,1fr))}
   .workspace-table thead{display:none}.workspace-table,.workspace-table tbody{display:block}
   .workspace-table tbody tr{display:grid;grid-template-columns:1fr 1fr;border:1px solid #e1e8ef;border-radius:10px;padding:10px;margin-bottom:10px}
@@ -330,21 +332,20 @@ main.container-fluid{max-width:1600px;margin:0 auto}
       <div class="panel-head"><i class="fas fa-file-lines text-primary"></i> 分析报告 <button class="info-trigger icon-only" type="button" data-info-title="报告说明" data-info-text="报告同步本次检测和已保存的 AI 结论。查看、下载报告不会再次调用 AI；需要补充复核时，请到风险检测页主动发起。" aria-label="查看报告说明">i</button></div>
       <div class="panel-body">
         <button class="btn-main me-2" onclick="loadReport()">加载报告</button>
-        <button class="btn-lightx" onclick="downloadReport()">下载完整报告</button>
+        <button class="btn-lightx" id="reportDownloadButton" onclick="downloadReport()">下载完整报告（PDF）</button>
         <div class="report-archive-meta mt-3" id="reportMetrics">
           <span>暂无报告档案</span>
         </div>
         <div class="two-col mt-3">
           <div class="preview-card">
             <h6 class="fw-bold">本次结论</h6>
-            <div id="reportSummaryBox" class="small-text text-muted">完成风险检测后显示数据概况、风险分布和隐私保护状态。</div>
+            <div id="reportSummaryBox" class="small-text text-muted">检测完成后显示结论与处理计划。</div>
           </div>
           <div class="preview-card">
             <h6 class="fw-bold">处理计划</h6>
             <ul id="reportSuggestionList" class="small-text mb-0 text-muted"><li>完成风险检测后显示建议。</li></ul>
           </div>
         </div>
-        <div id="reportCharts" hidden></div>
         <div class="ai-assist-card" id="externalAnalysisBoxReport">
           <div class="ai-title"><span><i class="fas fa-wand-magic-sparkles"></i> AI 复核结论</span><span class="mini-badge">可选</span></div>
         </div>
@@ -402,7 +403,6 @@ main.container-fluid{max-width:1600px;margin:0 auto}
         <div class="workspace-toolbar">
         <button class="btn-main" onclick="processSystemDataset(event)">准备当前数据源</button>
         <button class="btn-lightx" onclick="loadDataProcessPage(true,event)">刷新</button>
-        <button class="btn-lightx ms-2" id="datasetSourceToggle" type="button" onclick="toggleDatasetSources()" hidden>显示全部数据源</button>
         <span class="ms-2 small-text text-muted" id="datasetSourceSummary"></span>
         </div>
         <button class="info-trigger" type="button" data-info-title="处理规则与模型关系" data-info-source="dataProcessRules">处理说明 ⓘ</button>
@@ -427,7 +427,7 @@ main.container-fluid{max-width:1600px;margin:0 auto}
         <div class="source-model-status" id="datasetModelStatus"></div>
         <div id="dataPreparationChart" class="compact-progress-chart"></div>
         <div class="source-category-tabs" id="datasetCategoryTabs" role="group" aria-label="数据源分类"></div>
-        <div class="scroll-box workspace-table-wrap mt-3">
+        <div class="scroll-box workspace-table-wrap mt-3 source-table-scroll" id="datasetSourceScroll" role="region" aria-label="数据源列表，可滚动查看全部记录" tabindex="0">
           <table class="table table-sm workspace-table source-table">
             <thead><tr><th>数据源</th><th>数据量</th><th>标签分布</th><th>状态</th><th>操作</th></tr></thead>
             <tbody id="datasetSourceTable"><tr><td colspan="5" class="text-muted">暂无数据源记录</td></tr></tbody>
@@ -453,7 +453,7 @@ main.container-fluid{max-width:1600px;margin:0 auto}
     <div class="two-col training-layout">
       <div class="panel">
         <div class="panel-head"><i class="fas fa-brain text-primary"></i> 训练中心
-          <span class="hint"><button class="info-icon" type="button" aria-label="查看训练说明"><i class="fas fa-info"></i></button><span class="hint-panel">普通集中式与联邦训练采用同一模型、数据和共享留出集。</span></span>
+          <button class="info-trigger icon-only" type="button" aria-label="查看训练说明" data-info-title="数据、训练与检测" data-info-text="数据准备生成统一特征、训练分区、独立验证分区和四节点数据。训练融合模型会保存并启用新的检测模型，供用户风险检测使用；三路对比使用同构线性二分类模型比较集中式、FedAvg 与 Paillier 的效果和开销，只保存对比记录，不替换当前检测模型。AI 是可选复核，不参与模型权重训练。">i</button>
         </div>
         <div class="panel-body">
           <div class="preview-card mb-3" id="trainingSourceBox">当前训练数据源：请先在数据管理页刷新数据。</div>
@@ -462,27 +462,24 @@ main.container-fluid{max-width:1600px;margin:0 auto}
             <div class="metric metric-card"><div class="metric-value" id="trainFeatureMetric">--</div><div class="metric-label">模型特征</div></div>
             <div class="metric metric-card"><div class="metric-value" id="trainNodeMetric">--</div><div class="metric-label">联邦节点</div></div>
           </div>
+          <div class="preview-card mb-3">
+            <div class="compare-head"><b>实际风险检测</b><button class="btn-main" id="runtimeTrainButton" onclick="runAdminLocalTrain()"><i class="fas fa-shield-halved"></i> 训练并启用融合模型</button></div>
+            <div id="trainingRuntimeStatus" class="small-text mt-2" role="status" aria-live="polite">正在读取当前检测模型…</div>
+          </div>
           <div class="training-action-card">
-            <div class="aggregation-picker">
-              <label for="federatedAggregationMode"><i class="fas fa-layer-group"></i> 聚合方式</label>
-              <select class="form-select form-select-sm" id="federatedAggregationMode" title="选择联邦权重聚合方式">
-                <option value="plain" selected>普通 FedAvg（快速）</option>
-                <option value="paillier">Paillier 安全聚合</option>
-              </select>
-            </div>
-            <button class="btn-main" id="trainingRunButton" onclick="runAdminFullTraining()"><i class="fas fa-play"></i> 开始对比训练</button>
+            <div class="aggregation-picker"><b>集中式 / FedAvg / Paillier</b></div>
+            <button class="btn-lightx" id="trainingRunButton" onclick="runAdminFullTraining()"><i class="fas fa-play"></i> 开始三路对比</button>
           </div>
           <div class="training-secondary">
-            <button class="btn-lightx" onclick="runAdminLocalTrain()"><i class="fas fa-shield-halved"></i> 更新检测模型</button>
             <button class="btn-lightx" onclick="loadTrainingPage()"><i class="fas fa-rotate"></i> 刷新数据</button>
-            <span class="hint"><button class="info-icon" type="button" aria-label="查看聚合方式说明"><i class="fas fa-info"></i></button><span class="hint-panel right">FedAvg 响应更快；Paillier 会增加计算时间并保护聚合过程。</span></span>
+            <span class="hint"><button class="info-icon" type="button" aria-label="查看三路对比说明"><i class="fas fa-info"></i></button><span class="hint-panel right">同一训练分区、模型、轮数和共享留出集。三路依次运行并独立保存；Paillier 在 FedAvg 权重聚合环节增加加密。数据准备发生变化时中止，保留已完成结果。</span></span>
           </div>
           <div class="node-grid mt-3" id="fedNodes"></div>
           <div class="subtle-note mt-2" id="fedNodeExplain">节点状态将在数据同步后显示。</div>
         </div>
       </div>
       <div class="panel">
-        <div class="panel-head">模型效果对比</div>
+        <div class="panel-head">三路训练对比 <span class="mini-badge">不替换检测模型</span></div>
         <div class="panel-body">
           <div class="result-card" id="trainingResultSummary">
             <div class="title">最新训练结果</div>
@@ -490,6 +487,7 @@ main.container-fluid{max-width:1600px;margin:0 auto}
           </div>
           <div class="chart-card">
             <div class="compare-head"><b>核心指标</b><button class="btn-lightx" onclick="showTrainingDetails()">查看对比明细</button></div>
+            <div class="source-category-tabs mt-3" aria-label="对比维度"><button id="trainingQualityTab" class="audit-tab" type="button" aria-pressed="true" onclick="setTrainingCompareView('quality')">效果指标</button><button id="trainingSpeedTab" class="audit-tab" type="button" aria-pressed="false" onclick="setTrainingCompareView('speed')">速度开销</button></div>
             <div class="chart-canvas-wrap" hidden><canvas id="trainingCompareChart"></canvas></div>
             <div class="chart-fallback" id="trainingCompareFallback"></div>
           </div>
@@ -541,28 +539,21 @@ main.container-fluid{max-width:1600px;margin:0 auto}
 
   <section class="page" id="pg-audit">
     <div class="panel">
-      <div class="panel-head"><i class="fas fa-clipboard-check text-primary"></i> 系统审计 - 访问与安全事件
-        <span class="hint"><button class="info-icon" type="button"><i class="fas fa-info"></i></button><span class="hint-panel">系统审计记录平台访问、安全事件和慢接口等运行信息；用户数据风险检测与系统审计分开统计。</span></span>
-      </div>
-      <div class="panel-body">
-        <div class="audit-toolbar">
-          <div><label class="form-label" for="auditRiskFilter">风险等级</label><select class="form-select" id="auditRiskFilter"><option value="">全部</option><option value="critical">严重</option><option value="high">高</option><option value="medium">中</option><option value="low">低</option><option value="info">信息</option></select></div>
-          <div><label class="form-label" for="auditIpFilter">来源 IP</label><input class="form-control" id="auditIpFilter" placeholder="输入 IP 筛选"></div>
-          <button class="btn-main" onclick="resetAuditAndLoad()">查询记录</button>
-        </div>
-        <details class="compact-details"><summary>更多筛选</summary><div class="audit-advanced">
-          <div><label class="form-label" for="auditTypeFilter">事件类型</label><select class="form-select" id="auditTypeFilter"><option value="">全部类型</option><option value="slow_api_detected">慢接口</option><option value="rate_limit_triggered">限流</option></select></div>
-          <div><label class="form-label" for="auditPathFilter">请求路径</label><input class="form-control" id="auditPathFilter" placeholder="例如 /api"></div>
-          <div><label class="form-label" for="auditLimit">每页条数</label><select class="form-select" id="auditLimit"><option selected>20</option><option>50</option><option>100</option></select></div>
-        </div></details>
-        <div class="small-text text-muted mt-2" id="auditFilterSummary">正在读取审计记录</div>
-        <div class="metric-grid mt-3" id="auditMetrics"></div>
-        <div class="visual-grid audit-visuals" id="auditVisuals"></div>
-      </div>
-    </div>
-    <div class="panel">
+      <div class="panel-head"><i class="fas fa-clipboard-check text-primary"></i> 系统审计</div>
       <div class="panel-body">
         <div class="audit-tabs" role="tablist" aria-label="审计记录类型"><button class="audit-tab" role="tab" id="auditEventsTab" aria-controls="auditEventsPane" aria-selected="true" onclick="selectAuditTab('events')">安全事件</button><button class="audit-tab" role="tab" id="auditVisitsTab" aria-controls="auditVisitsPane" aria-selected="false" onclick="selectAuditTab('visits')">访问记录</button></div>
+        <div class="audit-toolbar">
+          <input class="form-control audit-search" id="auditIpFilter" aria-label="按来源 IP 筛选" placeholder="搜索来源 IP" onkeydown="if(event.key==='Enter')resetAuditAndLoad()">
+          <button class="btn-main" onclick="resetAuditAndLoad()">查询记录</button>
+          <button class="btn-lightx" type="button" onclick="toggleAuditFilters()" aria-controls="auditFilters" aria-expanded="false" id="auditFilterButton">筛选</button>
+        </div>
+        <div class="audit-filter-panel" id="auditFilters" hidden><div class="audit-advanced">
+          <div id="auditRiskField"><label class="form-label" for="auditRiskFilter">风险等级</label><select class="form-select" id="auditRiskFilter"><option value="medium,high,critical" selected>中高风险（默认）</option><option value="">全部风险</option><option value="critical">严重</option><option value="high">高</option><option value="medium">中</option><option value="low">低</option><option value="info">信息</option></select></div>
+          <div id="auditTypeField"><label class="form-label" for="auditTypeFilter">事件类型</label><select class="form-select" id="auditTypeFilter"><option value="">全部类型</option><option value="slow_api_detected">慢接口</option><option value="rate_limit_triggered">限流</option><option value="unauthorized_access">未授权访问</option><option value="path_scan">路径扫描</option></select></div>
+          <div><label class="form-label" for="auditPathFilter">请求路径</label><input class="form-control" id="auditPathFilter" placeholder="例如 /api"></div>
+          <div><label class="form-label" for="auditLimit">每页条数</label><select class="form-select" id="auditLimit"><option selected>20</option><option>50</option><option>100</option></select></div>
+        </div></div>
+        <div class="small-text text-muted mb-2" id="auditFilterSummary" role="status" aria-live="polite">中高风险事件</div>
       <div class="audit-log" id="auditEventsPane" role="tabpanel" aria-labelledby="auditEventsTab">
         <div class="panel-body">
           <div class="scroll-box workspace-table-wrap"><table class="table table-sm workspace-table audit-log-table"><thead><tr><th>时间</th><th>风险</th><th>来源 IP</th><th>事件 / 路径</th><th>操作</th></tr></thead><tbody id="eventTable"></tbody></table></div>
@@ -577,10 +568,6 @@ main.container-fluid{max-width:1600px;margin:0 auto}
       </div>
     </div>
     </div>
-    <details class="panel audit-ip-panel"><summary>查看来源 IP 汇总</summary><div class="panel-body">
-      <div class="subtle-note mb-2">基于当前筛选下最近记录汇总，最多读取各 200 条事件和访问记录。</div>
-      <div class="scroll-box workspace-table-wrap"><table class="table table-sm workspace-table"><thead><tr><th>来源 IP</th><th>记录数</th><th>关注事件</th><th>最近时间</th></tr></thead><tbody id="suspiciousIpTable"></tbody></table></div>
-    </div></details>
   </section>
 
   <section class="page" id="pg-login">
@@ -697,7 +684,6 @@ let currentSubmissionId = localStorage.getItem('currentSubmissionId') || '';
 let currentReport = '';
 let adminLoggedIn = false;
 let lastRiskReasons = [];
-let datasetSourcesExpanded = false;
 let datasetSourceCategory = 'all';
 let datasetSourceList = [];
 let datasetSourceContext = {};
@@ -709,6 +695,7 @@ let currentTrainingAiComparison = null;
 let trainingAiContextKey = '';
 let trainingAiBusy = false;
 let fullTrainingBusy = false;
+let runtimeTrainingBusy = false;
 let currentDatasetSourceId = '';
 const ADMIN_CURRENT_DATASET_SOURCE_KEY = 'adminCurrentDatasetSourceId';
 try{currentDatasetSourceId = localStorage.getItem(ADMIN_CURRENT_DATASET_SOURCE_KEY) || '';}catch(e){}
@@ -767,8 +754,9 @@ function sortDatasetSourcesForDisplay(sources){
 let currentDatasetSource = null;
 let currentPreparation = {};
 let currentRuntimeMatchesPreparation = false;
-let auditState = {eventOffset:0, visitOffset:0, events:[], visits:[], totalEvents:0, totalVisits:0, suspiciousKey:'', suspiciousEvents:[], suspiciousVisits:[]};
-let trainingCompareState = {local:null, federated:null};
+let auditState = {tab:'events',requestId:0,eventOffset:0,visitOffset:0,events:[],visits:[],totalEvents:0,totalVisits:0};
+let trainingCompareState = {local:null, federated:null, secure:null};
+let trainingCompareView='quality';
 let trainingCompareChartObj = null;
 let modelVersionCompareChartObj = null;
 let latestTrainingTasks = [];
@@ -943,10 +931,6 @@ function privacyRiskBadge(value){
   const score=Number(p.score);
   return `<span class="status-pill ${cls}" title="${esc(p.recommendation||'隐私暴露规则评估')}">隐私${esc(p.level_zh||riskLevelText(p.level))}${Number.isFinite(score)?' '+score.toFixed(2):''}</span>`;
 }
-function toggleDatasetSources(){
-  datasetSourcesExpanded=!datasetSourcesExpanded;
-  renderDatasetSourceList();
-}
 const miniModalOpeners=new Map();let miniModalPreviousOverflow='';
 function closeMiniModal(id){
   const el=document.getElementById(id);if(!el||el.hidden)return;
@@ -998,6 +982,22 @@ function pairedMetricsVisual(local,fed,comparable=false){
 }
 function trainingMetricsComparable(local,fed){
   return local.metric_scope==='shared_holdout_validation'&&fed.metric_scope==='shared_holdout_validation'&&!!local.validation_id&&local.validation_id===fed.validation_id&&!!local.model_architecture&&local.model_architecture===fed.model_architecture&&!!local.optimizer&&local.optimizer===fed.optimizer&&Number(local.epochs)>0&&Number(local.epochs)===Number(fed.epochs);
+}
+function trainingPerformanceComparable(local,fed){
+  const l=obj(local.performance),f=obj(fed.performance);
+  return trainingMetricsComparable(local,fed)&&!!l.timing_version&&l.timing_version===f.timing_version&&!!l.environment_id&&l.environment_id===f.environment_id&&l.execution_mode===f.execution_mode&&Number(local.samples)===Number(fed.samples)&&Number(l.inference_batch_samples)>0&&Number(l.inference_batch_samples)===Number(f.inference_batch_samples)&&l.inference_repeats===f.inference_repeats&&l.inference_warmup===f.inference_warmup;
+}
+function performanceValue(value,unit='ms'){
+  const n=chartNumber(value);if(n===null||n<0)return '未记录';
+  if(unit==='条/秒')return n.toLocaleString('zh-CN',{maximumFractionDigits:0})+' 条/秒';
+  return n>=1000?(n/1000).toFixed(2)+' s':n.toFixed(3)+' ms';
+}
+function trainingPerformanceVisual(local,fed){
+  const l=obj(local.performance),f=obj(fed.performance),comparable=trainingPerformanceComparable(local,fed);
+  const help=infoButton('速度开销计时口径','训练耗时：从准备数据载入后开始，到权重训练与聚合结束，包含节点读取、密钥就绪检查及加解密，不含排队、特征准备、留出集评估和落盘。模型计算为训练函数耗时。推理为同一共享留出集前至多 1024 条样本，预热 1 次、计时 7 次取中位数，吞吐量由批大小除以耗时计算，不含特征处理和网络。四节点当前在单机顺序运行，不代表跨服务器并行性能。瞬时负载和首次密钥初始化会影响结果。历史记录不补造计时。');
+  if(!Object.keys(l).length&&!Object.keys(f).length)return `<div class="presentation-empty">尚无耗时记录，重新训练后显示 ${help}</div>`;
+  const bar=(value,max,cls)=>{const n=chartNumber(value);return `<div class="paired-bar-line"><div class="paired-bar-track"><span class="paired-bar-fill ${cls}" style="width:${n===null?0:Math.max(0,n)/max*100}%"></span></div><b>${esc(performanceValue(n))}</b></div>`;};
+  return `<div class="chart-legend"><span><i style="background:#6486b5"></i>普通集中式</span><span><i style="background:#75a58e"></i>四节点联邦</span>${help}</div><div class="paired-chart">${[['训练耗时','training_time_ms'],['模型计算','model_compute_time_ms'],['批量推理','inference_batch_ms']].map(([label,key])=>{const a=chartNumber(l[key]),b=chartNumber(f[key]),max=Math.max(a||0,b||0,.000001);return `<div><div class="paired-metric-head"><b>${label} <small>越短越快</small></b>${comparable&&a>0&&b!==null?`<span class="metric-delta">联邦耗时 ${(b/a).toFixed(2)}×</span>`:''}</div>${bar(l[key],max,'')}${bar(f[key],max,'fed')}</div>`;}).join('')}</div><table class="training-metric-table"><thead><tr><th>吞吐量</th><th>普通集中式</th><th>四节点联邦</th></tr></thead><tbody><tr><td>推理</td><td>${esc(performanceValue(l.inference_samples_per_second,'条/秒'))}</td><td>${esc(performanceValue(f.inference_samples_per_second,'条/秒'))}</td></tr><tr><td>训练</td><td>${esc(performanceValue(l.training_samples_per_second,'条/秒'))}</td><td>${esc(performanceValue(f.training_samples_per_second,'条/秒'))}</td></tr></tbody></table><div class="submission-meta">${comparable?'同机同口径实测':'仅展示记录，计时口径不足以直接排名'} · 推理批量 ${esc(l.inference_batch_samples??'--')} / ${esc(f.inference_batch_samples??'--')} 条</div>`;
 }
 function trainingValidationInfo(local,fed){
   const n=Number(local.validation_samples||fed.validation_samples||0),dist=obj(local.validation_label_distribution||fed.validation_label_distribution);
@@ -1183,15 +1183,18 @@ function lifecycleBadge(row){
   return `<span class="status-pill ${cls}">${esc(status)}</span>${meta.length?`<div class="small-text text-muted mt-1">${esc(meta.join(' / '))}</div>`:''}`;
 }
 let submissionRows=[];
+const adminSubmissionBusy=new Set();
+let currentSubmissionDetail=null,submissionDetailRequest=0;
+let submissionDetailTab='local';
 function submissionAiSummary(row){
   const result=obj(row.external_analysis),advice=obj(result.advice);
-  return advice.summary?`<div class="compact-ai-summary"><span class="status-pill info">AI 已复核</span> ${esc(shortText(advice.summary,56))}</div>`:'<div class="submission-meta">AI 未使用</div>';
+  return advice.summary?`<div class="compact-ai-summary"><span class="status-pill info">AI 已复核</span> ${esc(shortText(advice.summary,56))}</div>`:Number(row.ai_history_count)>0?'<div class="submission-meta">有历史 AI 记录</div>':'<div class="submission-meta">AI 未使用</div>';
 }
 function submissionReviewButtons(row,index){
   const actions=arr(row.allowed_actions),buttons=[];
-  if(actions.includes('mark_trainable'))buttons.push(`<button class="btn-lightx" onclick="markTrainable(submissionRows[${index}].id,event)">允许训练</button>`);
+  if(actions.includes('mark_trainable'))buttons.push(`<button class="btn-lightx" title="接受并允许训练" onclick="markTrainable(submissionRows[${index}].id,event)">接受</button>`);
   if(actions.includes('reject'))buttons.push(`<button class="btn-lightx submission-reject" onclick="rejectSubmission(submissionRows[${index}].id)">拒绝</button>`);
-  return buttons.length?`<div class="submission-actions submission-review-actions">${buttons.join('')}</div>`:'';
+  return buttons.join('');
 }
 function renderSubmissionRows(rows){
   submissionRows=rows;
@@ -1200,29 +1203,67 @@ function renderSubmissionRows(rows){
     <td data-label="数据量"><b>${esc(r.row_count??0)}</b> 条<div class="submission-meta">${esc(r.column_count??0)} 个字段</div></td>
     <td data-label="状态">${reviewStatusBadge(r)}<div class="submission-meta">${r.encrypted?'已加密归档':'未加密归档'}${r.training_runs?` · 训练 ${esc(r.training_runs)} 次`:''}</div></td>
     <td data-label="风险概览"><div class="submission-risk">${riskSummaryTags(r.risk_summary)}</div>${privacyRiskBadge(r.privacy_risk)}${submissionAiSummary(r)}</td>
-    <td data-label="操作">${submissionReviewButtons(r,index)}<div class="submission-actions"><button class="btn-lightx" onclick="analyzeSubmission(submissionRows[${index}].id)">分析</button><button class="btn-lightx" onclick="runAdminSubmissionAi(submissionRows[${index}].id,event)">AI 辅助</button><button class="btn-lightx" onclick="showSubmissionDetail(${index})">详情</button></div></td>
+    <td data-label="操作"><div class="submission-actions submission-row-actions">${submissionReviewButtons(r,index)}<button class="btn-lightx" onclick="showSubmissionDetail(${index})">详情</button></div></td>
   </tr>`).join(''):'<tr><td colspan="5" class="text-muted">暂无用户提交</td></tr>';
 }
-function showSubmissionDetail(index){
+async function showSubmissionDetail(index){
   const r=submissionRows[index];
   if(!r)return;
   const modal=document.getElementById('submissionDetailModal');
+  const requestId=++submissionDetailRequest;
+  const opening=modal.hidden||modal.dataset.submissionId!==r.id;
+  if(opening)submissionDetailTab='local';
   modal.dataset.submissionId=r.id;
-  document.getElementById('submissionDetailBody').innerHTML=`
-    <dl class="submission-detail-grid">
-      <dt>文件</dt><dd>${esc(r.filename||'-')}</dd>
-      <dt>提交编号</dt><dd>${esc(r.id)}</dd>
-      <dt>提交时间</dt><dd>${esc(fmtTime(r.upload_time))}</dd>
-      <dt>数据量</dt><dd>${esc(r.row_count??0)} 条 · ${esc(r.column_count??0)} 个字段</dd>
-      <dt>归档</dt><dd>${r.encrypted?'AES 加密归档':'未加密'}</dd>
-      <dt>安全字段</dt><dd>${submissionSecurityFields(r)}</dd>
-      <dt>审核状态</dt><dd>${reviewStatusBadge(r)}<div class="submission-meta">${esc(r.review_status_note||'')}</div></dd>
-      <dt>训练状态</dt><dd>${lifecycleBadge(r)}</dd>
-      <dt>最近操作</dt><dd>${esc(fmtTime(r.recent_operation_time||r.upload_time))}</dd>
-      <dt>风险摘要</dt><dd>${riskSummaryTags(r.risk_summary)}<div class="mt-2">${privacyRiskBadge(r.privacy_risk)}</div></dd>
-    </dl>${obj(obj(r.external_analysis).advice).summary?`<div class="detail-paragraph"><b>用户已保存的 AI 复核结论</b>${aiDatasetResultHtml(r.external_analysis)}</div>`:'<div class="submission-meta">该提交尚未使用 AI 复核。</div>'}`;
-  openMiniModal('submissionDetailModal');
-  modal.querySelector('.mini-close').focus();
+  renderSubmissionDetailContent({...r,_loadingDetail:true});
+  if(opening){openMiniModal('submissionDetailModal');modal.querySelector('.mini-close').focus();}
+  const response=await api('/api/admin/submissions/'+encodeURIComponent(r.id));
+  if(modal.hidden||modal.dataset.submissionId!==r.id||requestId!==submissionDetailRequest)return;
+  if(response.ok){currentSubmissionDetail=response.data;renderSubmissionDetailContent(response.data);}
+  else toast(response.error||'详情读取失败','bad');
+}
+function refreshSubmissionDetailControls(id){
+  const modal=document.getElementById('submissionDetailModal');
+  if(!modal.hidden&&modal.dataset.submissionId===id&&currentSubmissionDetail?.id===id)renderSubmissionDetailContent(currentSubmissionDetail);
+}
+function setSubmissionDetailTab(tab){
+  const modal=document.getElementById('submissionDetailModal');
+  if(!['local','ai'].includes(tab)||currentSubmissionDetail?.id!==modal.dataset.submissionId)return;
+  submissionDetailTab=tab;renderSubmissionDetailContent(currentSubmissionDetail);
+}
+function submissionAiCompactHtml(saved,includeDetails=true){
+  const advice=obj(saved.advice),scope=obj(saved.review_scope),decisions=arr(saved.assisted_decisions);
+  if(!advice.summary)return '<div class="presentation-empty">当前检测版本暂无 AI 结果</div>';
+  return `<p class="ai-summary-text">${esc(advice.summary)}</p><div class="submission-meta">${esc(fmtTime(saved.generated_at))} · ${esc(saved.model||'模型未记录')}${scope.total?' · 复核 '+esc(scope.reviewed??decisions.length)+' / '+esc(scope.total)+' 条':decisions.length?' · 已复核 '+decisions.length+' 条':''}</div>
+    ${arr(advice.recommended_actions).length?`<ul class="small-text mt-3 mb-0">${arr(advice.recommended_actions).slice(0,3).map(value=>`<li>${esc(value)}</li>`).join('')}</ul>`:''}
+    ${includeDetails&&decisions.length?`<details class="compact-details"><summary>逐样本结论与建议（${decisions.length}条）</summary><div class="scroll-box"><table class="table table-sm"><thead><tr><th>IP / 样本</th><th>AI / 综合</th><th>建议</th></tr></thead><tbody>${decisions.map(row=>`<tr><td>${esc(row.ip||'未提供 IP')}<div class="submission-meta">样本 ${esc(row.sample_id)}</div></td><td>${esc(riskLevelText(row.ai_risk_level))} / ${esc(riskLevelText(row.combined_risk_level))}</td><td style="white-space:normal">${esc(row.recommended_action||row.reason||'未记录')}</td></tr>`).join('')}</tbody></table></div></details>`:''}`;
+}
+function submissionDetailRowsHtml(rows,ai=false){
+  if(!rows.length)return '';
+  return `<b>${ai?'逐样本结论与建议':'需关注样本'}（${rows.length}条）</b><div class="scroll-box mt-2"><table class="table table-sm"><thead><tr><th>IP / 样本</th><th>${ai?'AI / 综合':'本地风险'}</th><th>依据 / 建议</th></tr></thead><tbody>${rows.map(row=>`<tr><td>${esc(row.ip||'未提供 IP')}<div class="submission-meta">样本 ${esc(ai?row.sample_id:row.id)}</div></td><td>${ai?`${esc(riskLevelText(row.ai_risk_level))} / ${esc(riskLevelText(row.combined_risk_level))}`:`${esc(riskLevelText(row.risk_level))} ${esc(row.risk_score)}`}</td><td style="white-space:normal">${esc(row.reason||row.dominant_factor||'')}<div class="submission-meta">${esc(row.recommended_action||row.suggestion||row.action_suggestion||'')}</div></td></tr>`).join('')}</tbody></table></div>`;
+}
+function renderSubmissionDetailContent(r){
+  const analysis=obj(r.analysis),saved=obj(r.external_analysis),scope=obj(saved.review_scope),busy=adminSubmissionBusy.has(r.id)||r._loadingDetail;
+  const rows=arr(analysis.risk_ranking||analysis.high_risk_reasons),hasAnalysis=Object.keys(analysis).length>0;
+  const localPane=`<div class="compare-head"><b>本地结果</b><button class="btn-main" type="button" data-submission-id="${esc(r.id)}" onclick="analyzeSubmission(this.dataset.submissionId,event)" ${busy?'disabled':''}>${adminSubmissionBusy.has(r.id)?'处理中…':'普通分析'}</button></div>
+    ${r._loadingDetail?'<div class="presentation-empty">正在读取结果…</div>':!hasAnalysis?'<div class="presentation-empty">尚未分析</div>':`<div class="mt-3">${riskSummaryTags(analysis.risk_summary||r.risk_summary)}</div><div class="submission-meta mt-2">检测 ${esc(fmtTime(analysis.analyzed_at))} · ${esc(analysis.total??0)} 条</div>
+    `}`;
+  const aiPane=`<div class="compare-head"><b>AI 复核</b><span>${infoButton('AI 复核规则','复用当前提交、当前检测版本的保存结果，不重复调用。AI 不修改本地风险分数。历史结果不参与当前判定。')}${!obj(saved.advice).summary?`<button class="btn-main" type="button" data-submission-id="${esc(r.id)}" onclick="runAdminSubmissionAi(this.dataset.submissionId,event)" ${busy?'disabled':''}>AI 辅助分析</button>`:scope.complete===false?`<button class="btn-lightx" type="button" data-submission-id="${esc(r.id)}" onclick="runAdminSubmissionAi(this.dataset.submissionId,event,true)" ${busy?'disabled':''}>继续 AI 复核</button>`:'<span class="status-pill info">已保存</span>'}</span></div>
+    ${submissionAiCompactHtml(saved,false)}${r.ai_history_count?`<button class="btn-lightx mt-2" type="button" data-submission-id="${esc(r.id)}" onclick="showSubmissionAiHistory(this.dataset.submissionId)">AI 历史记录</button>`:''}`;
+  document.getElementById('submissionDetailBody').innerHTML=`<div class="detail-file-heading"><b>${esc(r.filename||'未命名文件')}</b>${reviewStatusBadge(r)}</div>
+    <div class="submission-detail-meta">${esc(r.row_count??0)} 条 · ${esc(r.column_count??0)} 字段 · ${r.encrypted?'加密归档':'未归档'}</div>
+    <div class="submission-meta mb-3">提交 ${esc(fmtTime(r.upload_time))}</div>
+    <div class="source-category-tabs" role="group" aria-label="分析结果类型"><button class="audit-tab" type="button" onclick="setSubmissionDetailTab('local')" aria-pressed="${submissionDetailTab==='local'}">本地分析</button><button class="audit-tab" type="button" onclick="setSubmissionDetailTab('ai')" aria-pressed="${submissionDetailTab==='ai'}">AI 复核${obj(saved.advice).summary?' · 已保存':''}</button></div>
+    <div class="submission-detail-pane">${submissionDetailTab==='ai'?aiPane:localPane}</div>
+    <details class="compact-details"><summary>查看明细</summary>${submissionDetailTab==='ai'?submissionDetailRowsHtml(arr(saved.assisted_decisions),true):submissionDetailRowsHtml(rows)}<div class="detail-paragraph"><b>文件与版本信息</b><dl class="submission-detail-grid mt-3"><dt>提交编号</dt><dd>${esc(r.id)}</dd><dt>检测模型</dt><dd>${esc(obj(analysis.analysis_trace).model_version||'未记录')}</dd><dt>安全字段</dt><dd>${submissionSecurityFields(r)}</dd><dt>训练次数</dt><dd>${esc(r.training_runs||0)}</dd><dt>最近操作</dt><dd>${esc(fmtTime(r.recent_operation_time||r.upload_time))}</dd></dl></div></details>`;
+}
+async function showSubmissionAiHistory(id){
+  const response=await api('/api/admin/submissions/'+encodeURIComponent(id)+'/ai-history');
+  if(!response.ok){toast(response.error||'历史记录读取失败','bad');return;}
+  const data=obj(response.data);
+  openWorkspaceDetail('AI 历史记录',arr(data.records).length?arr(data.records).map(entry=>{
+    const result=obj(entry.result),trace=obj(entry.analysis_context);
+    return `<details class="compact-details"><summary>${esc(result.generated_at||'时间未记录')} · ${esc(result.model||'-')} · ${esc(trace.analyzed_rows??'-')} 条</summary><div class="submission-meta">模型版本 ${esc(trace.model_version||'未记录')}</div>${submissionAiCompactHtml(result)}</details>`;
+  }).join('')+(data.truncated?`<div class="submission-meta">共 ${esc(data.total)} 条，显示最近 20 条。</div>`:''):'<div class="presentation-empty">暂无历史记录</div>');
 }
 function submissionSecurityFields(row){
   const preview=arr(row.masked_preview);
@@ -1325,7 +1366,7 @@ function resetUserSubmissionState(submissionId){
   riskRankingFilter='priority';
   resetExternalAiDatasetResult();
   renderAnalysis({});currentAnalysis=null;
-  ['reportMetrics','reportCharts'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML='';});
+  ['reportMetrics'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML='';});
   const empty={reportSummaryBox:'完成当前提交的风险检测后查看报告。',reportSuggestionList:'',reportBox:'暂无当前提交的报告。'};
   Object.entries(empty).forEach(([id,text])=>{const el=document.getElementById(id);if(el)el.textContent=text;});
   const rows=document.getElementById('reportTopTable');if(rows)rows.innerHTML='<tr><td colspan="6">暂无当前提交的报告数据</td></tr>';
@@ -1660,7 +1701,6 @@ function renderReportStructured(payload){
   const reportDetails=`提交编号：${submission.id||currentSubmissionId||'--'}\n已分析 ${trace.analyzed_rows??total} / ${trace.source_rows??total} 条；标签 ${analysis.label_column||submission.label_column||'未识别'}\n数据：${trace.data_revision||'-'}\n预处理：${trace.preprocessing_version||'-'}\n模型：${trace.model_version||'-'}\n策略：${trace.analysis_policy_version||'-'}`;
   const privacyDetails=`隐私规则评分：${privacy.score??'--'}，不是泄露概率。\n敏感字段：${sensitive.join('、')||'未识别'}\n${dual.recommended_action||privacy.recommendation||''}`;
   reportSummaryBox.innerHTML=`<div class="report-verdict">${summary.high?`<span class="status-pill bad">高风险 ${summary.high} 条</span>`:''}${summary.medium?`<span class="status-pill warn">中风险 ${summary.medium} 条</span>`:''}<div class="mt-2">${summary.high+summary.medium?`建议优先核查以上 ${summary.high+summary.medium} 条记录。`:'本次未发现中高风险记录。'}</div></div><div class="summary-toolbar">${infoButton('隐私评估详情',privacyDetails,`隐私 ${privacy.level_zh||'未评估'} ⓘ`)}<span class="status-pill info">${esc(encrypted)}</span>${infoButton('报告数据与版本',reportDetails,'版本 ⓘ')}</div>`;
-  document.getElementById('reportCharts').innerHTML='';
 
   const suggestions=arr(analysis.suggestions);
   reportSuggestionList.innerHTML=suggestions.length
@@ -1690,23 +1730,43 @@ async function loadReport(){
   reportBox.classList.toggle('empty', !res.data.report_markdown);
   return true;
 }
-function buildReportDocument(payload){
-  const data=obj(payload),a=obj(data.analysis),s=obj(data.submission),trace=obj(a.analysis_trace),privacy=obj(a.privacy_risk),attack=obj(a.attack_risk),ai=obj(data.external_analysis||s.external_analysis),advice=obj(ai.advice),counts=riskSummaryCounts(a.risk_summary),rows=arr(a.risk_ranking||a.high_risk_reasons),decisions=arr(ai.assisted_decisions);
-  const meta=[['文件',s.filename||'-'],['提交编号',s.id||'-'],['分析时间',a.analyzed_at||trace.created_at||s.last_analysis_at||'-'],['分析范围',`${trace.analyzed_rows??a.total??0} / ${trace.source_rows??s.row_count??0} 条`],['归档',s.encrypted?(s.encryption||'AES 加密'):'未记录']];
-  const list=items=>arr(items).map(item=>`<li>${esc(item)}</li>`).join('');
-  const charts=renderCountBars('风险等级（条）',{'高风险':counts.high,'中风险':counts.medium,'低风险':counts.low})+renderCountBars('主要触发因素（条）',a.trigger_feature_stats);
-  const cases=rows.map(r=>{const decision=decisions.find(d=>String(d.sample_id)===String(r.id));return `<details class="case"><summary>样本 ${esc(r.id)} · ${esc(r.ip||'未提供 IP')} · ${esc(r.risk_level_zh||riskLevelText(r.risk_level))} · ${esc(r.risk_score)}</summary><p><b>用户：</b>${esc(r.username||'-')}　<b>类型：</b>${esc(r.attack_type||'-')}</p><p><b>判断依据：</b>${esc(r.reason||r.dominant_factor||'-')}</p><p><b>处理建议：</b>${esc(r.suggestion||r.action_suggestion||'-')}</p><p><b>AI / 综合判断：</b>${decision?`${esc(riskLevelText(decision.ai_risk_level))} / ${esc(riskLevelText(decision.combined_risk_level))}；${esc(decision.reason||decision.recommended_action||'')}`:'该样本无 AI 复核结论'}</p>${decision?.recommended_action?`<p><b>AI 建议：</b>${esc(decision.recommended_action)}</p>`:''}</details>`}).join('');
-  return `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>隐私与攻击风险分析报告</title><style>body{font:14px/1.8 system-ui,"Microsoft YaHei",sans-serif;color:#31445a;background:#f3f6fa;margin:0}main{max-width:1020px;margin:28px auto;padding:28px;background:white;border-radius:14px}h1{font-size:26px;line-height:1.5;margin:0}h2{font-size:18px;margin-top:28px;border-bottom:1px solid #e1e8ef;padding-bottom:8px}h3,.title{font-size:15px;font-weight:650}.subtitle{color:#75879a}dl{display:grid;grid-template-columns:100px 1fr;gap:5px}dt{color:#75879a}dd{margin:0;overflow-wrap:anywhere}.metrics,.charts{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.metrics div,.result-card,.case{padding:15px;border:1px solid #e1e8ef;border-radius:10px}.metrics b{display:block;font-size:25px;color:#4779a7}.charts{grid-template-columns:1fr 1fr}.compare-row{display:grid;grid-template-columns:100px 1fr 42px;align-items:center;gap:10px;margin:12px 0;font-size:12px}.bar-track{height:12px;background:#edf2f7;border-radius:6px;overflow:hidden}.bar-fill{height:100%;background:#608db6;border-radius:6px}.case{margin:8px 0}.case summary{cursor:pointer;font-weight:600}p{overflow-wrap:anywhere}.note{background:#f5f8fb;padding:14px;border-radius:8px;color:#607589}.two{display:grid;grid-template-columns:1fr 1fr;gap:20px}table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:9px 6px;border-bottom:1px solid #e4ebf2;text-align:left;overflow-wrap:anywhere}footer{margin-top:28px;color:#8191a1;font-size:12px}@media(max-width:650px){main{margin:0;padding:18px;border-radius:0}.charts,.two{grid-template-columns:1fr}h1{font-size:22px}.metrics{gap:6px}.metrics b{font-size:21px}}@media print{body{background:white}main{margin:0;padding:0;max-width:none}.case{break-inside:avoid}details::details-content{content-visibility:visible}h2{break-after:avoid}}</style></head><body><main><h1>隐私暴露与攻击风险分析报告</h1><p class="subtitle">本地检测结果 · ${advice.summary?'含已有 AI 复核结论':'未使用 AI'}</p><dl>${meta.map(([k,v])=>`<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl><div class="metrics"><div><b>${esc(a.total??0)}</b>已检测样本</div><div><b>${counts.high}</b>高风险样本</div><div><b>${counts.medium}</b>中风险样本</div></div><h2>一、结论概览</h2><div class="two"><section><h3>隐私暴露风险：${esc(privacy.level_zh||'未评估')}</h3><p>分数 ${esc(privacy.score??'--')}，来自字段规则评估。</p><p>${esc(privacy.recommendation||'未记录处理建议。')}</p></section><section><h3>攻击风险：${esc(attack.level_zh||attack.level||'未评估')}</h3><p>聚合分数 ${esc(attack.score??a.average_risk_score??'--')}；高风险占比 ${a.total?((counts.high/a.total)*100).toFixed(1):'0'}%。</p><p>${esc(obj(a.dual_risk).recommended_action||'优先复核高风险样本，再结合业务处理。')}</p></section></div><h2>二、风险分布与信号</h2><div class="charts">${charts}</div><h2>三、处理建议</h2><ol>${list(a.suggestions)||'<li>请结合业务核实高风险记录。</li>'}</ol><h2>四、AI 复核结论</h2>${advice.summary?`<p><b>${esc(advice.summary)}</b></p><p class="subtitle">模型 ${esc(ai.model||'-')} · ${esc(ai.generated_at||'-')}</p><ul>${list(advice.privacy_findings)}${list(advice.attack_findings)}${list(advice.recommended_actions)}</ul><p>${esc(advice.confidence_note||'AI 为辅助判断，本地分数保持不变。')}</p>`:'<p class="note">本次未使用 AI，以上结论均来自本地检测；查看和下载报告不产生 AI 调用。</p>'}<h2>五、重点 IP / 样本明细</h2><p class="subtitle">按风险排名展示 ${rows.length} 条返回记录，最多 100 条；同 IP 的记录不代表完整历史。展开可查看具体依据和建议。</p>${cases||'<p>暂无需优先关注的样本。</p>'}<h2>六、数据与模型追溯</h2><dl>${[['数据修订',trace.data_revision],['检测模型',trace.model_version],['预处理版本',trace.preprocessing_version],['策略版本',trace.analysis_policy_version]].map(([k,v])=>`<dt>${k}</dt><dd>${esc(v||'-')}</dd>`).join('')}</dl><footer>本报告依据本次提交可见数据生成。模型风险类型为辅助判断，应结合实际业务复核。下载文件可离线查看，也可通过浏览器打印保存 PDF。</footer></main></body></html>`;
-}
-async function downloadReport(format='html'){
+let reportDownloadBusy=false;
+async function downloadReport(format='pdf'){
+  if(reportDownloadBusy)return;
   const submissionId=currentSubmissionId,revision=userResultRevision;
-  if(!currentReportPayload||obj(currentReportPayload.submission).id!==submissionId||!pageLoaded.has('report')){
-    if(!await loadReport())return;
+  if(!submissionId){toast('请先完成检测','bad');return;}
+  const button=document.getElementById('reportDownloadButton'),oldText=button?.textContent;
+  reportDownloadBusy=true;
+  if(button){button.disabled=true;button.textContent='正在导出…';}
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),90000);
+  try{
+    let blob,extension='pdf';
+    if(format==='markdown'){
+      if(!await loadReport())return;
+      blob=new Blob([currentReport],{type:'text/markdown;charset=utf-8'});extension='md';
+    }else{
+      const analysis=obj(obj(currentReportPayload).submission).id===submissionId?obj(currentReportPayload.analysis):obj(currentAnalysis);
+      const analysisId=obj(analysis.analysis_trace).analysis_id;
+      const query=analysisId?'?analysis_id='+encodeURIComponent(analysisId):'';
+      const response=await fetch('/api/user/reports/'+encodeURIComponent(submissionId)+'/download'+query,{credentials:'same-origin',headers:{Accept:'application/pdf'},signal:controller.signal});
+      if(!response.ok){
+        const error=await response.json().catch(()=>({}));
+        throw new Error(error.msg||'PDF 导出失败，请稍后重试');
+      }
+      blob=await response.blob();
+      const signature=await blob.slice(0,5).text();
+      if(signature!=='%PDF-')throw new Error('返回的不是有效 PDF，未保存文件。');
+    }
+    if(submissionId!==currentSubmissionId||revision!==userResultRevision)return;
+    const url=URL.createObjectURL(blob),link=document.createElement('a');
+    link.href=url;link.download='risk-report-'+submissionId.replace(/[^a-zA-Z0-9_-]/g,'_')+'.'+extension;
+    link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }catch(error){
+    if(submissionId===currentSubmissionId&&revision===userResultRevision)toast(error.name==='AbortError'?'报告导出超时，请稍后重试':error.message||'报告导出失败','bad');
+  }finally{
+    clearTimeout(timer);reportDownloadBusy=false;
+    if(button){button.disabled=false;button.textContent=oldText;}
   }
-  if(submissionId!==currentSubmissionId||revision!==userResultRevision)return;
-  if(!currentReportPayload){toast('请先加载报告','bad');return}
-  const markdown=format==='markdown',content=markdown?currentReport:buildReportDocument(currentReportPayload),url=URL.createObjectURL(new Blob([content],{type:markdown?'text/markdown;charset=utf-8':'text/html;charset=utf-8'})),a=document.createElement('a');
-  a.href=url;a.download=markdown?'risk-report.md':'risk-report.html';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 
 function renderDistTags(value,labelMap={}){
@@ -1721,8 +1781,14 @@ function renderDistTags(value,labelMap={}){
 function distributionScopeNote(source){
   const samples=Number(obj(source).samples||0), scanned=Number(obj(source).scanned_rows||0);
   return scanned>0&&samples>scanned
-    ? `<div class="small-text text-muted mt-1">前 ${esc(scanned)} 条快速统计</div>`
+    ? `<div class="small-text text-muted mt-1">${datasetSourceCategoryKey(source)==='user'?`已统计 ${esc(scanned)} / ${esc(samples)} 条`:`前 ${esc(scanned)} 条快速统计`}</div>`
     : '';
+}
+function datasetLabelDistribution(source){
+  const distribution=obj(source.label_distribution);
+  if(Object.values(distribution).some(value=>Number(value)>0))return renderDistTags(distribution,{'0':'正常','1':'风险'})+(source.unlabeled_rows?`<div class="submission-meta">未标注 ${esc(source.unlabeled_rows)} 条</div>`:'')+distributionScopeNote(source);
+  const pending=['pending','partial'].includes(source.label_statistics_status)||(!source.label_statistics_status&&source.label_column);
+  return `<span class="submission-meta">${pending?'待统计':'无标签'}</span>`;
 }
 
 function updateExternalAiEndpointHint(){
@@ -1823,9 +1889,15 @@ function datasetSourceCategoryLabel(source){
   if(key==='user')return obj(source).selection?'用户数据 · 自选组合':obj(source).source_type==='user_submission_pool'||obj(source).id==='user_submission_pool'?'用户数据 · 汇总数据池':'用户数据 · 单份提交';
   return ({system:'系统样本',public:'公开数据集',other:'其他数据'})[key];
 }
+function datasetSourceDate(source){
+  if(source.upload_time)return '提交时间：'+source.upload_time;
+  if(source.latest_upload_time)return '最近提交：'+source.latest_upload_time;
+  return datasetSourceCategoryKey(source)==='user'?'提交时间：未记录':'';
+}
 function setDatasetSourceCategory(category){
   if(!['all','user','public','system','other'].includes(category))return;
-  datasetSourceCategory=category;datasetSourcesExpanded=false;renderDatasetSourceList();
+  datasetSourceCategory=category;renderDatasetSourceList();
+  const scroller=document.getElementById('datasetSourceScroll');if(scroller)scroller.scrollTop=0;
 }
 function renderDatasetSourceList(){
   const sources=sortDatasetSourcesForDisplay(datasetSourceList);
@@ -1836,20 +1908,15 @@ function renderDatasetSourceList(){
     return `<button class="audit-tab" type="button" aria-pressed="${datasetSourceCategory===key}" onclick="setDatasetSourceCategory('${key}')">${label} ${count}</button>`;
   }).join('');
   const filtered=sources.filter(s=>datasetSourceCategory==='all'||datasetSourceCategoryKey(s)===datasetSourceCategory);
-  const available=filtered.filter(s=>s.exists!==false&&Number(s.samples||0)>0);
-  const primary=(available.length?available:filtered).slice(0,6);
-  const visible=datasetSourcesExpanded?filtered:primary;
-  const toggle=document.getElementById('datasetSourceToggle');
-  toggle.hidden=filtered.length<=primary.length;
-  toggle.textContent=datasetSourcesExpanded?'收起数据源':`显示本类全部（${filtered.length}）`;
-  document.getElementById('datasetSourceSummary').textContent=`显示 ${visible.length} / ${filtered.length} 个数据源`;
+  const visible=filtered;
+  document.getElementById('datasetSourceSummary').textContent=`共 ${filtered.length} 个数据源`;
   compactDatasetRows=visible;
   const eligible=new Set(sources.filter(s=>s.source_type==='user_submission'&&s.trainable&&s.exists!==false).map(s=>s.submission_id||String(s.id).replace('submission:','')));
   for(const sid of selectedUserSources)if(!eligible.has(sid))selectedUserSources.delete(sid);
   datasetSourceTable.innerHTML=visible.length?visible.map((s,index)=>`<tr data-current="${String(s.id)===String(currentDatasetSourceId)}">
-    <td data-label="数据源"><div class="source-select-label">${s.source_type==='user_submission'&&s.trainable&&s.exists!==false?`<input class="form-check-input" type="checkbox" aria-label="选择 ${esc(datasetDisplayName(s))} ${esc(s.upload_time||'')}" onchange="setUserSourceSelected(${index},this.checked)" ${selectedUserSources.has(s.submission_id||String(s.id).replace('submission:',''))?'checked':''}>`:''}<div><b>${esc(datasetDisplayName(s))}</b><div class="submission-meta">${esc(datasetSourceCategoryLabel(s))}${String(s.id)===String(currentDatasetSourceId)?' · 当前数据源':''}</div>${s.upload_time?`<div class="submission-meta">提交 ${esc(s.upload_time)}</div>`:s.latest_upload_time?`<div class="submission-meta">最近提交 ${esc(s.latest_upload_time)}</div>`:''}</div></div></td>
+    <td data-label="数据源"><div class="source-select-label">${s.source_type==='user_submission'&&s.trainable&&s.exists!==false?`<input class="form-check-input" type="checkbox" aria-label="选择 ${esc(datasetDisplayName(s))} ${esc(s.upload_time||'')}" onchange="setUserSourceSelected(${index},this.checked)" ${selectedUserSources.has(s.submission_id||String(s.id).replace('submission:',''))?'checked':''}>`:''}<div><b>${esc(datasetDisplayName(s))}</b><div class="submission-meta">${esc(datasetSourceCategoryLabel(s))}${String(s.id)===String(currentDatasetSourceId)?' · 当前数据源':''}</div>${datasetSourceDate(s)?`<div class="submission-meta">${esc(datasetSourceDate(s))}</div>`:''}</div></div></td>
     <td data-label="数据量">${esc(Number(s.samples||0).toLocaleString())} 条<div class="submission-meta">${esc(s.features||0)} 个原始字段</div></td>
-    <td data-label="标签分布">${renderDistTags(s.label_distribution,{'0':'正常','1':'风险'})}${distributionScopeNote(s)}</td>
+    <td data-label="标签分布">${datasetLabelDistribution(s)}</td>
     <td data-label="状态">${s.exists===false?'<span class="status-pill warn">未导入</span>':s.source_type==='user_submission'&&!s.trainable?'<span class="status-pill warn">待审核</span>':s.prepared_for_federated?'<span class="status-pill ok">已准备</span>':'<span class="status-pill warn">待准备</span>'}</td>
     <td data-label="操作"><div class="submission-actions">${datasetSourceActions(s)}</div></td></tr>`).join(''):'<tr><td colspan="5" class="text-muted">此分类暂无数据源</td></tr>';
   updateSourceSelectionButton();
@@ -1892,7 +1959,7 @@ function renderDatasetPreparationSummary(data){
 function showDatasetModelRelation(){
   const data=datasetSourceContext,p=obj(data.processed),runtime=obj(obj(data.model_inventory).runtime_detector),context=obj(runtime.training_context),counts=datasetPreparationCounts(currentDatasetSource,p);
   const values=[['当前数据源',datasetDisplayName(currentDatasetSource)],['原始样本',counts.raw],['已准备样本',counts.prepared],['训练分区',counts.train],['独立验证分区',counts.validation],['准备版本',counts.matches?p.preparation_id:'当前数据源尚未准备'],['检测模型',runtime.name||'未记录'],['模型版本',runtime.version||'未记录'],['模型训练的准备版本',context.preparation_id||'未记录']];
-  openWorkspaceDetail('数据与模型关联',`<dl class="submission-detail-grid">${values.map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v??'--')}</dd>`).join('')}</dl><div class="detail-paragraph">数据准备只生成特征、训练/验证分区及四节点数据。对比训练比较普通与联邦模型；只有“更新检测模型”才会更新用户端实际检测器。</div>`);
+  openWorkspaceDetail('数据与模型关联',`<dl class="submission-detail-grid">${values.map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v??'--')}</dd>`).join('')}</dl><div class="detail-paragraph">数据准备不训练模型。“训练并启用融合模型”更新用户端实际检测器；三路对比仅保存集中式、FedAvg 与 Paillier 的对比记录。</div>`);
 }
 function datasetDisplayName(source){
   const s=obj(source),name=String(s.name||s.source_type||'数据源'),file=String(s.source||'').toLowerCase();
@@ -1913,6 +1980,7 @@ function showDatasetDetail(index){
   openWorkspaceDetail('数据源详情',`<dl class="submission-detail-grid">${rows.map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}<dt>标签分布</dt><dd>${renderDistTags(s.label_distribution,{'0':'正常','1':'风险'})}${distributionScopeNote(s)}</dd><dt>攻击类型</dt><dd>${renderDistTags(s.attack_type_distribution)}</dd></dl>`);
 }
 function renderDataProcessStructure(data){
+  renderRuntimeTrainingStatus(data);
   const d=obj(data);
   const models=obj(d.model_inventory);
   const runtime=obj(models.runtime_detector);
@@ -1935,8 +2003,8 @@ function renderDataProcessStructure(data){
         <div class="tag-line mt-2">${runtime.ready?'<span class="status-pill ok">已就绪</span>':'<span class="status-pill warn">待训练</span>'}<span class="mini-badge">本地风险判断</span></div>
       </div>
       <div class="compare-box">
-        <h6>训练与对比</h6>
-        <div><b>${esc(fed.name||'四节点线性模型 + FedAvg')}</b></div>
+        <h6>三路训练对比（不替换检测模型）</h6>
+        <div><b>集中式 / FedAvg / Paillier · 线性二分类</b></div>
         <div class="tag-line mt-2"><span class="mini-badge">统一留出集评测</span><span class="mini-badge">${paillier.ready?'Paillier 已就绪':'Paillier 按需启用'}</span></div>
       </div>`;
   }
@@ -2108,11 +2176,15 @@ function invalidateSubmissionAndDataPages(){
   pageLoaded.delete('submissions');
   pageLoaded.delete('dataProcess');
 }
-async function analyzeSubmission(id){
+async function analyzeSubmission(id,ev){
+  if(adminSubmissionBusy.has(id))return;
+  adminSubmissionBusy.add(id);
+  const button=ev?.currentTarget;if(button)button.disabled=true;
+  try{
   const r=await apiWithTimeout(`/api/admin/submissions/${encodeURIComponent(id)}/analyze`,{
     method:'POST',
     headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({limit:500})
+    body:JSON.stringify({limit:1000})
   },60000);
   if(!r.ok){toast(r.error||'分析失败','bad');return r;}
   const data=obj(r.data);
@@ -2123,22 +2195,35 @@ async function analyzeSubmission(id){
   toast(`${reused?'已复用':'分析完成'}：隐私${privacy.level_zh||'-'} ${privacy.score??'-'}，攻击${attack.level_zh||'-'} ${attack.score??'-'}`,'ok');
   await loadSubmissionsData(true);
   return r;
+  }finally{adminSubmissionBusy.delete(id);if(button)button.disabled=false;refreshSubmissionDetailControls(id);}
 }
-async function runAdminSubmissionAi(id,ev){
+async function runAdminSubmissionAi(id,ev,continueReview=false){
+  if(adminSubmissionBusy.has(id))return;
+  adminSubmissionBusy.add(id);
   const btn=ev&&ev.currentTarget, oldHtml=btn?btn.innerHTML:'';
+  const modal=document.getElementById('submissionDetailModal');
+  const isCurrent=()=>!modal.hidden&&modal.dataset.submissionId===id;
   if(btn){btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> AI判定';}
   try{
+    const latest=await api('/api/admin/submissions/'+encodeURIComponent(id));
+    if(!isCurrent())return {ok:false,abandoned:true};
+    if(!latest.ok){toast(latest.error||'提交读取失败','bad');return latest;}
+    const saved=obj(obj(latest.data).external_analysis);
+    if(!continueReview&&obj(saved.advice).summary){
+      currentSubmissionDetail=latest.data;submissionDetailTab='ai';renderSubmissionDetailContent(latest.data);
+      toast('已读取同一提交保存的 AI 结果，本次不调用 AI','ok');
+      return {ok:true,data:{...saved,cache_reused:true}};
+    }
     const r=await requestAdaptiveAi(`/api/admin/submissions/${encodeURIComponent(id)}/external-analysis`,data=>{
       const scope=obj(data.review_scope);if(btn&&scope.total)btn.textContent=`AI ${scope.reviewed}/${scope.total}`;
-      showExternalAiResultModal(data,'dataset');
-    });
+    },isCurrent);
+    if(r.abandoned)return r;
     if(!r.ok){toast(r.error||'AI 辅助判定失败，本地结果不受影响','bad');return r}
-    showExternalAiResultModal(r.data,'dataset');
     invalidateSubmissionAndDataPages();
     await loadSubmissionsData(true);
     toast(obj(r.data).cache_reused?'已复用 AI 判定缓存':'AI 辅助判定完成','ok');
     return r;
-  }finally{if(btn){btn.disabled=false;btn.innerHTML=oldHtml;}}
+  }finally{adminSubmissionBusy.delete(id);if(btn){btn.disabled=false;btn.innerHTML=oldHtml;}refreshSubmissionDetailControls(id);}
 }
 async function markTrainable(id,ev){
   const btn=ev&&ev.currentTarget;if(btn)btn.disabled=true;
@@ -2200,6 +2285,7 @@ function aggregationMethodLabel(method,paillierActual=false){
 }
 function renderTrainingResult(data,type){
   const d=obj(data);
+  if(type==='runtime')return;
   const resultTitle=type==='centralized'?'普通集中式训练完成':type==='federated'?'联邦训练完成':'检测模型已更新';
   const metric=obj(d.metrics||d.result||d);
   const agg=obj(d.aggregation||d.secure_aggregation||metric.aggregation);
@@ -2228,7 +2314,7 @@ function renderTrainingResult(data,type){
     <div class="tag-line mt-2"><span class="mini-badge">${esc(methodLabel)}</span>${validationSamples>0?`<span class="mini-badge">留出集 ${esc(validationSamples)} 条</span>`:''}</div>
     ${paillierLine}
   `;
-  updateTrainingCompare(type,{accuracy:acc, loss:avgLoss, precision:d.precision??metric.precision, recall:d.recall??metric.recall, f1:d.f1??d.f1_score??metric.f1??metric.f1_score, validation_label_distribution:d.validation_label_distribution||metric.validation_label_distribution||{}, samples, version, source, method, paillier:paillierObj, clients,metric_scope:d.metric_scope||metric.metric_scope||'',metric_label:metricLabel,validation_samples:validationSamples,validation_id:d.validation_id||metric.validation_id||'',uses_shared_validation:d.uses_shared_validation===true||metric.uses_shared_validation===true,model_architecture:d.base_model_algorithm||metric.base_model_algorithm||d.algorithm||'',optimizer:d.optimizer||metric.optimizer||'',epochs:Number(d.effective_epochs||metric.effective_epochs||d.epochs||metric.epochs||0)});
+  updateTrainingCompare(type,{comparison_run_id:d.comparison_run_id||metric.comparison_run_id||'',performance:obj(d.performance||metric.performance),accuracy:acc, loss:avgLoss, precision:d.precision??metric.precision, recall:d.recall??metric.recall, f1:d.f1??d.f1_score??metric.f1??metric.f1_score, validation_label_distribution:d.validation_label_distribution||metric.validation_label_distribution||{}, samples, version, source, method, paillier:paillierObj, clients,metric_scope:d.metric_scope||metric.metric_scope||'',metric_label:metricLabel,validation_samples:validationSamples,validation_id:d.validation_id||metric.validation_id||'',uses_shared_validation:d.uses_shared_validation===true||metric.uses_shared_validation===true,model_architecture:d.base_model_algorithm||metric.base_model_algorithm||d.algorithm||'',optimizer:d.optimizer||metric.optimizer||'',epochs:Number(d.effective_epochs||metric.effective_epochs||d.epochs||metric.epochs||0)});
 }
 function trainingRecordToCompare(row){
   const metric=trainingMetricInfo(row);
@@ -2251,6 +2337,8 @@ function trainingRecordToCompare(row){
     method:(metric.aggregation_method||m.aggregation_method||row.aggregation_method||String(row.task_type||'').replace('admin_',''))||'-',
     paillier:m.paillier||{},
     clients,
+    performance:obj(m.performance),
+    comparison_run_id:m.comparison_run_id||'',
     label_distribution:m.label_distribution||{},
     dataset_source_id:m.dataset_source_id||row.dataset_source_id||'',
     preparation_id:m.preparation_id||row.preparation_id||'',
@@ -2280,7 +2368,10 @@ function trainingTaskMatchesCurrentPreparation(row){
 }
 function updateTrainingCompare(type,data){
   if(type==='centralized')trainingCompareState.local=data;
-  if(type==='federated')trainingCompareState.federated=data;
+  if(type==='federated'){
+    const p=obj(data.paillier),secure=p.secure_aggregation===true&&p.actual_crypto_operations_performed===true&&!p.display_only;
+    trainingCompareState[secure?'secure':'federated']=data;
+  }
   renderAggregationVisual();
   renderTrainingCompare();
 }
@@ -2308,7 +2399,7 @@ function lossDisplay(v){
 }
 function renderAggregationVisual(){
   if(typeof aggregationVisualBox==='undefined')return;
-  const fed=obj(trainingCompareState.federated);
+  const fed=obj(trainingCompareState.secure||trainingCompareState.federated);
   const paillier=obj(fed.paillier);
   const hasRecord=Boolean(fed.method||paillier.aggregation_method||paillier.paillier_enabled);
   const actual=paillier.secure_aggregation===true&&paillier.actual_crypto_operations_performed===true&&!paillier.display_only;
@@ -2328,13 +2419,19 @@ function aggregationIcon(kind){
   const path=kind==='secure'?'<rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3"/>':kind==='plain'?'<path d="m13 2-9 12h7l-1 8 10-13h-7z"/>':kind==='pending'?'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>':'<path d="m12 3 9 5-9 5-9-5 9-5zM3 12l9 5 9-5M3 16l9 5 9-5"/>';
   return `<span class="aggregation-status-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${path}</svg></span>`;
 }
+function setTrainingCompareView(view){
+  if(!['quality','speed'].includes(view))return;
+  trainingCompareView=view;
+  for(const [id,kind] of [['trainingQualityTab','quality'],['trainingSpeedTab','speed']])document.getElementById(id)?.setAttribute('aria-pressed',String(view===kind));
+  renderTrainingChart(obj(trainingCompareState.local),obj(trainingCompareState.federated));
+}
 function renderTrainingChart(local,fed){
   const canvas=document.getElementById('trainingCompareChart');
   const fallback=document.getElementById('trainingCompareFallback');
   renderCompareChartCore(canvas,fallback,local,fed,{
     get:()=>trainingCompareChartObj,
     set:(chart)=>{trainingCompareChartObj=chart;}
-  });
+  },trainingCompareView);
 }
 function renderModelVersionCompareChart(){
   const canvas=document.getElementById('modelVersionCompareChart');
@@ -2368,7 +2465,7 @@ function renderFederatedTrainingDetails(fed={}){
     </div>`;
   }).join('');
 }
-function renderCompareChartCore(canvas,fallback,local={},fed={},chartRef){
+function renderCompareChartCore(canvas,fallback,local={},fed={},chartRef,view='quality'){
   const oldChart=chartRef&&chartRef.get?chartRef.get():null;
   if(oldChart)oldChart.destroy();
   if(chartRef&&chartRef.set)chartRef.set(null);
@@ -2376,9 +2473,9 @@ function renderCompareChartCore(canvas,fallback,local={},fed={},chartRef){
   if(!fallback)return;
   const hasLocal=Object.keys(local).length>0,hasFed=Object.keys(fed).length>0;
   const comparable=trainingMetricsComparable(local,fed),validationInfo=trainingValidationInfo(local,fed);
-  fallback.innerHTML=!hasLocal&&!hasFed
+  fallback.innerHTML=!hasLocal&&!hasFed&&!trainingCompareState.secure
     ?'<div class="presentation-empty">暂无对比结果</div>'
-    :pairedMetricsVisual(local,fed,comparable);
+    :trainingTripletVisual(view);
 }
 function renderTrainingCompare(){
   const local=trainingCompareState.local||{};
@@ -2388,7 +2485,7 @@ function renderTrainingCompare(){
   renderAggregationVisual();
   renderTrainingChart(local,fed);
   renderModelVersionCompareChart();
-  renderFederatedTrainingDetails(fed);
+  renderFederatedTrainingDetails(trainingCompareState.secure||fed);
   const status=document.getElementById('dataProcessTrainingStatus');
   if(status){
     const localVersion=local.version&&local.version!=='-'?local.version:'当前准备版本尚无普通集中式基线';
@@ -2396,22 +2493,24 @@ function renderTrainingCompare(){
     status.textContent=`准备版本 ${obj(currentPreparation).preparation_id||'-'}；本地：${localVersion}；联邦：${fedVersion}`;
   }
   if(typeof trainingCompareBox==='undefined')return;
-  const hasLocal=Object.keys(local).length>0,hasFed=Object.keys(fed).length>0;
-  trainingCompareBox.hidden=!hasLocal&&!hasFed;
+  const secure=obj(trainingCompareState.secure);
+  const hasLocal=Object.keys(local).length>0,hasFed=Object.keys(fed).length>0,hasSecure=Object.keys(secure).length>0;
+  trainingCompareBox.hidden=!hasLocal&&!hasFed&&!hasSecure;
   if(trainingCompareBox.hidden)return;
-  const directlyComparable=trainingMetricsComparable(local,fed);
+  const directlyComparable=trainingTripletComparable();
   const hasBothMetrics=chartNumber(local.accuracy)!==null&&chartNumber(fed.accuracy)!==null;
   const gap=(directlyComparable&&hasBothMetrics)
     ? ((Number(fed.accuracy)-Number(local.accuracy))*100).toFixed(2)+' 个百分点'
     : '--';
-  const paillier=fed.paillier||{};
+  const paillier=secure.paillier||{};
   const securePaillier=paillier.secure_aggregation===true&&paillier.actual_crypto_operations_performed===true&&!paillier.display_only;
   const validationDist=obj(fed.validation_label_distribution||local.validation_label_distribution);
   const hasPositiveValidation=Number(validationDist['1']??validationDist[1]??0)>0;
   const fedMissesRisk=directlyComparable&&hasPositiveValidation&&fed.recall!==null&&fed.recall!==undefined&&Number(fed.recall)===0;
   const localMissesRisk=directlyComparable&&hasPositiveValidation&&local.recall!==null&&local.recall!==undefined&&Number(local.recall)===0;
-  const qualityWarning=fedMissesRisk?'联邦模型未检出风险样本':localMissesRisk?'普通集中式模型未检出风险样本':trainingValidationInfo(local,fed).warning;
-  const compareState=directlyComparable?(qualityWarning?'指标可比 · 质量告警':'可直接对比'):hasBothMetrics?'评测口径不同':'等待训练';
+  const secureMissesRisk=directlyComparable&&hasPositiveValidation&&chartNumber(secure.recall)===0;
+  const qualityWarning=fedMissesRisk?'FedAvg 未检出风险样本':secureMissesRisk?'Paillier 未检出风险样本':localMissesRisk?'普通集中式模型未检出风险样本':trainingValidationInfo(local,fed).warning;
+  const compareState=directlyComparable?(qualityWarning?'指标可比 · 质量告警':'三路可比'):hasLocal&&hasFed&&hasSecure?'评测口径不同':`已完成 ${[hasLocal,hasFed,hasSecure].filter(Boolean).length} / 3`;
   trainingCompareBox.innerHTML=`
     <div class="compare-head">
       <b>评测结论</b>
@@ -2419,12 +2518,12 @@ function renderTrainingCompare(){
     </div>
     <div class="comparison-summary ${directlyComparable&&!qualityWarning?'ok':'warn'}">
       <i class="fas ${directlyComparable&&!qualityWarning?'fa-circle-check':'fa-triangle-exclamation'}"></i>
-      <b>${qualityWarning|| (directlyComparable?`差异 ${esc(gap)}`:compareState)}</b>
+      <b>${qualityWarning|| (directlyComparable?`FedAvg 较集中式 ${esc(gap)}；Paillier 较 FedAvg ${((Number(secure.accuracy)-Number(fed.accuracy))*100).toFixed(2)} 个百分点`:compareState)}</b>
       ${infoButton('评测结论依据',trainingValidationInfo(local,fed).text+(fedMissesRisk||localMissesRisk?'存在风险召回为零的质量告警，不能只看准确率。':'')+(directlyComparable?`准确率差异 ${gap}。`:'当前评测口径不能直接排名。'))}
       ${securePaillier?'<span class="mini-badge ms-auto">安全聚合</span>':''}
     </div>
     <div class="training-ai-conclusion">
-      <div class="summary-toolbar"><b class="me-auto">AI 解读</b><button class="btn-lightx" type="button" onclick="showTrainingAiHistory()">解读记录</button><button class="btn-lightx" type="button" onclick="runTrainingAiComparison(event)" ${!hasLocal||!hasFed||trainingAiBusy?'disabled':''}>${trainingAiBusy?'解读中…':currentTrainingAiComparison?'查看已存解读':'AI 解读本次对比'}</button></div>
+      <div class="summary-toolbar"><b class="me-auto">AI 解读</b><button class="btn-lightx" type="button" onclick="showTrainingAiHistory()">解读记录</button><button class="btn-lightx" type="button" onclick="runTrainingAiComparison(event)" ${!directlyComparable||trainingAiBusy?'disabled':''}>${trainingAiBusy?'解读中…':currentTrainingAiComparison?'查看已存解读':'AI 解读本次对比'}</button></div>
       ${currentTrainingAiComparison?`<p class="ai-summary-text">${esc(obj(currentTrainingAiComparison.advice).summary||'AI 解读已保存')}</p>${obj(currentTrainingAiComparison.advice).comparison_advice?`<p class="small-text"><b>建议：</b>${esc(currentTrainingAiComparison.advice.comparison_advice)}</p>`:''}<div class="ai-status-line">已保存 · ${esc(currentTrainingAiComparison.model||'-')} · ${esc(currentTrainingAiComparison.generated_at||'-')}</div>`:''}
     </div>`;
 }
@@ -2432,31 +2531,91 @@ function trainLimit(){
   const n=Number(currentDatasetSource?.samples||0);
   return Math.max(100,Math.min(50000,n||10000));
 }
-function trainingComparisonBars(local,fed){
-  return pairedMetricsVisual(local,fed,trainingMetricsComparable(local,fed));
+function trainingComparisonSeries(state=trainingCompareState){
+  return [['local','普通集中式','#6486b5'],['federated','普通 FedAvg','#75a58e'],['secure','Paillier FedAvg','#9b8ac4']].map(([key,label,color])=>({key,label,color,data:obj(state[key])}));
 }
+function trainingTripletComparable(state=trainingCompareState){
+  const rows=trainingComparisonSeries(state).map(x=>x.data),run=rows[0].comparison_run_id;
+  return !!run&&rows.every(x=>x.comparison_run_id===run)&&trainingMetricsComparable(rows[0],rows[1])&&trainingMetricsComparable(rows[1],rows[2]);
+}
+function trainingTripletVisual(view='quality',state=trainingCompareState){
+  const series=trainingComparisonSeries(state),speed=view==='speed',fair=trainingTripletComparable(state);
+  const defs=speed?[['训练流程总耗时','training_time_ms'],['模型训练计算','model_compute_time_ms'],['批量推理','inference_batch_ms']]:[['准确率','accuracy'],['风险召回率','recall'],['F1','f1']];
+  const value=(row,key)=>chartNumber(speed?obj(row.performance)[key]:row[key]);
+  const help=speed?infoButton('三路速度计时口径','训练流程总耗时包含本轮模型训练、节点读取、密钥就绪与聚合，不含排队、数据准备、评估与落盘；模型计算为训练函数耗时。推理使用相同留出集前至多 1024 条，预热 1 次后运行 7 次取中位数，不含特征处理和网络。三路推理都使用明文特征，Paillier 仅加密聚合权重。四节点单机顺序运行。毫秒级短耗时容易受预热和系统负载影响，不能据单次记录断言普遍更快。密钥首次初始化可能更慢。缺失历史计时不补造。'):infoButton('三路效果对比口径','三路共用同一准备分区、同一线性模型、相同训练预算和共享留出集。Paillier 的差异是对 FedAvg 权重加密聚合，量化可能造成轻微数值差异，不会自动提高准确率。缺失方案显示未完成，不用其他轮次补齐。');
+  return `<div class="chart-legend" style="flex-wrap:wrap">${series.map(s=>`<span><i style="background:${s.color}"></i>${s.label}</span>`).join('')}${help}</div><div class="paired-chart">${defs.map(([label,key])=>{const values=series.map(s=>value(s.data,key)),max=speed?Math.max(...values.filter(x=>x!==null),.000001):1;return `<div><div class="paired-metric-head"><b>${label}</b>${speed?'<small>越短越快</small>':''}</div>${series.map((s,i)=>`<div class="paired-bar-line" title="${esc(s.label)}"><div class="paired-bar-track"><span class="paired-bar-fill" style="background:${s.color};width:${values[i]===null?0:Math.max(0,Math.min(100,values[i]/max*100))}%"></span></div><b>${values[i]===null?'未记录':speed?esc(performanceValue(values[i])):(values[i]*100).toFixed(2)+'%'}</b></div>`).join('')}</div>`;}).join('')}</div>${speed?`<div class="workspace-table-wrap"><table class="training-metric-table"><thead><tr><th>吞吐量</th><th>集中式</th><th>FedAvg</th><th>Paillier</th></tr></thead><tbody>${[['模型推理','inference_samples_per_second'],['训练','training_samples_per_second']].map(([label,key])=>`<tr><td>${label}</td>${series.map(s=>`<td>${esc(performanceValue(obj(s.data.performance)[key],'条/秒'))}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`:'<div class="paired-chart-axis"><span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span></div>'}<div class="submission-meta mt-2">${fair?'同轮次 · 同源评测':'三路结果尚未完整匹配'}</div>`;
+}
+function trainingRecordVariant(row){
+  const item=trainingRecordToCompare(row),type=String(row.task_type||'').toLowerCase(),p=obj(item.paillier);
+  if(type.includes('central'))return 'local';
+  if(!type.includes('fed'))return null;
+  if(p.secure_aggregation===true&&p.actual_crypto_operations_performed===true&&!p.display_only)return 'secure';
+  if(String(item.method).includes('paillier'))return null;
+  return 'federated';
+}
+function selectTrainingTriplet(rows){
+  const completed=arr(rows).filter(x=>['completed','success','done','已完成'].includes(String(x.status||'completed').toLowerCase())&&trainingRecordVariant(x));
+  const first=completed[0],run=first?trainingRecordToCompare(first).comparison_run_id:null;
+  const state={local:null,federated:null,secure:null};
+  for(const row of completed){const item=trainingRecordToCompare(row);if((item.comparison_run_id||null)!==(run||null))continue;const kind=trainingRecordVariant(row);if(!state[kind])state[kind]=item;}
+  return state;
+}
+function trainingComparisonBars(){return trainingTripletVisual('quality');}
 function showTrainingDetails(){
-  const local=obj(trainingCompareState.local),fed=obj(trainingCompareState.federated);
-  if(!Object.keys(local).length&&!Object.keys(fed).length){toast('当前数据版本尚无训练结果','info');return}
-  const rows=[['准确率',optionalMetricDisplay(local.accuracy),optionalMetricDisplay(fed.accuracy)],['精确率',optionalMetricDisplay(local.precision),optionalMetricDisplay(fed.precision)],['风险召回率',optionalMetricDisplay(local.recall),optionalMetricDisplay(fed.recall)],['F1',optionalMetricDisplay(local.f1),optionalMetricDisplay(fed.f1)],['训练样本',local.samples??'--',fed.samples??'--'],['验证样本',local.validation_samples??'--',fed.validation_samples??'--'],['损失',lossDisplay(local.loss),lossDisplay(fed.loss)],['有效轮数',local.epochs??'--',fed.epochs??'--']];
-  const nodes=arr(fed.clients),crypto=obj(fed.paillier);
-  const versions=[['数据源',datasetDisplayName(currentDatasetSource)],['准备版本',obj(currentPreparation).preparation_id||'-'],['普通模型',local.version||'-'],['联邦模型',fed.version||'-'],['共享验证集',local.validation_id&&local.validation_id===fed.validation_id?local.validation_id:'不一致或尚未完成'],['聚合方式',aggregationMethodLabel(fed.method,crypto.secure_aggregation===true)]];
-  openWorkspaceDetail('训练对比明细',`${trainingComparisonBars(local,fed)}
-    <table class="training-metric-table"><thead><tr><th>指标</th><th>普通集中式</th><th>四节点联邦</th></tr></thead><tbody>${rows.map(([k,l,f])=>`<tr><td>${esc(k)}</td><td>${esc(l)}</td><td>${esc(f)}</td></tr>`).join('')}</tbody></table>
+  const local=obj(trainingCompareState.local),fed=obj(trainingCompareState.federated),secure=obj(trainingCompareState.secure),series=trainingComparisonSeries();
+  if(series.every(s=>!Object.keys(s.data).length)){toast('当前数据版本尚无训练结果','info');return}
+  const rows=[['准确率','accuracy'],['精确率','precision'],['风险召回率','recall'],['F1','f1']].map(([label,key])=>[label,...series.map(s=>optionalMetricDisplay(s.data[key]))]);
+  for(const [label,key] of [['训练样本','samples'],['验证样本','validation_samples'],['有效轮数','epochs']])rows.push([label,...series.map(s=>s.data[key]??'--')]);
+  rows.push(['损失',...series.map(s=>chartNumber(s.data.loss)===null?'未记录':lossDisplay(s.data.loss))]);
+  for(const [label,key] of [['训练流程总耗时','training_time_ms'],['模型训练计算','model_compute_time_ms'],['密钥就绪','key_setup_time_ms'],['聚合与加解密','aggregation_time_ms'],['批量推理','inference_batch_ms']])rows.push([label,...series.map(s=>performanceValue(obj(s.data.performance)[key]))]);
+  rows.push(['推理吞吐量',...series.map(s=>performanceValue(obj(s.data.performance).inference_samples_per_second,'条/秒'))]);
+  for(const [label,key] of [['加密','encryption_time_ms'],['密态求和','aggregation_time_ms'],['解密','decryption_time_ms']])rows.push([label,'不适用','不适用',performanceValue(obj(secure.paillier)[key])]);
+  const nodes=arr(secure.clients||fed.clients);
+  const versions=[['数据源',datasetDisplayName(currentDatasetSource)],['准备版本',obj(currentPreparation).preparation_id||'-'],['对比编号',local.comparison_run_id||'历史记录未绑定'],...series.map(s=>[s.label,s.data.version||'未完成']),['共享验证集',trainingTripletComparable()?local.validation_id:'不一致或尚未完成']];
+  openWorkspaceDetail('三路训练对比明细',`${trainingComparisonBars()}<details class="compact-details"><summary>速度与开销图表</summary>${trainingTripletVisual('speed')}</details>
+    <div class="workspace-table-wrap"><table class="training-metric-table"><thead><tr><th>指标</th><th>普通集中式</th><th>普通 FedAvg</th><th>Paillier FedAvg</th></tr></thead><tbody>${rows.map(row=>`<tr>${row.map(value=>`<td>${esc(value)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
     <details class="compact-details"><summary>数据、模型与评测版本</summary><dl class="submission-detail-grid mt-3">${versions.map(([k,v])=>`<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl></details>
     ${nodes.length?`<details class="compact-details"><summary>节点训练明细</summary><table class="training-metric-table"><thead><tr><th>节点</th><th>样本</th><th>本地诊断准确率</th></tr></thead><tbody>${nodes.map(node=>`<tr><td>${esc(federatedNodeLabel(node.name))}</td><td>${esc(node.samples)}</td><td>${optionalMetricDisplay(node.accuracy)}</td></tr>`).join('')}</tbody></table></details>`:''}`);
 }
 async function ensureTrainingSource(){
   if(!currentDatasetSourceId)await loadDatasetSourcesData(false);
 }
+function renderRuntimeTrainingStatus(data){
+  const box=document.getElementById('trainingRuntimeStatus');
+  if(!box||runtimeTrainingBusy)return;
+  const runtime=obj(obj(obj(data).model_inventory).runtime_detector),context=obj(runtime.training_context),prep=obj(obj(data).processed);
+  const matches=Boolean(runtime.ready&&context.preparation_id&&context.preparation_id===prep.preparation_id&&String(prep.dataset_source_id||'')===String(currentDatasetSourceId||''));
+  const relation=!runtime.ready?'尚未就绪':matches?'已使用当前准备数据':context.preparation_id?'当前数据尚未用于检测模型':'训练来源未记录';
+  box.innerHTML=`<div class="summary-line"><span class="status-pill ${runtime.ready?'ok':'warn'}">${runtime.ready?'正在使用':'待训练'}</span><span>${esc(relation)}</span></div><div class="small-text text-muted mt-2">${esc(runtime.name||'融合模型')} · ${esc(runtime.version||'版本未记录')}</div>`;
+}
 async function runAdminLocalTrain(refresh=true){
-  await ensureTrainingSource();
-  const r=await submitTrainingJob('/api/admin/training/local',{limit:trainLimit(),dataset_source_id:currentDatasetSourceId});
-  toast(r.ok?'运行时检测模型已更新':r.error,r.ok?'ok':'bad');
-  if(r.ok)renderTrainingResult(r.data,'runtime');
-  if(r.ok)clearAdminCache();
-  if(refresh)await Promise.allSettled([loadTrainingRecords(true,true)]);
-  return r;
+  if(runtimeTrainingBusy||fullTrainingBusy)return;
+  runtimeTrainingBusy=true;
+  const button=document.getElementById('runtimeTrainButton'),compareButton=document.getElementById('trainingRunButton'),box=document.getElementById('trainingRuntimeStatus');
+  if(button){button.disabled=true;button.textContent='正在训练…';}
+  if(compareButton)compareButton.disabled=true;
+  try{
+    await ensureTrainingSource();
+    if(!currentDatasetSourceId){toast('请先选择训练数据源','bad');return;}
+    const sourceId=currentDatasetSourceId;
+    if(box)box.textContent='正在准备训练数据…';
+    const prepared=await processSystemDatasetImpl(false);
+    if(!prepared.ok){toast(prepared.error||'数据准备失败','bad');return prepared;}
+    if(sourceId!==currentDatasetSourceId){toast('数据源已切换，本次训练未启动','info');return;}
+    currentPreparation=obj(prepared.data);
+    if(box)box.textContent='正在训练并保存融合模型…';
+    const r=await submitTrainingJob('/api/admin/training/local',{limit:trainLimit(),dataset_source_id:sourceId,expected_preparation_id:currentPreparation.preparation_id});
+    toast(r.ok?'融合模型已训练并启用':r.error,r.ok?'ok':'bad');
+    if(r.ok)clearAdminCache();
+    return r;
+  }catch(e){toast('融合模型训练请求失败，请刷新查看任务状态','bad');}
+  finally{
+    runtimeTrainingBusy=false;
+    if(button){button.disabled=false;button.innerHTML='<i class="fas fa-shield-halved"></i> 训练并启用融合模型';}
+    if(compareButton)compareButton.disabled=false;
+    await loadDatasetSourcesData(true);
+    if(refresh)await Promise.allSettled([loadTrainingRecords(true,true)]);
+  }
 }
 async function runAdminCentralizedTrain(refresh=true){
   await ensureTrainingSource();
@@ -2469,7 +2628,7 @@ async function runAdminCentralizedTrain(refresh=true){
 }
 async function runAdminFederatedTrain(refresh=true){
   await ensureTrainingSource();
-  const method=document.getElementById('federatedAggregationMode')?.value==='paillier'?'paillier':'plain';
+  const method='plain';
   const r=await submitTrainingJob('/api/admin/training/federated',{epochs:20,limit:trainLimit(),dataset_source_id:currentDatasetSourceId,aggregation_method:method,secure_aggregation:method==='paillier'},30*60*1000);
   toast(r.ok?(method==='paillier'?'Paillier 安全聚合完成':'普通联邦训练完成'):r.error,r.ok?'ok':'bad');
   if(r.ok)renderTrainingResult(r.data,'federated');
@@ -2488,21 +2647,21 @@ async function showTrainingAiHistory(){
   const records=arr(obj(r.data).records);
   openWorkspaceDetail('AI 解读记录',records.length?records.map(item=>{
     const context=obj(item.comparison_context);
-    return `<article class="detail-paragraph"><b>${esc(item.generated_at||'时间未记录')} · ${esc(item.model||'-')}</b><p class="mt-2">${esc(obj(item.advice).summary||'无摘要')}</p>${obj(item.advice).comparison_advice?`<p>${esc(item.advice.comparison_advice)}</p>`:''}<div class="ai-status-line">${item.version_binding==='unrecorded'?'历史记录 · 版本关联未记录':`普通 ${esc(context.local_version||'-')} / 联邦 ${esc(context.federated_version||'-')}`}</div></article>`;
+    return `<article class="detail-paragraph"><b>${esc(item.generated_at||'时间未记录')} · ${esc(item.model||'-')}</b><p class="mt-2">${esc(obj(item.advice).summary||'无摘要')}</p>${obj(item.advice).comparison_advice?`<p>${esc(item.advice.comparison_advice)}</p>`:''}<div class="ai-status-line">${item.version_binding==='unrecorded'?'历史记录 · 版本关联未记录':`普通 ${esc(context.local_version||'-')} / FedAvg ${esc(context.federated_version||'-')}${context.secure_version?' / Paillier '+esc(context.secure_version):''}`}</div></article>`;
   }).join(''):'<div class="presentation-empty">暂无已保存的 AI 解读</div>');
 }
 async function loadSavedTrainingAiComparison(){
-  const key=trainingAiStateKey(),local=obj(trainingCompareState.local),fed=obj(trainingCompareState.federated);
+  const key=trainingAiStateKey(),local=obj(trainingCompareState.local),fed=obj(trainingCompareState.federated),secure=obj(trainingCompareState.secure);
   const previous=currentTrainingAiComparison;
-  if(!Object.keys(local).length||!Object.keys(fed).length)return;
-  const query=new URLSearchParams({dataset_source_id:currentDatasetSourceId||'',preparation_id:obj(currentPreparation).preparation_id||'',local_version:local.version||'',federated_version:fed.version||''});
+  if(!trainingTripletComparable())return;
+  const query=new URLSearchParams({dataset_source_id:currentDatasetSourceId||'',preparation_id:obj(currentPreparation).preparation_id||'',local_version:local.version||'',federated_version:fed.version||'',secure_version:secure.version||''});
   const r=await api('/api/admin/training/external-comparison?'+query);
   if(key!==trainingAiStateKey()||trainingAiBusy||previous!==currentTrainingAiComparison)return;
   if(r.ok){currentTrainingAiComparison=r.data&&obj(r.data.advice).summary?r.data:null;trainingAiContextKey=key;renderTrainingCompare();}
 }
 async function runTrainingAiComparison(ev){
-  const local=obj(trainingCompareState.local), fed=obj(trainingCompareState.federated);
-  if(!Object.keys(local).length || !Object.keys(fed).length){toast('请先完成同一数据版本的普通集中式基线和四节点联邦训练','bad');return}
+  const local=obj(trainingCompareState.local), fed=obj(trainingCompareState.federated),secure=obj(trainingCompareState.secure);
+  if(!trainingTripletComparable()){toast('请先完成同一轮次的三路训练','bad');return}
   if(trainingAiBusy)return;
   if(currentTrainingAiComparison&&trainingAiContextKey===trainingAiStateKey()){showExternalAiResultModal(currentTrainingAiComparison,'training');return;}
   const key=trainingAiStateKey();
@@ -2514,7 +2673,7 @@ async function runTrainingAiComparison(ev){
       method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
         dataset_source_id:currentDatasetSourceId||'',
         preparation_id:obj(currentPreparation).preparation_id||'',
-        local_version:local.version||'',federated_version:fed.version||''
+        local_version:local.version||'',federated_version:fed.version||'',secure_version:secure.version||''
       })
     },100000);
     if(!r.ok){toast(r.error||'AI 辅助判断失败，现有训练结果不受影响','bad');return}
@@ -2526,36 +2685,46 @@ async function runTrainingAiComparison(ev){
   finally{trainingAiBusy=false;if(btn){btn.disabled=false;btn.innerHTML=oldHtml;}renderTrainingCompare();}
 }
 async function runAdminFullTraining(){
-  if(fullTrainingBusy)return;
+  if(fullTrainingBusy||runtimeTrainingBusy)return;
   fullTrainingBusy=true;
   let completed=false,failure='本次训练未完成';
   try{
   await ensureTrainingSource();
   const button=document.getElementById('trainingRunButton');
-  const selectedMethod=document.getElementById('federatedAggregationMode')?.value==='paillier'?'Paillier 安全聚合':'普通 FedAvg';
+  const runtimeButton=document.getElementById('runtimeTrainButton');
+  if(runtimeButton)runtimeButton.disabled=true;
+  const selectedMethod='集中式 → FedAvg → Paillier';
   if(button){button.disabled=true;button.innerHTML='<i class="fas fa-spinner fa-spin"></i> 正在训练';}
   const status=document.getElementById('dataProcessTrainingStatus');
-  if(status)status.textContent='正在确认当前源准备版本，然后执行同构普通基线和四节点联邦训练。';
-  trainingResultSummary.innerHTML=`<div class="title">训练进行中</div><div class="subtle-note"><i class="fas fa-spinner fa-spin text-primary"></i> 正在依次执行普通集中式基线和四节点 ${esc(selectedMethod)}。</div>`;
+  if(status)status.textContent='正在确认当前源准备版本，然后依次执行三路训练。';
+  trainingResultSummary.innerHTML=`<div class="title">三路训练进行中</div><div class="subtle-note"><i class="fas fa-spinner fa-spin text-primary"></i> ${esc(selectedMethod)}</div>`;
   if(typeof aggregationVisualBox!=='undefined')aggregationVisualBox.innerHTML=`<div class="aggregation-status-main">${aggregationIcon('pending')}<div><b>${esc(selectedMethod)}</b><span>训练队列执行中</span></div></div><span class="mini-badge">请稍候</span>`;
   try{
+    const workflowSourceId=currentDatasetSourceId;
     const prepared=await processSystemDatasetImpl(false);
     if(!prepared.ok){failure=prepared.error||failure;return;}
+    if(workflowSourceId!==currentDatasetSourceId){failure='数据源已切换，本次三路训练未启动';return;}
     currentPreparation=obj(prepared.data);
     await loadDatasetSourcesData(true);
-    const local=await runAdminCentralizedTrain(false);
-    if(!local.ok){failure=local.error||failure;return;}
-    const fed=await runAdminFederatedTrain(false);
-    if(!fed.ok){failure=fed.error||failure;return;}
-    if(local.ok&&fed.ok){
+    if(workflowSourceId!==currentDatasetSourceId){failure='数据源已切换，本次三路训练未启动';return;}
+    const sourceId=currentDatasetSourceId,prepId=obj(currentPreparation).preparation_id;
+    trainingCompareState={local:null,federated:null,secure:null};
+    currentTrainingAiComparison=null;
+    renderTrainingCompare();
+    if(typeof aggregationVisualBox!=='undefined')aggregationVisualBox.innerHTML=`<div class="aggregation-status-main">${aggregationIcon('pending')}<div><b>三路训练</b><span>后台依次执行</span></div></div>`;
+    const result=await submitTrainingJob('/api/admin/training/comparison',{epochs:20,limit:trainLimit(),dataset_source_id:sourceId,expected_preparation_id:prepId},45*60*1000);
+    if(!result.ok){failure=result.error||failure;return;}
+    if(sourceId!==currentDatasetSourceId||prepId!==obj(currentPreparation).preparation_id){completed=true;toast('三路结果已保存，请在对应数据版本查看','info');return;}
+    if(result.ok){
       completed=true;
       clearAdminCache();
       await Promise.allSettled([loadNodes(true),loadTrainingRecords(true,true)]);
-      toast('普通集中式基线与四节点联邦训练均已完成','ok');
+      toast('集中式、FedAvg、Paillier 三路训练均已完成','ok');
       renderTrainingCompare();
     }
   }finally{
-    if(button){button.disabled=false;button.innerHTML='<i class="fas fa-play"></i> 开始对比训练';}
+    if(button){button.disabled=false;button.innerHTML='<i class="fas fa-play"></i> 开始三路对比';}
+    if(runtimeButton)runtimeButton.disabled=false;
   }
   }catch(e){failure='训练请求失败，请稍后重试';toast(failure,'bad');}
   finally{
@@ -2582,11 +2751,13 @@ async function loadTrainingPage(force=false){
   await loadDatasetSourcesData(force);
   await Promise.allSettled([loadNodes(force),loadTrainingRecords(force,false)]);
 }
-function trainingTaskTypeLabel(value){
+function trainingTaskTypeLabel(value,row){
   const type=String(value||'').toLowerCase();
+  if(type==='comparison')return '三路对比训练';
+  if(row&&type.includes('fed'))return trainingRecordVariant(row)==='secure'?'Paillier FedAvg':'普通 FedAvg';
   if(type.includes('federated')||type==='fed')return'四节点联邦';
   if(type.includes('central'))return'普通集中式';
-  if(type.includes('runtime')||type.includes('ensemble'))return'检测模型更新';
+  if(type.includes('runtime')||type.includes('ensemble'))return'融合模型训练';
   return value||'-';
 }
 function trainingTaskStatusLabel(value){
@@ -2608,27 +2779,18 @@ async function loadTrainingRecords(force=false, withVersions=true){
   }));
   latestTrainingTasks=rows;
   const currentRows=rows.filter(trainingTaskMatchesCurrentPreparation);
-  const latestLocal=currentRows.find(x=>String(x.task_type||'').includes('central'));
-  const latestFed=currentRows.find(x=>String(x.task_type||'').includes('federated')||String(x.task_type||'').includes('fed'));
-  trainingCompareState={local:null,federated:null};
-  if(latestLocal)trainingCompareState.local=trainingRecordToCompare(latestLocal);
-  if(latestFed)trainingCompareState.federated=trainingRecordToCompare(latestFed);
-  const latestResult=latestFed
-    ? {label:'四节点联邦',data:trainingCompareState.federated}
-    : latestLocal
-      ? {label:'普通集中式',data:trainingCompareState.local}
-      : null;
+  trainingCompareState=selectTrainingTriplet(currentRows);
+  const series=trainingComparisonSeries(),ready=series.filter(x=>Object.keys(x.data).length);
+  const latestResult=ready.length?{label:'三路对比',data:ready[0].data}:null;
   if(latestResult&&typeof trainingResultSummary!=='undefined'){
     const item=obj(latestResult.data);
     trainingResultSummary.innerHTML=`
-      <div class="title">最近结果 · ${esc(latestResult.label)}</div>
+      <div class="title">本轮结果 · ${ready.length} / 3</div>
       <div class="result-grid">
-        <div class="result-item"><b>${esc(item.version||'-')}</b><span class="small-text text-muted">模型版本</span></div>
-        <div class="result-item"><b>${optionalMetricDisplay(item.accuracy)}</b><span class="small-text text-muted">共享留出集准确率</span><div class="validation-caption">${Number(item.validation_samples||0)} 条验证样本</div></div>
-        <div class="result-item"><b>${esc(item.samples||'-')}</b><span class="small-text text-muted">训练样本</span></div>
+        ${series.map(s=>`<div class="result-item"><b>${Object.keys(s.data).length?optionalMetricDisplay(s.data.accuracy):'未完成'}</b><span class="small-text text-muted">${s.label}</span></div>`).join('')}
       </div>`;
   }
-  if(!latestResult&&typeof trainingResultSummary!=='undefined')trainingResultSummary.innerHTML='<div class="title">当前数据版本尚无训练结果</div><div class="subtle-note">准备数据后点击“开始对比训练”。历史结果可在模型版本页查看。</div>';
+  if(!latestResult&&typeof trainingResultSummary!=='undefined')trainingResultSummary.innerHTML='<div class="title">当前数据版本尚无训练结果</div><div class="subtle-note">准备数据后开始三路训练。</div>';
   renderTrainingCompare();
   await loadSavedTrainingAiComparison();
   const displayRows=[...queueRows,...rows];
@@ -2636,7 +2798,7 @@ async function loadTrainingRecords(force=false, withVersions=true){
     const metric=trainingMetricInfo(x);
     const accuracy=Number(x.accuracy||0);
     return `<tr>
-      <td>${esc(trainingTaskTypeLabel(x.task_type))}</td>
+      <td>${esc(trainingTaskTypeLabel(x.task_type,x))}</td>
       <td>${esc(x.source)}</td>
       <td>${esc(x.samples)}</td>
       <td><b>${esc(Number.isFinite(accuracy)?accuracy.toFixed(4):'-')}</b><div class="small-text text-muted">${metric.validation?'节点验证/留出指标':'训练集流程指标'}</div></td>
@@ -2823,13 +2985,13 @@ async function loadModelVersions(force=false){
     const metricWarning=modelMetricWarning(merged);
     const action=v.current_runtime
       ? '<span class="text-muted">当前运行</span>'
-      : v.current_display
-        ? '<span class="text-muted">当前展示</span>'
+        : v.current_display&&!v.can_activate
+        ? '<span class="text-muted">训练追踪</span>'
       : v.can_activate
         ? `<button class="btn-lightx" onclick="activateModelVersion(${Number(v.id)||0})">设为检测模型</button>`
         : Number(v.id) < 0
           ? '<span class="text-muted">训练追踪</span>'
-        : `<button class="btn-lightx" onclick="activateModelVersion(${Number(v.id)||0})" title="${esc(v.activation_reason||'该版本用于训练追踪')}">设为展示版本</button>`;
+        : '<span class="text-muted">仅对比记录</span>';
     return `<tr>
       <td><b>${esc(v.version||'-')}</b><div class="small-text text-muted">ID ${esc(v.id||'-')}</div></td>
       <td>${esc(modelTypeLabel(v.model_type))}<div class="small-text text-muted">${esc(modelRoleLabel(v))}</div></td>
@@ -2853,10 +3015,19 @@ async function activateModelVersion(id){
 }
 function selectAuditTab(kind){
   const visits=kind==='visits';
+  auditState.tab=visits?'visits':'events';
   document.getElementById('auditEventsPane').hidden=visits;
   document.getElementById('auditVisitsPane').hidden=!visits;
   document.getElementById('auditEventsTab').setAttribute('aria-selected',String(!visits));
   document.getElementById('auditVisitsTab').setAttribute('aria-selected',String(visits));
+  document.getElementById('auditRiskField').hidden=visits;
+  document.getElementById('auditTypeField').hidden=visits;
+  return loadAudit();
+}
+function toggleAuditFilters(){
+  const panel=document.getElementById('auditFilters');
+  panel.hidden=!panel.hidden;
+  document.getElementById('auditFilterButton').setAttribute('aria-expanded',String(!panel.hidden));
 }
 function auditEventName(value){return ({site_visit:'页面访问',slow_api_detected:'接口响应慢',rate_limit_triggered:'访问限流',unauthorized_access:'未授权访问',path_scan:'路径扫描'})[value]||value||'安全事件'}
 function eventExtra(e){return obj(e.extra)}
@@ -2888,51 +3059,25 @@ function eventAdvice(e){
   return`建议按 TraceId 查询同时间段访问记录，结合路径、IP、User-Agent、状态码和扩展字段进行复核。`;
 }
 function shortText(v,n=38){const s=String(v||'-');return s.length>n?s.slice(0,n)+'...':s}
-function auditRiskWeight(level){return {critical:4,high:3,medium:2,low:1,info:0}[level]??0}
 function geoText(e){const ex=obj(e.extra),g=obj(ex.geo);return [g.country,g.region,g.city].filter(Boolean).join(' ')||'-'}
-function auditQueryBase(offset){
-  const limit=encodeURIComponent(auditLimit?.value||100);
-  const risk=encodeURIComponent(auditRiskFilter?.value||'');
+function auditQueryBase(offset,kind=auditState.tab){
+  const limit=encodeURIComponent(auditLimit?.value||20);
+  const risk=encodeURIComponent(kind==='visits'?'':(auditRiskFilter?.value??'medium,high,critical'));
   const ip=encodeURIComponent((auditIpFilter?.value||'').trim());
   const path=encodeURIComponent((auditPathFilter?.value||'').trim());
   return `limit=${limit}&offset=${Math.max(0,offset||0)}&risk_level=${risk}&ip=${ip}&path=${path}`;
 }
-function auditAggregateKey(){
-  return [
-    auditRiskFilter?.value||'',
-    auditTypeFilter?.value||'',
-    (auditIpFilter?.value||'').trim(),
-    (auditPathFilter?.value||'').trim()
-  ].join('|');
-}
-function resetAuditAndLoad(){auditState.eventOffset=0;auditState.visitOffset=0;loadAudit()}
+function resetAuditAndLoad(){auditState.eventOffset=0;auditState.visitOffset=0;return loadAudit()}
 function pageAudit(delta,kind){
-  const limit=Number(auditLimit?.value||100)||100;
+  const limit=Number(auditLimit?.value||20)||20;
   if(kind==='events')auditState.eventOffset=Math.max(0,auditState.eventOffset+delta*limit);
   if(kind==='visits')auditState.visitOffset=Math.max(0,auditState.visitOffset+delta*limit);
-  loadAudit();
+  return loadAudit();
 }
 function auditPageText(offset,count,total,limit){
   const pageTotal=total?Math.ceil(total/limit):0;
   const page=total?Math.floor(offset/limit)+1:0;
   return `第 ${page}/${pageTotal} 页 · 共 ${total} 条`;
-}
-function renderSuspiciousIps(events,visits){
-  const map=new Map();
-  [...events,...visits].forEach(e=>{
-    const ip=e.ip||'unknown';
-    if(!map.has(ip))map.set(ip,{ip,count:0,paths:new Set(),risk:0,last:'',topPath:''});
-    const row=map.get(ip);
-    row.count+=1;
-    if(e.path)row.paths.add(e.path);
-    if(['critical','high','medium'].includes(e.risk_level||''))row.risk+=1;
-    if(!row.last || String(e.timestamp||'')>row.last)row.last=e.timestamp||'';
-    if(!row.topPath && e.path)row.topPath=e.path;
-  });
-  const rows=[...map.values()].sort((a,b)=>b.risk-a.risk||b.count-a.count).slice(0,10);
-  suspiciousIpTable.innerHTML=rows.length?rows.map(r=>`<tr>
-    <td data-label="来源 IP">${esc(r.ip)}</td><td data-label="记录数">${r.count}</td><td data-label="关注事件">${r.risk}</td><td data-label="最近时间">${auditTimeCell(r.last)}</td>
-  </tr>`).join(''):'<tr><td colspan="4" class="text-muted">暂无聚合记录</td></tr>';
 }
 function renderAuditDetail(e,kind){
   const ex=obj(e.extra),g=obj(ex.geo);
@@ -2949,61 +3094,47 @@ function renderAuditDetail(e,kind){
   `);
 }
 function auditTimeCell(value){
-  return `<span title="${esc(fmtTime(value))}">${esc(fmtCompactTime(value))}</span>`;
+  const full=fmtTime(value);
+  return `<span class="audit-timestamp">${esc(full&&full!=='-'?full:'时间未记录')}</span>`;
 }
 async function loadAudit(){
+  const kind=auditState.tab||'events',visiting=kind==='visits',requestId=++auditState.requestId;
   const type=encodeURIComponent(auditTypeFilter?.value||'');
-  const eventBase=auditQueryBase(auditState.eventOffset);
-  const visitBase=auditQueryBase(auditState.visitOffset);
-  const eventQuery=type?`${eventBase}&event_type=${type}`:`${eventBase}&exclude_event_type=site_visit`;
-  const aggregateKey=auditAggregateKey();
-  const needAggregate=aggregateKey!==auditState.suspiciousKey;
-  const risk=encodeURIComponent(auditRiskFilter?.value||'');
-  const ip=encodeURIComponent((auditIpFilter?.value||'').trim());
-  const path=encodeURIComponent((auditPathFilter?.value||'').trim());
-  const aggregateBase=`limit=200&offset=0&risk_level=${risk}&ip=${ip}&path=${path}`;
-  const aggregateEventQuery=type?`${aggregateBase}&event_type=${type}`:`${aggregateBase}&exclude_event_type=site_visit`;
-  const requests=[
-    api(`/api/admin/audit/events?${eventQuery}`),
-    api(`/api/admin/audit/events?${visitBase}&event_type=site_visit`)
-  ];
-  if(needAggregate){
-    requests.push(api(`/api/admin/audit/events?${aggregateEventQuery}`));
-    requests.push(api(`/api/admin/audit/events?${aggregateBase}&event_type=site_visit`));
-  }
-  const results=await Promise.all(requests);
-  const [all,visit]=results;
-  const events=arr(obj(all.data).events).filter(e=>e.event_type!=='site_visit');
-  const visits=arr(obj(visit.data).events);
-  if(needAggregate){
-    auditState.suspiciousKey=aggregateKey;
-    auditState.suspiciousEvents=arr(obj(results[2]?.data).events).filter(e=>e.event_type!=='site_visit');
-    auditState.suspiciousVisits=arr(obj(results[3]?.data).events);
-  }
-  const totalEvents=obj(all.data).total??events.length, totalVisits=obj(visit.data).total??visits.length;
-  auditState={...auditState,events,visits,totalEvents,totalVisits};
-  const high=events.filter(e=>['high','critical'].includes(e.risk_level)).length, med=events.filter(e=>e.risk_level==='medium').length, low=events.filter(e=>['low','info'].includes(e.risk_level)).length;
-  auditMetrics.innerHTML=[['安全事件总数',totalEvents],['本页高风险',high],['本页中风险',med],['访问记录总数',totalVisits]].map(x=>`<div class="metric"><div class="metric-value">${x[1]}</div><div class="metric-label">${x[0]}</div></div>`).join('');
-  const visual=document.getElementById('auditVisuals');
-  if(visual){
-    const types={};events.forEach(e=>{const label=auditEventName(e.event_type);types[label]=(types[label]||0)+1;});
-    visual.innerHTML=`<div class="visual-card">${renderCountBars('本页事件风险',{'高风险':high,'中风险':med,'低风险 / 信息':low})}${infoButton('审计图表范围',`仅统计当前筛选下本页 ${events.length} 条安全事件，不代表全部 ${totalEvents} 条历史事件。翻页或更改筛选后图表同步更新。`)}</div><div class="visual-card">${renderCountBars('本页事件类型',types)}</div>`;
-  }
-  const pageLimit=Number(auditLimit?.value||100)||100;
-  auditFilterSummary.innerHTML=`本页事件 ${events.length} · 访问 ${visits.length} ${infoButton('审计统计范围','总数为当前筛选下的全部记录；风险数量和图表只统计当前页，不应视作全部历史风险。')}`;
-  eventPageInfo.textContent=auditPageText(auditState.eventOffset,events.length,totalEvents,pageLimit);
-  visitPageInfo.textContent=auditPageText(auditState.visitOffset,visits.length,totalVisits,pageLimit);
-  if(typeof eventPrevButton!=='undefined')eventPrevButton.disabled=auditState.eventOffset<=0;
-  if(typeof eventNextButton!=='undefined')eventNextButton.disabled=auditState.eventOffset+events.length>=totalEvents;
-  if(typeof visitPrevButton!=='undefined')visitPrevButton.disabled=auditState.visitOffset<=0;
-  if(typeof visitNextButton!=='undefined')visitNextButton.disabled=auditState.visitOffset+visits.length>=totalVisits;
-  renderSuspiciousIps(auditState.suspiciousEvents||events,auditState.suspiciousVisits||visits);
+  const offsetKey=visiting?'visitOffset':'eventOffset',filterKey=visiting?'visitFilterKey':'eventFilterKey';
+  const signature=auditQueryBase(0,kind)+(visiting?'':type);
+  if(auditState[filterKey]!==signature){auditState[offsetKey]=0;auditState[filterKey]=signature;}
+  const offset=auditState[offsetKey];
+  const base=auditQueryBase(offset,kind),query=visiting?`${base}&event_type=site_visit`:type?`${base}&event_type=${type}`:`${base}&exclude_event_type=site_visit`;
+  const table=visiting?visitTable:eventTable,pageInfo=visiting?visitPageInfo:eventPageInfo;
+  table.innerHTML='<tr><td colspan="5" class="text-muted">正在读取记录…</td></tr>';
+  const filtered=Boolean(auditIpFilter.value.trim()||auditPathFilter.value.trim());
+  auditFilterSummary.textContent=visiting?(filtered?'访问记录 · 已筛选':'全部访问记录'):(auditRiskFilter.value==='medium,high,critical'?'中高风险事件（含严重风险）':auditRiskFilter.value?riskLevelText(auditRiskFilter.value)+'事件':'全部安全事件')+(filtered||type?' · 已筛选':'');
+  try{
+  const result=await api(`/api/admin/audit/events?${query}`);
+  if(requestId!==auditState.requestId||kind!==auditState.tab)return;
+  if(!result.ok||obj(result.data).warning)throw Error(result.error||'审计日志暂时无法读取');
+  const rows=arr(obj(result.data).events),total=obj(result.data).total??rows.length,pageLimit=Number(auditLimit.value)||20;
+  const events=visiting?auditState.events:rows,visits=visiting?rows:auditState.visits;
+  if(visiting){auditState.visits=rows;auditState.totalVisits=total;}
+  else{auditState.events=rows;auditState.totalEvents=total;}
+  pageInfo.textContent=auditPageText(offset,rows.length,total,pageLimit);
+  const prev=document.getElementById(visiting?'visitPrevButton':'eventPrevButton'),next=document.getElementById(visiting?'visitNextButton':'eventNextButton');
+  prev.disabled=offset<=0;next.disabled=offset+rows.length>=total;
+  if(!visiting){
   eventTable.innerHTML=events.length?events.map((e,i)=>`<tr>
     <td data-label="时间">${auditTimeCell(e.timestamp)}</td><td data-label="风险" class="risk-${esc(e.risk_level)}">${esc(riskLevelText(e.risk_level))}</td><td data-label="来源 IP">${esc(e.ip||'-')}</td><td data-label="事件 / 路径"><b>${esc(auditEventName(e.event_type))}</b><div class="submission-meta">${esc(e.path||'-')}</div></td><td data-label="操作"><button class="btn-lightx" onclick="renderAuditDetail(auditState.events[${i}],'event')">详情</button></td>
   </tr>`).join(''):'<tr><td colspan="5" class="text-muted">当前筛选下暂无安全事件</td></tr>';
+  }else{
   visitTable.innerHTML=visits.length?visits.map((e,i)=>{const ex=obj(e.extra);return`<tr>
     <td data-label="时间">${auditTimeCell(e.timestamp)}</td><td data-label="来源 IP">${esc(e.ip||'-')}</td><td data-label="设备 / 浏览器">${esc(ex.device_type||'未知设备')}<div class="submission-meta">${esc(ex.browser||'-')}</div></td><td data-label="访问路径">${esc(e.path||'-')}</td><td data-label="操作"><button class="btn-lightx" onclick="renderAuditDetail(auditState.visits[${i}],'visit')">详情</button></td>
   </tr>`}).join(''):'<tr><td colspan="5" class="text-muted">当前筛选下暂无访问记录</td></tr>';
+  }
+  }catch(error){
+    if(requestId!==auditState.requestId)return;
+    table.innerHTML='<tr><td colspan="5" class="text-muted">读取失败，请重新查询</td></tr>';
+    pageInfo.textContent='暂时无法读取';
+    document.getElementById(visiting?'visitNextButton':'eventNextButton').disabled=true;
+  }
 }
 
 // Compatibility names kept for older inline checks.

@@ -103,6 +103,17 @@ class TestReadEvents(unittest.TestCase):
         for ev in result:
             self.assertEqual(ev["risk_level"], "medium")
 
+    def test_multi_risk_filter_precedes_paging_and_keeps_logs(self):
+        count_before = self._count_lines()
+        events, total = read_events(self.log_path, limit=1, offset=1,
+                                   risk_level="medium,high,critical", return_total=True)
+        self.assertEqual(total, 3)
+        self.assertEqual(events[0]["risk_level"], "high")
+        self.assertEqual(self._count_lines(), count_before)
+
+    def test_missing_log_has_valid_total_result(self):
+        self.assertEqual(read_events(self.log_path + ".missing", return_total=True), ([], 0))
+
     def test_filter_combined(self):
         result = read_events(self.log_path, event_type="rate_limit_triggered", risk_level="medium")
         self.assertEqual(len(result), 2)

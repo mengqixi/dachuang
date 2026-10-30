@@ -526,7 +526,7 @@ class DataStorage:
         max_pending: int = 8,
     ) -> Dict[str, Any]:
         task_type = str(task_type or "").strip().lower()
-        if task_type not in {"runtime", "centralized", "federated"}:
+        if task_type not in {"runtime", "centralized", "federated", "comparison"}:
             raise ValueError("unsupported training job type")
         job_id = "train-%s" % uuid.uuid4().hex
         now_epoch = time.time()

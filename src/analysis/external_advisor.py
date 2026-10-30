@@ -641,6 +641,7 @@ def _training_task_payload(task: Dict, task_kind: str) -> Dict:
     if loss is None and task_kind == "federated":
         loss = clients.get("weighted_loss")
     paillier = merged.get("paillier") if isinstance(merged.get("paillier"), dict) else {}
+    performance = merged.get("performance") if isinstance(merged.get("performance"), dict) else {}
     return {
         "training_type": task_kind,
         "algorithm": _clean_text(
@@ -678,6 +679,13 @@ def _training_task_payload(task: Dict, task_kind: str) -> Dict:
             "node_metric_summary": clients if task_kind == "federated" else {},
             "node_metric_scope": _clean_text(merged.get("node_diagnostic_scope"), 80) if task_kind == "federated" else "",
         },
+        "performance": dict({
+            "timing_version": _clean_text(performance.get("timing_version"), 60),
+            "execution_mode": _clean_text(performance.get("execution_mode"), 60),
+        }, **{key: _optional_number(performance.get(key)) for key in (
+            "training_time_ms", "model_compute_time_ms", "key_setup_time_ms", "aggregation_time_ms",
+            "training_samples_per_second", "inference_batch_ms", "inference_batch_samples",
+            "inference_samples_per_second", "inference_repeats", "inference_warmup")}),
         "aggregation": {
             "method": _clean_text(merged.get("aggregation_method"), 60) if task_kind == "federated" else "centralized",
             "paillier_demo_enabled": bool(paillier.get("paillier_enabled") and paillier.get("display_only")),
@@ -703,6 +711,7 @@ def _training_task_payload(task: Dict, task_kind: str) -> Dict:
         "_preparation_id": str(merged.get("preparation_id") or ""),
         "_dataset_source_id": str(merged.get("dataset_source_id") or ""),
         "_validation_id": str(merged.get("validation_id") or ""),
+        "_performance_environment": str(performance.get("environment_id") or ""),
     }
 
 
@@ -769,7 +778,17 @@ def build_redacted_training_comparison_payload(local_task: Dict, federated_task:
             return None
         return round((right - left) * multiplier, 6)
 
-    for private_key in ("_dataset_revision", "_preparation_id", "_dataset_source_id", "_validation_id"):
+    lp, fp = local["performance"], federated["performance"]
+    performance_comparable = bool(
+        direct_ranking_allowed and local["data_summary"]["samples"] == federated["data_summary"]["samples"]
+        and local["_performance_environment"] and local["_performance_environment"] == federated["_performance_environment"]
+        and lp["timing_version"] and lp["timing_version"] == fp["timing_version"]
+        and lp["execution_mode"] == fp["execution_mode"]
+        and lp["inference_batch_samples"] and lp["inference_batch_samples"] == fp["inference_batch_samples"]
+        and lp["inference_repeats"] == fp["inference_repeats"]
+        and lp["inference_warmup"] == fp["inference_warmup"]
+    )
+    for private_key in ("_dataset_revision", "_preparation_id", "_dataset_source_id", "_validation_id", "_performance_environment"):
         local.pop(private_key, None)
         federated.pop(private_key, None)
 
@@ -799,6 +818,7 @@ def build_redacted_training_comparison_payload(local_task: Dict, federated_task:
             "same_model_architecture": same_model_architecture,
             "same_epoch_budget": same_epoch_budget,
             "direct_accuracy_ranking_allowed": direct_ranking_allowed,
+            "direct_performance_ranking_allowed": performance_comparable,
             "reason_if_not_directly_comparable": (
                 "两种训练结果没有同时使用同一模型架构、优化预算、数据修订、指标口径和共享留出集，只能描述数值差异，不能直接判定训练方式优劣。"
                 if not direct_ranking_allowed else "两条路径仅训练组织方式不同，可在同一共享留出集上进行有限对比。"
@@ -852,6 +872,27 @@ def build_redacted_training_comparison_payload(local_task: Dict, federated_task:
             "ai_role": "security_review_comparison_and_improvement_advice",
         },
     }
+
+
+def build_redacted_training_triplet_payload(local_task: Dict, plain_task: Dict, secure_task: Dict) -> Dict:
+    """Three paths, two meaningful contrasts, with no raw rows or identifiers."""
+    base = build_redacted_training_comparison_payload(local_task, plain_task)
+    encryption = build_redacted_training_comparison_payload(plain_task, secure_task)
+    rows = [_merged_training_task(item) for item in (local_task, plain_task, secure_task)]
+    run = rows[0].get("comparison_run_id")
+    same_run = bool(run and all(row.get("comparison_run_id") == run for row in rows))
+    base["comparison_mode"] = "three_way"
+    base["secure_federated_training"] = encryption["federated_training"]
+    base["pairwise_differences"] = {
+        "plain_fedavg_vs_centralized": base["deterministic_differences"],
+        "paillier_vs_plain_fedavg": encryption["deterministic_differences"],
+    }
+    base["comparison_fairness"]["same_comparison_run"] = same_run
+    for key in ("direct_accuracy_ranking_allowed", "direct_performance_ranking_allowed"):
+        base["comparison_fairness"][key] = bool(same_run and base["comparison_fairness"].get(key)
+                                               and encryption["comparison_fairness"].get(key))
+    base["secure_aggregation_facts"] = encryption["security_architecture"]["federated_training"]
+    return base
 
 
 def canonical_fingerprint(value: Dict) -> str:
@@ -1175,7 +1216,7 @@ class ExternalAdvisorClient:
     def _request_body(self, payload: Dict) -> Dict:
         analysis_kind = str(payload.get("analysis_kind") or "dataset_security")
         if analysis_kind == "training_security_comparison":
-            task = "依据同构普通集中式基线与四节点 FedAvg 的实际训练记录，对判定能力、安全边界和适用性进行对比，给出当前平台应采用的方案判断。"
+            task = "依据实际训练记录对比普通集中式、普通 FedAvg，以及（如提供）Paillier FedAvg 的判定能力、实测速度开销、安全边界。三路时分别说明联邦化与加密聚合的代价。只有 direct_performance_ranking_allowed 为真时才能比较速度优劣；缺失计时不得推测，单机顺序耗时不得推断跨机构网络或并行加速。给出当前平台应采用的方案判断。"
         else:
             task = "对本地检测模型的脱敏风险信号进行第二判定，帮助用户得到更可靠的综合风险结论，并解释隐私与攻击风险。"
         request_input = {

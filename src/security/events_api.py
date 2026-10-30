@@ -31,11 +31,12 @@ def read_events(log_path, limit=DEFAULT_LIMIT, event_type=None, risk_level=None,
     normalized_limit = normalize_limit(limit, max_limit=max_limit)
 
     if not os.path.exists(log_path):
-        return []
+        return ([], 0) if return_total else []
 
     matches = []
     ip_query = str(ip or "").strip()
     path_query = str(path or "").strip().lower()
+    risk_levels = {level.strip() for level in str(risk_level or "").split(",") if level.strip()}
     try:
         normalized_offset = max(0, int(offset or 0))
     except (ValueError, TypeError):
@@ -57,7 +58,7 @@ def read_events(log_path, limit=DEFAULT_LIMIT, event_type=None, risk_level=None,
                     continue
                 if exclude_event_type and event.get("event_type") == exclude_event_type:
                     continue
-                if risk_level and event.get("risk_level") != risk_level:
+                if risk_levels and event.get("risk_level", "info") not in risk_levels:
                     continue
                 normalized = _normalize_event(event)
                 if ip_query and ip_query not in normalized.get("ip", ""):

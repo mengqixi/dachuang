@@ -7,8 +7,8 @@ function context(){
   const c={obj:x=>x&&typeof x==='object'?x:{},arr:x=>Array.isArray(x)?x:[],esc,
     document:{getElementById:id=>elements[id]||null},currentDatasetSourceId:'source',
     currentDatasetSource:{name:'数据'},currentPreparation:{preparation_id:'prep'},
-    trainingCompareState:{local:{version:'c1',accuracy:.8},federated:{version:'f1',accuracy:.79}},
-    trainingAiContextKey:'',trainingAiBusy:false,fullTrainingBusy:false,currentTrainingAiComparison:null,
+    trainingCompareState:{local:{version:'c1',accuracy:.8,comparison_run_id:'run'},federated:{version:'f1',accuracy:.79,comparison_run_id:'run'},secure:{version:'s1',accuracy:.79,comparison_run_id:'run',paillier:{secure_aggregation:true,actual_crypto_operations_performed:true}}},
+    trainingAiContextKey:'',trainingAiBusy:false,fullTrainingBusy:false,runtimeTrainingBusy:false,currentTrainingAiComparison:null,
     trainingCompareBox:{innerHTML:'',hidden:false},aggregationVisualBox:{innerHTML:''},trainingResultSummary:{innerHTML:''},
     chartNumber:x=>x===undefined||x===null?null:Number(x),lossDisplay:x=>x||'--',optionalMetricDisplay:x=>x||'--',
     trainingMetricsComparable:()=>true,trainingValidationInfo:()=>({text:'共享留出集',warning:''}),
@@ -22,9 +22,10 @@ function context(){
     processSystemDatasetImpl:async()=>({ok:false,error:'标签不足'}),clearAdminCache(){},
   };
   vm.createContext(c);
+  vm.runInContext(extract('function trainingPerformanceComparable(','function trainingValidationInfo('),c);
   vm.runInContext(extract('function renderAggregationVisual(','function renderTrainingChart('),c);
   vm.runInContext(extract('function renderTrainingCompare(','function trainLimit('),c);
-  vm.runInContext(extract('function trainingComparisonBars(','async function ensureTrainingSource('),c);
+  vm.runInContext(extract('function trainingComparisonSeries(','async function ensureTrainingSource('),c);
   vm.runInContext(extract('function trainingAiStateKey(','async function loadDataProcessPage('),c);
   return {c,elements};
 }
@@ -66,6 +67,13 @@ async function main(){
   assert(c.trainingResultSummary.innerHTML.includes('标签不足'));
   assert(!c.aggregationVisualBox.innerHTML.includes('训练队列执行中'));
   assert.equal(elements.trainingRunButton.disabled,false);
+  c.processSystemDatasetImpl=async()=>({ok:true,data:{preparation_id:'prep'}});
+  c.trainLimit=()=>1000;
+  let queued=[];c.submitTrainingJob=async(url,body)=>{assert.equal(c.trainingCompareState.secure,null);assert.equal(c.trainingCompareState.federated,null);queued.push({url,body});return{ok:true,data:{}}};
+  await c.runAdminFullTraining();
+  assert.equal(queued.length,1);assert.equal(queued[0].url,'/api/admin/training/comparison');
+  assert.equal(queued[0].body.expected_preparation_id,'prep');assert.equal(queued[0].body.epochs,20);
+  assert.equal(c.fullTrainingBusy,false);assert.equal(elements.trainingRunButton.disabled,false);
   console.log('Training conclusion: outer AI result, saved restore, version/race guards, no duplicate calls, SVG icons, failure reset passed');
 }
 main().catch(e=>{console.error(e);process.exitCode=1});

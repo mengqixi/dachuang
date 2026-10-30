@@ -22,6 +22,14 @@ const fair={metric_scope:'shared_holdout_validation',validation_id:'same',model_
 assert(c.trainingMetricsComparable(fair,{...fair}));
 assert(!c.trainingMetricsComparable(fair,{...fair,validation_id:'different'}));
 assert(!c.trainingMetricsComparable({...fair,optimizer:null},{...fair,optimizer:null}));
+const perf={timing_version:'v1',environment_id:'machine',execution_mode:'single_host_sequential',training_time_ms:1000,model_compute_time_ms:500,inference_batch_ms:2,inference_batch_samples:100,inference_repeats:7,inference_samples_per_second:50000,training_samples_per_second:1000};
+const speedLocal={...fair,samples:1000,performance:perf},speedFed={...fair,samples:1000,performance:{...perf,training_time_ms:2000}};
+assert(c.trainingPerformanceComparable(speedLocal,speedFed));
+assert(c.trainingPerformanceVisual(speedLocal,speedFed).includes('联邦耗时 2.00×'));
+assert(c.trainingPerformanceVisual(speedLocal,speedFed).includes('50,000 条/秒'));
+assert(!c.trainingPerformanceVisual(speedLocal,{...speedFed,performance:{...perf,environment_id:'other'}}).includes('联邦耗时'));
+assert(c.trainingPerformanceVisual({},{}).includes('尚无耗时记录'));
+assert.equal(c.performanceValue(null),'未记录');assert.equal(c.performanceValue(0),'0.000 ms');
 const donut=c.riskDistributionVisual({low:3,medium:1,high:1,critical:1});
 assert(donut.includes('严重 1条'));assert(donut.includes('高风险 1条'));assert(donut.includes('>6</text>'));
 assert(!c.riskDistributionVisual({}).includes('NaN'));assert(!c.histogramVisual('empty',{}).includes('Infinity'));
@@ -52,7 +60,7 @@ vm.runInContext(extract('function renderReportStructured(','async function loadR
 c.currentReportPayload=null;c.currentAnalysis={};
 c.renderReportStructured({submission:{id:'test',filename:'sample.csv',upload_time:'2026-10-30 09:23:16',encrypted:true},analysis:{total:200,analyzed_at:'2026-10-30 09:23:39',risk_summary:{high:9,medium:51,low:140},risk_ranking:[{id:1,ip:'198.51.100.1',risk_level:'high',suggestion:'核对授权'}],suggestions:['核对授权']}});
 assert(c.reportMetrics.innerHTML.includes('提交时间'));assert(c.reportMetrics.innerHTML.includes('2026-10-30 09:23:16'));
-assert.equal(elements.reportCharts.innerHTML,'');assert(!c.reportSummaryBox.innerHTML.includes('risk-donut'));
+assert(!html.includes('id="reportCharts"'));assert(!c.reportSummaryBox.innerHTML.includes('risk-donut'));
 assert(c.reportTopTable.innerHTML.includes('198.51.100.1'));assert(c.reportTopTable.innerHTML.includes('核对授权'));
 const context=c.trainingValidationInfo({validation_samples:44,validation_label_distribution:{0:32,1:12}},{});
 assert.equal(context.warning,'小样本验证');assert(context.text.includes('正常 32，风险 12'));

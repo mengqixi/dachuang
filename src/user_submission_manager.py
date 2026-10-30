@@ -39,6 +39,7 @@ except ImportError:  # pragma: no cover
 from src.preprocess.feature_engineering import (
     FEATURE_NAMES,
     FEATURE_NORMALIZATION_VERSION,
+    canonical_column,
     extract_features_structured,
     infer_label,
     normalize_security_features,
@@ -171,8 +172,9 @@ def _now() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
-def _analysis_cache_key(item: Dict, limit: int, model_version: str) -> str:
+def _analysis_cache_key(item: Dict, limit: int, model_version: str, normalize_scope=True) -> str:
     """Build a stable key for one data/model/policy analysis combination."""
+    limit = _effective_analysis_limit(item, limit) if normalize_scope else max(1, int(limit or 1))
     payload = "|".join([
         str(item.get("sha256") or item.get("id") or "unknown"),
         str(max(1, int(limit or 1))),
@@ -184,6 +186,52 @@ def _analysis_cache_key(item: Dict, limit: int, model_version: str) -> str:
         REASON_PRESENTATION_VERSION,
     ])
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _effective_analysis_limit(item, limit):
+    requested = max(1, int(limit or 1))
+    rows = int(item.get("row_count") or 0)
+    return min(requested, rows) if rows > 0 and item.get("row_count_exact", True) else requested
+
+
+def _analysis_evidence_identity(analysis):
+    """Full local evidence, not the provider's bounded candidate preview."""
+    trace = analysis.get("analysis_trace") or {}
+    value = {key: analysis.get(key) for key in (
+        "total", "risk_summary", "privacy_risk", "attack_risk", "dual_risk",
+        "profile", "attack_types", "risk_score_distribution", "trigger_feature_stats",
+        "label_column", "sensitive_columns", "suggestions", "detections", "risk_ranking",
+    )}
+    value["context"] = {key: trace.get(key) for key in (
+        "data_revision", "model_version", "preprocessing_version", "analysis_policy_version",
+        "analyzed_rows", "source_rows", "source_rows_exact", "scope",
+    )}
+    def clean(node):
+        if isinstance(node, dict):
+            return {k: clean(v) for k, v in node.items() if k not in {"detection_time_ms", "processing_time_ms"}}
+        if isinstance(node, list):
+            return [clean(v) for v in node]
+        return node
+    return hashlib.sha256(json.dumps(clean(value), ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()
+
+
+def _ai_history_dir(submission_id):
+    return os.path.join(DATA_ROOT, "ai_history", hashlib.sha256(str(submission_id).encode("utf-8")).hexdigest())
+
+
+def _archive_ai_record(item):
+    record = item.get("external_analysis")
+    if not isinstance(record, dict) or not record:
+        return int(item.get("ai_history_count") or 0)
+    directory = _ai_history_dir(item["id"])
+    os.makedirs(directory, exist_ok=True)
+    identity = [record.get("origin_analysis_id") or record.get("analysis_id"),
+                record.get("generated_at"), record.get("input_fingerprint")]
+    filename = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest() + ".json"
+    path = os.path.join(directory, filename)
+    if not os.path.exists(path):
+        atomic_write_json(path, {"result": copy.deepcopy(record), "analysis_context": copy.deepcopy((item.get("analysis") or {}).get("analysis_trace") or {})}, indent=None)
+    return len([name for name in os.listdir(directory) if name.endswith(".json")])
 
 
 def _archive_usage_bytes() -> int:
@@ -524,11 +572,27 @@ def _decrypt_file(enc_path: str) -> bytes:
 
 def _detect_label_column(columns: List[str]) -> Optional[str]:
     candidates = ["label", "attack_cat", "is_attack", "attack", "target", "class", "y"]
-    lower_map = {c.lower(): c for c in columns}
+    lower_map = {canonical_column(c): c for c in columns}
     for name in candidates:
         if name in lower_map:
             return lower_map[name]
     return None
+
+
+def _label_statistics(rows, columns):
+    column = _detect_label_column(columns)
+    counts = {}
+    missing = 0
+    for row in rows:
+        value = row.get(column) if column else None
+        if value is None or str(value).strip().lower() in {"", "nan", "null", "none"}:
+            missing += 1
+            continue
+        key = str(infer_label({"label": value}))
+        counts[key] = counts.get(key, 0) + 1
+    return {"version": 1, "label_column": column, "distribution": counts,
+            "scanned_rows": len(rows), "unlabeled_rows": missing,
+            "status": "complete" if counts else "unlabeled"}
 
 
 def _load_rows(path: str, filename: str, limit: Optional[int] = None) -> Tuple[List[Dict], List[str]]:
@@ -1160,6 +1224,24 @@ def _update_submission(submission_id: str, patch: Dict) -> Optional[Dict]:
         data = _read_index()
         for i, item in enumerate(data["submissions"]):
             if item.get("id") == submission_id:
+                patch = dict(patch)
+                previous = item.get("external_analysis") if isinstance(item.get("external_analysis"), dict) else None
+                if previous and isinstance(patch.get("analysis"), dict):
+                    patch["ai_history_count"] = _archive_ai_record(item)
+                    current = _current_external_analysis(item)
+                    new_analysis = patch["analysis"]
+                    if current and _analysis_evidence_identity(item.get("analysis") or {}) == _analysis_evidence_identity(new_analysis):
+                        reused = copy.deepcopy(previous)
+                        reused["origin_analysis_id"] = previous.get("origin_analysis_id") or previous.get("analysis_id")
+                        reused["analysis_id"] = (new_analysis.get("analysis_trace") or {}).get("analysis_id")
+                        reused["cache_reused"] = True
+                        patch["external_analysis"] = reused
+                    else:
+                        # Preserve paid evidence; public_summary filters it out
+                        # of the current verdict when its revision differs.
+                        patch["external_analysis"] = dict(previous, historical_only=True)
+                elif previous and isinstance(patch.get("external_analysis"), dict) and previous.get("analysis_id") != patch["external_analysis"].get("analysis_id"):
+                    patch["ai_history_count"] = _archive_ai_record(item)
                 item.update(patch)
                 item["updated_at"] = _now()
                 data["submissions"][i] = item
@@ -1171,7 +1253,7 @@ def _update_submission(submission_id: str, patch: Dict) -> Optional[Dict]:
 def _current_external_analysis(item: Dict) -> Dict:
     """Hide stale second opinions, including legacy records with fingerprints."""
     result = item.get("external_analysis")
-    if not isinstance(result, dict) or not result:
+    if not isinstance(result, dict) or not result or result.get("historical_only"):
         return {}
     analysis = item.get("analysis") if isinstance(item.get("analysis"), dict) else {}
     trace = analysis.get("analysis_trace") if isinstance(analysis.get("analysis_trace"), dict) else {}
@@ -1252,6 +1334,7 @@ class UserSubmissionManager:
                 "columns": columns[:80],
                 "label_column": label_col,
                 "profile": profile,
+                "label_statistics": _label_statistics(rows, columns),
                 "schema_check": schema_check,
                 "masked_preview": _masked_preview(rows),
                 "sensitive_columns": sensitive_columns,
@@ -1361,6 +1444,7 @@ class UserSubmissionManager:
             "dual_risk": analysis_summary.get("dual_risk", {}),
             "analysis_trace": analysis_summary.get("analysis_trace", {}),
             "external_analysis": external_analysis,
+            "ai_history_count": int(item.get("ai_history_count") or 0),
             "masked_preview": item.get("masked_preview", []),
             "sensitive_columns": item.get("sensitive_columns", []),
             "privacy_notice": item.get("privacy_notice", ""),
@@ -1392,6 +1476,7 @@ class UserSubmissionManager:
             exists = plain_exists or archive_exists
             trainable = bool(item.get("trainable")) and row_count > 0 and exists
             risk = item.get("risk_summary") or {}
+            stats = item.get("label_statistics") or {}
             risk_desc = []
             for key, label in (("high", "高"), ("medium", "中"), ("low", "低")):
                 value = risk.get(key) or risk.get(f"{key}_count") or 0
@@ -1414,9 +1499,11 @@ class UserSubmissionManager:
                 "exists": exists,
                 "prepared_for_federated": False,
                 "status": "ready" if trainable else ("pending_review" if row_count > 0 else "invalid"),
-                "label_distribution": {},
+                "label_distribution": stats.get("distribution") or {},
+                "label_statistics_status": "partial" if stats and int(stats.get("scanned_rows") or 0) < row_count else stats.get("status") or ("pending" if item.get("label_column") else "unlabeled"),
+                "unlabeled_rows": int(stats.get("unlabeled_rows") or (row_count if not item.get("label_column") else 0)),
                 "attack_type_distribution": {},
-                "scanned_rows": row_count,
+                "scanned_rows": int(stats.get("scanned_rows") or (row_count if not item.get("label_column") else 0)),
                 "description": "用户上传数据，需由管理员允许训练后进入训练池。" if not trainable else "已审核进入训练池，可用于运行时检测模型更新、普通集中式基线和四节点联邦切分。",
                 "review_status": item.get("review_status"),
                 "training_status": "已进入训练池" if trainable else "未进入训练池",
@@ -1474,6 +1561,18 @@ class UserSubmissionManager:
             result["profile"] = item.get("profile", {})
             result["analysis"] = _present_analysis(item.get("analysis", {}))
         return result
+
+    def get_external_analysis_history(self, submission_id):
+        directory = _ai_history_dir(submission_id)
+        if not os.path.isdir(directory):
+            return {"records": [], "total": 0}
+        files = [os.path.join(directory, name) for name in os.listdir(directory) if name.endswith(".json")]
+        files.sort(key=os.path.getmtime, reverse=True)
+        records = []
+        for path in files[:20]:
+            with open(path, "r", encoding="utf-8") as stream:
+                records.append(json.load(stream))
+        return {"records": records, "total": len(files), "truncated": len(files) > len(records)}
 
     def save_external_analysis(self, submission_id: str, result: Dict,
                                expected_analysis_id: Optional[str] = None) -> Optional[Dict]:
@@ -1541,10 +1640,24 @@ class UserSubmissionManager:
         cache_key = _analysis_cache_key(item, limit, model_version)
         cached_analysis = item.get("analysis") or {}
         cached_trace = cached_analysis.get("analysis_trace") or {}
-        if not force and cached_trace.get("cache_key") == cache_key:
+        old_limit = cached_trace.get("requested_limit")
+        legacy_match = bool(old_limit and
+                            _effective_analysis_limit(item, old_limit) == _effective_analysis_limit(item, limit) and
+                            cached_trace.get("cache_key") == _analysis_cache_key(item, old_limit, model_version, normalize_scope=False))
+        if not force and (cached_trace.get("cache_key") == cache_key or legacy_match):
+            # One-time upgrade of old metadata. No model/AI rerun and no loss
+            # of its analysis revision; future list refreshes need no decryption.
+            stats_updated = False
+            if not item.get("label_statistics"):
+                stats_rows, stats_columns = self._load_plain_rows(item, limit=MAX_UPLOAD_ROWS)
+                if stats_rows or not item.get("row_count"):
+                    _update_submission(submission_id, {"label_statistics": _label_statistics(stats_rows, stats_columns)})
+                    stats_updated = True
             cached_result = copy.deepcopy(cached_analysis)
             cached_result.setdefault("analysis_trace", {})["cache_reused"] = True
             cached_result["analysis_trace"]["served_at"] = _now()
+            if stats_updated:
+                cached_result["label_statistics_updated"] = True
             return cached_result
 
         rows, columns = self._load_plain_rows(item, limit=limit)
@@ -1826,6 +1939,7 @@ class UserSubmissionManager:
             "report_path": report_path,
             "last_analyzed_rows": len(rows),
             "last_analyzed_columns": len(columns),
+            "label_statistics": item.get("label_statistics") or _label_statistics(rows, columns),
             # A new local analysis revision invalidates the optional AI
             # interpretation.  Cache hits return before this point and retain
             # a matching external result.

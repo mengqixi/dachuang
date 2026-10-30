@@ -6,6 +6,7 @@ import sys
 import json
 import gzip
 import csv
+import re
 import random
 import time
 import threading
@@ -63,6 +64,7 @@ from src.analysis.external_advisor import (
     build_ai_assisted_decisions,
     build_redacted_analysis_payload,
     build_redacted_training_comparison_payload,
+    build_redacted_training_triplet_payload,
     canonical_fingerprint,
     external_cache_key,
     external_error_details,
@@ -1071,6 +1073,10 @@ def _model_inventory():
 
     runtime_status = ensemble_detector.status()
     runtime_files = runtime_status.get("components") or {}
+    classifier_name = {"xgboost": "XGBoost", "logistic_regression": "逻辑回归"}.get(runtime_status.get("classifier_type"), "分类器")
+    component_names = [name for key, name in (
+        ("isolation_forest", "IF"), ("classifier", classifier_name), ("numpy_lstm", "NumPy LSTM")
+    ) if runtime_files.get(key)]
     baseline_files = {
         "isolation_forest": os.path.exists(os.path.join(BASELINE_MODEL_DIR, "isolation_forest.pkl")),
         "logistic_weights": os.path.exists(os.path.join(BASELINE_MODEL_DIR, "mlp_weights.npy")),
@@ -1078,13 +1084,14 @@ def _model_inventory():
     }
     return {
         "runtime_detector": {
-            "name": "IF + XGBoost/逻辑回归 + NumPy LSTM 融合检测模型",
+            "name": " + ".join(component_names) + " 融合检测模型" if component_names else "融合检测模型",
             "ready": bool(runtime_status.get("ready")),
             "version": runtime_status.get("version"),
             "preprocessing_version": runtime_status.get("preprocessing_version"),
             "training_context": runtime_status.get("training_context") or {},
             "files": runtime_files,
             "used_by": "用户端风险检测",
+            "serving_impact": "active_user_detector",
         },
         "platform_baseline": {
             "name": "历史兼容基线（只读）",
@@ -1110,7 +1117,8 @@ def _model_inventory():
         },
         "paillier": {
             "ready": bool(_secure_aggregation_paillier is not None),
-            "relation": "管理员可按需对联邦模型权重执行 Paillier 安全聚合。",
+            "relation": "三路对比中的安全聚合方案，对 FedAvg 权重加密后聚合；不替换用户端检测模型。",
+            "serving_impact": "comparison_only",
         },
     }
 
@@ -1280,7 +1288,9 @@ def _build_user_submission_pool_source(user_sources):
         "label_distribution": label_distribution,
         "attack_type_distribution": attack_type_distribution,
         "risk_summary": risk_summary,
-        "scanned_rows": total_samples,
+        "scanned_rows": sum(int(source.get("scanned_rows") or 0) for source in trainable_sources),
+        "unlabeled_rows": sum(int(source.get("unlabeled_rows") or 0) for source in trainable_sources),
+        "label_statistics_status": "partial" if any(source.get("label_statistics_status") in {"pending", "partial"} for source in trainable_sources) else "complete" if label_distribution else "unlabeled",
         "submission_ids": submission_ids,
         "latest_upload_time": max((str(s.get("upload_time") or "") for s in trainable_sources), default=""),
         "description": "汇总已归档并标记可训练的用户提交，可生成四节点数据并用于训练。",
@@ -1863,7 +1873,9 @@ def add_cors_headers(response):
 
 @app.route("/")
 def index():
-    return send_file(os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html"))
+    response = send_file(os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html"), conditional=False, etag=False)
+    response.headers["Cache-Control"] = "no-store, max-age=0"
+    return response
 
 
 @app.route("/favicon.ico")
@@ -2785,7 +2797,7 @@ def _submission_analysis_response(submission_id, actor="user"):
                 db.save_analysis_report_record(analysis)
         except Exception as persist_error:
             logger.warning("Persist analysis report failed: {}", persist_error)
-        if not cache_reused:
+        if not cache_reused or analysis.get("label_statistics_updated"):
             _clear_submission_related_caches()
         return _detection_json_response(api_response(msg="已复用分析结果" if cache_reused else "分析完成", data=analysis))
     except Exception:
@@ -2980,6 +2992,41 @@ def user_report_get(submission_id):
     if report is None:
         return jsonify(api_response(code=404, msg="报告不存在"))
     return _detection_json_response(api_response(msg="success", data=report))
+
+
+_pdf_export_lock = threading.Lock()
+
+
+@app.route("/api/user/reports/<submission_id>/download", methods=["GET"])
+def user_report_download(submission_id):
+    if not _user_owns_submission(submission_id):
+        return _user_submission_forbidden_response()
+    if not _pdf_export_lock.acquire(blocking=False):
+        return jsonify(api_response(code=429, msg="已有报告正在导出，请稍后重试。")), 429
+    try:
+        report = user_submission_manager.get_report(submission_id)
+        if report is None:
+            return jsonify(api_response(code=404, msg="报告不存在")), 404
+        analysis = report.get("analysis") or {}
+        if not analysis.get("total"):
+            return jsonify(api_response(code=409, msg="请先完成风险检测，再下载报告。")), 409
+        expected = request.args.get("analysis_id")
+        if expected and expected != (analysis.get("analysis_trace") or {}).get("analysis_id"):
+            return jsonify(api_response(code=409, msg="检测结果已更新，请重新加载报告后下载。")), 409
+        from src.report_export import build_report_pdf
+        content = build_report_pdf(report)
+        response = app.response_class(content, mimetype="application/pdf")
+        filename = "risk-report-%s.pdf" % re.sub(r"[^a-zA-Z0-9_-]", "_", submission_id)
+        response.headers["Content-Disposition"] = 'attachment; filename="%s"' % filename
+        response.headers["Cache-Control"] = "private, no-store, max-age=0"
+        return response
+    except ImportError:
+        return jsonify(api_response(code=503, msg="PDF 导出组件尚未安装，请联系管理员安装 reportlab。")), 503
+    except Exception:
+        logger.exception("PDF report export failed")
+        return jsonify(api_response(code=500, msg="PDF 导出失败，请稍后重试，已有检测结果不受影响。")), 500
+    finally:
+        _pdf_export_lock.release()
 
 
 def _clear_admin_submissions_cache():
@@ -3394,7 +3441,14 @@ def admin_submission_detail(submission_id):
     item = user_submission_manager.get_submission(submission_id, include_preview=True)
     if item is None:
         return jsonify(api_response(code=404, msg="提交记录不存在"))
-    return jsonify(api_response(msg="success", data=item))
+    return _detection_json_response(api_response(msg="success", data=item))
+
+
+@app.route("/api/admin/submissions/<submission_id>/ai-history", methods=["GET"])
+def admin_submission_ai_history(submission_id):
+    if user_submission_manager.get_submission(submission_id, include_preview=False) is None:
+        return jsonify(api_response(code=404, msg="提交记录不存在")), 404
+    return jsonify(api_response(data=user_submission_manager.get_external_analysis_history(submission_id)))
 
 
 @app.route("/api/admin/submissions/<submission_id>/analyze", methods=["POST"])
@@ -3509,6 +3563,7 @@ def _execute_training_job(job):
         "runtime": ("/api/admin/training/local", _admin_training_local_locked),
         "centralized": ("/api/admin/training/centralized", _admin_training_centralized_locked),
         "federated": ("/api/admin/training/federated", _admin_training_federated_locked),
+        "comparison": ("/api/admin/training/comparison", _admin_training_comparison_locked),
     }
     task_type = str((job or {}).get("task_type") or "")
     route_path, handler = handlers.get(task_type, (None, None))
@@ -3636,6 +3691,60 @@ def admin_training_centralized():
         _training_operation_lock.release()
 
 
+@app.route("/api/admin/training/comparison", methods=["POST"])
+def admin_training_comparison():
+    payload = request.get_json(silent=True) or {}
+    if not app.config.get("TESTING"):
+        return _enqueue_training_request("comparison", payload)
+    if not _training_operation_lock.acquire(blocking=False):
+        return jsonify(api_response(code=409, msg="已有训练任务正在执行，请稍后重试。")), 409
+    try:
+        return _admin_training_comparison_locked()
+    finally:
+        _training_operation_lock.release()
+
+
+def _admin_training_comparison_locked():
+    """Run three fresh paths sequentially; never silently mix preparation revisions."""
+    req = request.get_json(silent=True) or {}
+    prep = _load_processed_metadata()
+    source_id = str(req.get("dataset_source_id") or "")
+    prep_id = str(req.get("expected_preparation_id") or "")
+    try:
+        epochs = max(1, min(int(req.get("epochs") or 20), 20))
+    except (TypeError, ValueError):
+        return jsonify(api_response(code=400, msg="训练轮数必须是整数。")), 400
+    if not source_id or not prep_id or prep.get("preparation_id") != prep_id or str(prep.get("dataset_source_id") or "") != source_id:
+        return jsonify(api_response(code=409, msg="数据准备版本已变化，请刷新后重新开始三路训练。")), 409
+    run_id = secrets.token_hex(16)
+    output = {}
+    for kind, method, handler in (
+        ("centralized", "centralized", _admin_training_centralized_locked),
+        ("federated", "plain", _admin_training_federated_locked),
+        ("secure", "paillier", _admin_training_federated_locked),
+    ):
+        payload = dict(req, epochs=epochs,
+                       comparison_run_id=run_id, comparison_variant=kind,
+                       aggregation_method=method, secure_aggregation=method == "paillier",
+                       continue_training=False)
+        with app.test_request_context("/api/admin/training/comparison", method="POST", json=payload):
+            response = app.make_response(handler())
+            try:
+                result = response.get_json(silent=True) or {}
+                if response.status_code >= 400 or result.get("code", 200) != 200:
+                    return jsonify(api_response(code=response.status_code if response.status_code >= 400 else 500,
+                        msg="%s未完成：%s；已完成的结果已保留。" % (kind, result.get("msg") or "训练失败"),
+                        data={"comparison_run_id": run_id, "results": output, "failed_variant": kind})), response.status_code if response.status_code >= 400 else 500
+                record = result.get("data") or {}
+                if record.get("preparation_id") != prep_id or record.get("dataset_source_id") != source_id:
+                    return jsonify(api_response(code=409, msg="训练数据版本不一致，已中止三路对比。",
+                        data={"comparison_run_id": run_id, "results": output})), 409
+                output[kind] = record
+            finally:
+                response.close()
+    return jsonify(api_response(msg="三路对比训练完成", data={"comparison_run_id": run_id, "results": output}))
+
+
 def _admin_training_centralized_locked():
     """Train the same linear model as each federated client on all train rows."""
     try:
@@ -3648,6 +3757,8 @@ def _admin_training_centralized_locked():
 
         with _dataset_prepare_lock:
             X, y, meta = _load_training_dataset_source(dataset_source_id, limit=50000)
+            if req.get("expected_preparation_id") and str(meta.get("preparation_id") or "") != str(req["expected_preparation_id"]):
+                return jsonify(api_response(code=409, msg="准备版本已变化，训练中止。")), 409
             if meta.get("source_not_found"):
                 return jsonify(api_response(code=404, msg="请求的数据源不存在，请刷新数据源列表后重试。")), 404
             if len(X) < 20 or len(np.unique((y > 0).astype(int))) < 2:
@@ -3677,17 +3788,24 @@ def _admin_training_centralized_locked():
                     msg="共享留出集与当前准备版本不一致，请重新执行数据处理。",
                 )), 409
 
+        from src.federated.performance import training_performance
+        training_started = time.perf_counter()
         baseline = FederatedClient("centralized-baseline", "")
         baseline.X = np.asarray(X, dtype=np.float64)
         baseline.y = np.asarray(y, dtype=np.int32)
         baseline._loaded = True
         class_weights = balanced_binary_class_weights(baseline.y)
         baseline.class_weights = class_weights
+        compute_started = time.perf_counter()
         fit_result = baseline.train_local(
             global_weights=None,
             epochs=epochs,
             use_internal_validation=False,
         )
+        compute_ms = (time.perf_counter() - compute_started) * 1000.0
+        performance = training_performance(training_started, len(X), compute_ms,
+                                           validation_x, fit_result.get("weights"),
+                                           aggregation_time_ms=0.0, key_setup_time_ms=0.0)
         metrics = evaluate_linear_binary_weights(
             validation_x,
             validation_y,
@@ -3703,6 +3821,9 @@ def _admin_training_centralized_locked():
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "task_type": "centralized",
             "comparison_role": "ordinary_centralized_baseline",
+            "comparison_run_id": req.get("comparison_run_id"),
+            "comparison_variant": "centralized",
+            "performance": performance,
             "source": meta.get("training_source", "managed_dataset_source"),
             "model_type": "centralized_linear_baseline",
             "status": "completed",
@@ -3800,6 +3921,8 @@ def _admin_training_local_locked():
                     and validation_meta.get("validation_id") == meta.get("validation_id")
                 ):
                     validation_x, validation_y = candidate_x, candidate_y
+            if req.get("expected_preparation_id") and str(meta.get("preparation_id") or "") != str(req["expected_preparation_id"]):
+                return jsonify(api_response(code=409, msg="数据准备版本已变化，请刷新后重新训练融合模型。")), 409
         if len(X) < 10:
             return jsonify(api_response(code=400, msg="当前数据源没有足够的可训练数据，请确认标签与样本数量后重试。")), 400
         if len(np.unique((y > 0).astype(int))) < 2:
@@ -4002,6 +4125,8 @@ def _admin_training_federated_locked():
             # preparation revision.  A request-level row limit must not make
             # X/y disagree with the four node files.
             X, y, meta = _load_training_dataset_source(dataset_source_id, limit=50000)
+            if req.get("expected_preparation_id") and str(meta.get("preparation_id") or "") != str(req["expected_preparation_id"]):
+                return jsonify(api_response(code=409, msg="准备版本已变化，训练中止。")), 409
             if meta.get("source_not_found"):
                 return jsonify(api_response(code=404, msg="请求的数据源不存在，请刷新数据源列表后重试。")), 404
             if len(X) < 20:
@@ -4051,6 +4176,10 @@ def _admin_training_federated_locked():
                 ):
                     validation_x, validation_y = candidate_x, candidate_y
 
+            from src.federated.performance import training_performance
+            training_started = time.perf_counter()
+            compute_ms = 0.0
+            key_setup_ms = 0.0
             context_id = str(meta.get("preparation_id"))
             context_reset = fedavg_server.ensure_context(context_id, force_reset=not continue_training)
             class_weights = balanced_binary_class_weights(y)
@@ -4059,11 +4188,13 @@ def _admin_training_federated_locked():
                 client = FederatedClient(name, os.path.join(FEDERATED_DIR, name))
                 if client.load_data():
                     client.class_weights = class_weights
+                    compute_started = time.perf_counter()
                     results.append(client.train_local(
                         global_weights=fedavg_server.global_weights,
                         epochs=epochs,
                         use_internal_validation=not bool(len(validation_x)),
                     ))
+                    compute_ms += (time.perf_counter() - compute_started) * 1000.0
             if len(results) != len(NODE_NAMES):
                 return jsonify(api_response(
                     code=500,
@@ -4073,12 +4204,15 @@ def _admin_training_federated_locked():
             # Validate the selected data revision before paying the one-time
             # 2048-bit key-generation cost. Key generation happens outside
             # the dataset preparation lock so unrelated data reads stay fast.
+            key_started = time.perf_counter()
             secure_aggregation_key = get_secure_aggregation_paillier()
+            key_setup_ms = (time.perf_counter() - key_started) * 1000.0
             if secure_aggregation_key is None:
                 return jsonify(api_response(
                     code=503,
                     msg="Paillier 安全聚合密钥初始化失败；普通 FedAvg 仍可使用。",
                 )), 503
+        aggregation_started = time.perf_counter()
         if secure_aggregation_key is not None:
             global_weights, paillier_metrics = fedavg_server.aggregate_paillier(
                 results,
@@ -4101,6 +4235,11 @@ def _admin_training_federated_locked():
                 "note": "当前使用普通 FedAvg；可由管理员主动选择 2048 位 Paillier 密态权重聚合。",
             }
 
+        aggregation_ms = (time.perf_counter() - aggregation_started) * 1000.0
+        performance = training_performance(training_started, len(X), compute_ms,
+                                           validation_x, global_weights,
+                                           aggregation_time_ms=aggregation_ms,
+                                           key_setup_time_ms=key_setup_ms)
         latest_round = fedavg_server.get_history()[-1] if fedavg_server.get_history() else {}
         shared_validation_metrics = evaluate_linear_binary_weights(
             validation_x,
@@ -4131,12 +4270,15 @@ def _admin_training_federated_locked():
                 "当前数据量或类别分布不足以建立共享留出集，暂以节点内部验证指标加权汇总；"
                 "该数值不能与普通集中式基线指标直接判断优劣。"
             )
-        version = datetime.now().strftime("fed%Y%m%d%H%M%S%f")[:-3]
+        version = datetime.now().strftime("fed%Y%m%d%H%M%S%f") + ("-paillier" if secure_aggregation else "-plain")
         source_ids = _training_source_submission_ids(meta)
         data = {
             **meta,
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "task_type": "federated",
+            "performance": performance,
+            "comparison_run_id": req.get("comparison_run_id"),
+            "comparison_variant": "secure" if secure_aggregation else "federated",
             "source": meta.get("training_source", "encrypted_user_submissions"),
             "status": "completed",
             "model_version": version,
@@ -4314,6 +4456,10 @@ def _task_time_key(task):
 
 def _task_dedupe_key(task):
     meta = _parse_meta(task.get("metadata"))
+    nested = _parse_meta(meta.get("metadata"))
+    version = task.get("model_version") or task.get("version") or nested.get("model_version") or meta.get("model_version") or meta.get("version")
+    if version:
+        return "%s|version:%s" % (task.get("task_type") or "", version)
     return "|".join([
         str(task.get("task_type") or ""),
         str(task.get("source") or ""),
@@ -4528,7 +4674,51 @@ def _load_training_ai_comparison_cache():
         return {}
 
 
-def _training_comparison_identity(local_task, federated_task, payload):
+def _requested_training_comparison(params):
+    """Resolve the exact three displayed versions, or the legacy two-way pair."""
+    if not params.get("secure_version"):
+        local, fed = _latest_training_pair(dataset_source_id=str(params.get("dataset_source_id") or ""),
+                                         preparation_id=str(params.get("preparation_id") or ""))
+        return local, fed, None
+    versions = {"local": str(params.get("local_version") or ""),
+                "federated": str(params.get("federated_version") or ""),
+                "secure": str(params["secure_version"])}
+    selected = {}
+    for task in db.get_training_tasks(200):
+        merged = _training_task_merged(task)
+        if str(merged.get("status") or "completed").lower() not in {"completed", "success", "done"}:
+            continue
+        if params.get("dataset_source_id") and merged.get("dataset_source_id") != params["dataset_source_id"]:
+            continue
+        if params.get("preparation_id") and merged.get("preparation_id") != params["preparation_id"]:
+            continue
+        version = str(merged.get("model_version") or merged.get("version") or "")
+        kind = merged.get("comparison_variant")
+        if kind == "centralized":
+            kind = "local"
+        if kind in versions and versions[kind] == version:
+            selected[kind] = task
+    if len(selected) != 3:
+        return None, None, None
+    rows = [_training_task_merged(selected[k]) for k in ("local", "federated", "secure")]
+    run = rows[0].get("comparison_run_id")
+    crypto = rows[2].get("paillier") or {}
+    if any(not rows[0].get(key) or any(row.get(key) != rows[0][key] for row in rows)
+           for key in ("dataset_source_id", "dataset_revision", "preparation_id", "validation_id")):
+        return None, None, None
+    if rows[1].get("aggregation_method") != "plain" or any(row.get("continued_from_previous_round") for row in rows[1:]):
+        return None, None, None
+    if not run or any(row.get("comparison_run_id") != run for row in rows) or not (
+            crypto.get("secure_aggregation") and crypto.get("actual_crypto_operations_performed") and not crypto.get("display_only")):
+        return None, None, None
+    return selected["local"], selected["federated"], selected["secure"]
+
+
+def _training_comparison_payload(local, fed, secure):
+    return build_redacted_training_triplet_payload(local, fed, secure) if secure else build_redacted_training_comparison_payload(local, fed)
+
+
+def _training_comparison_identity(local_task, federated_task, payload, secure_task=None):
     # Aggregate payload deliberately omits source identifiers. Bind local saved
     # evidence to the exact tasks as well, so equal metrics never reuse another run.
     context = {}
@@ -4538,6 +4728,8 @@ def _training_comparison_identity(local_task, federated_task, payload):
             "id", "model_version", "version", "created_at", "timestamp",
             "dataset_source_id", "dataset_revision", "preparation_id", "validation_id",
         )}
+    if secure_task:
+        context["secure"] = _training_task_merged(secure_task)
     return canonical_fingerprint({"context": context, "payload": payload})
 
 
@@ -4586,16 +4778,13 @@ def admin_training_external_comparison_saved():
         if legacy:
             history = [dict(legacy, version_binding="unrecorded")] + history
         return jsonify(api_response(data={"records": list(reversed(history[-51:]))}))
-    local, fed = _latest_training_pair(
-        dataset_source_id=request.args.get("dataset_source_id", ""),
-        preparation_id=request.args.get("preparation_id", ""),
-    )
+    local, fed, secure = _requested_training_comparison(request.args)
     if local is None or fed is None:
         return jsonify(api_response(data=None))
     if not _training_comparison_versions_match(request.args, local, fed):
         return jsonify(api_response(data=None))
-    payload = build_redacted_training_comparison_payload(local, fed)
-    identity = _training_comparison_identity(local, fed, payload)
+    payload = _training_comparison_payload(local, fed, secure)
+    identity = _training_comparison_identity(local, fed, payload, secure)
     saved = _saved_training_comparison(identity, payload)
     return jsonify(api_response(data=saved))
 
@@ -4611,10 +4800,7 @@ def admin_training_external_comparison():
         return jsonify(api_response(code=503, msg="AI 接口尚未完成配置，现有训练对比不受影响。")), 503
 
     req = request.get_json(silent=True) or {}
-    local_task, federated_task = _latest_training_pair(
-        dataset_source_id=str(req.get("dataset_source_id") or ""),
-        preparation_id=str(req.get("preparation_id") or ""),
-    )
+    local_task, federated_task, secure_task = _requested_training_comparison(req)
     if local_task is None or federated_task is None:
         return jsonify(api_response(
             code=409,
@@ -4622,8 +4808,8 @@ def admin_training_external_comparison():
         )), 409
     if not _training_comparison_versions_match(req, local_task, federated_task):
         return jsonify(api_response(code=409, msg="训练版本已更新，请刷新后再解读。")), 409
-    payload = build_redacted_training_comparison_payload(local_task, federated_task)
-    identity = _training_comparison_identity(local_task, federated_task, payload)
+    payload = _training_comparison_payload(local_task, federated_task, secure_task)
+    identity = _training_comparison_identity(local_task, federated_task, payload, secure_task)
     force_value = req.get("force", False)
     force = force_value is True or str(force_value).lower() in {"1", "true", "yes"}
     cached = _saved_training_comparison(identity, payload, settings)
@@ -4653,6 +4839,7 @@ def admin_training_external_comparison():
             "preparation_id": merged_local.get("preparation_id"),
             "local_version": merged_local.get("model_version") or merged_local.get("version"),
             "federated_version": merged_fed.get("model_version") or merged_fed.get("version"),
+            "secure_version": (_training_task_merged(secure_task).get("model_version") or _training_task_merged(secure_task).get("version")) if secure_task else None,
         }
         record["comparison_facts"] = {
             "deterministic_differences": payload.get("deterministic_differences", {}),
@@ -4823,7 +5010,9 @@ def admin_audit_events():
             offset = 0
         event_type = request.args.get("event_type")
         exclude_event_type = request.args.get("exclude_event_type")
-        risk_level = request.args.get("risk_level")
+        risk_level = request.args.get("risk_level", "" if event_type == "site_visit" else "medium,high,critical")
+        if not event_type:
+            exclude_event_type = "site_visit"
         ip = request.args.get("ip")
         path_filter = request.args.get("path")
         events, total = read_events(

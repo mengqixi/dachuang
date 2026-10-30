@@ -8,7 +8,7 @@ const source = [
   extract('function resetUserSubmissionState(','function renderUploadSummary('),
   extract('async function analyzeCurrentSubmission(','async function runUserAiAssist('),
   extract('async function runUserAiAssist(','function waitMs('),
-  extract('async function loadReport(','function buildReportDocument('),
+  extract('async function loadReport(','let reportDownloadBusy='),
 ].join('\n');
 const defer = () => {let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve}};
 function context(){

@@ -3,21 +3,23 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const html = fs.readFileSync('index.html', 'utf8');
 const functions = html.slice(html.indexOf('function datasetSourceCategoryKey('), html.indexOf('function datasetDisplayName('));
+const labelFunction = html.slice(html.indexOf('function datasetLabelDistribution('), html.indexOf('function updateExternalAiEndpointHint('));
 const controls = {};
 const document = {getElementById: id => controls[id] ||= {innerHTML:'',textContent:'',hidden:false}};
 const build = new Function('document', `
   const obj=x=>x||{}, arr=x=>Array.isArray(x)?x:[], esc=x=>String(x??'');
   const datasetDisplayName=s=>s.name||s.id,shortText=(s,n)=>String(s).slice(0,n);
   const sortDatasetSourcesForDisplay=s=>s.slice();
-  const renderDistTags=()=>'',distributionScopeNote=()=>'';
-  let datasetSourceCategory='all',datasetSourcesExpanded=false,datasetSourceList=[];
+  const renderDistTags=x=>JSON.stringify(x),distributionScopeNote=()=>'';
+  let datasetSourceCategory='all',datasetSourceList=[];
   let currentDatasetSourceId='selected',currentDatasetSource={id:'selected',samples:63999,prepared_for_federated:true};
   let compactDatasetRows=[],datasetSourceContext={};
   const selectedUserSources=new Set();
   const datasetSourceTable=document.getElementById('table'),systemDataMetrics=document.getElementById('metrics');
   const datasetSourceActions=s=>'detail-index:'+compactDatasetRows.indexOf(s);
+  ${labelFunction}
   ${functions}
-  return {category:datasetSourceCategoryKey,label:datasetSourceCategoryLabel,counts:datasetPreparationCounts,
+  return {category:datasetSourceCategoryKey,label:datasetSourceCategoryLabel,counts:datasetPreparationCounts,distribution:datasetLabelDistribution,
     set:setDatasetSourceCategory,render:renderDatasetSourceList,summary:renderDatasetPreparationSummary,select:setUserSourceSelected,
     initialize:list=>{datasetSourceList=list;renderDatasetSourceList()},
     state:()=>({selected:currentDatasetSourceId,rows:compactDatasetRows,table:datasetSourceTable.innerHTML,metrics:systemDataMetrics.innerHTML})};
@@ -51,7 +53,17 @@ ui.summary({processed:prep,model_inventory:{runtime_detector:{ready:true,version
 assert(controls.datasetModelStatus.innerHTML.includes('未对应当前准备版本'));
 assert(ui.state().metrics.includes('40,000'));
 ui.initialize([{id:'submission:a',source_type:'user_submission',submission_id:'a',name:'first.csv',upload_time:'2026-10-30 09:00:00',samples:20,trainable:true},{id:'submission:b',source_type:'user_submission',submission_id:'b',name:'second.csv',samples:30,trainable:true}]);
-ui.set('user');assert(ui.state().table.includes('提交 2026-10-30 09:00:00'));
+ui.set('user');assert(ui.state().table.includes('提交时间：2026-10-30 09:00:00'));
 ui.select(0,true);ui.select(1,true);assert.equal(controls.prepareSelectedSourcesButton.disabled,false);
 assert.equal(ui.state().selected,'selected');
+ui.initialize(Array.from({length:14},(_,i)=>({id:'submission:'+i,source_type:'user_submission',samples:20,trainable:true,upload_time:'2026-10-30 12:00:00'})));
+ui.set('user');assert.equal(ui.state().rows.length,14);
+assert.equal(controls.datasetSourceSummary.textContent,'共 14 个数据源');
+assert(!html.includes('id="datasetSourceToggle"'));assert(!html.includes('datasetSourcesExpanded'));
+assert(html.includes('id="datasetSourceScroll"'));assert(html.includes('height:clamp(280px,52vh,540px)'));
+assert(ui.state().table.includes('提交时间：2026-10-30 12:00:00'));
+assert(ui.distribution({label_distribution:{'0':62,'1':63},unlabeled_rows:1}).includes('62'));
+assert(ui.distribution({label_statistics_status:'pending',label_column:'label'}).includes('待统计'));
+assert(ui.distribution({label_statistics_status:'unlabeled'}).includes('无标签'));
+assert(ui.distribution({label_column:'label'}).includes('待统计'));
 console.log('Dataset categories, independent selection, detail indices, empty states, preparation counts and model context: passed');

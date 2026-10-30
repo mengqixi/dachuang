@@ -83,7 +83,7 @@ class TestPracticalPlatformRoadmap(unittest.TestCase):
             html,
         )
         self.assertIn("指标可比 · 质量告警", html)
-        self.assertIn("隐私暴露风险", html)
+        self.assertIn("隐私评估详情", html)
         self.assertIn("analyzeSubmission", html)
         self.assertNotIn("Top 20", html)
         self.assertNotIn("风险详情模块", html)
@@ -180,7 +180,8 @@ class TestPracticalPlatformRoadmap(unittest.TestCase):
         with open('index.html',encoding='utf-8') as stream:
             html=stream.read()
         self.assertNotIn('archiveSubmission(',html)
-        self.assertIn('>允许训练</button>',html)
+        self.assertIn('>接受</button>',html)
+        self.assertIn('title="接受并允许训练"',html)
 
     def test_score_explanation_uses_original_model_signal_for_both_fusion_paths(self):
         module = self.submission_module
